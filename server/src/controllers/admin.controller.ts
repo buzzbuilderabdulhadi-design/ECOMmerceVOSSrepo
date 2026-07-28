@@ -1,0 +1,423 @@
+import { Request, Response, NextFunction } from 'express';
+import prisma from '../config/db';
+import { sendSuccess, sendCreated, sendPaginated, sendMessage } from '../utils/apiResponse';
+import { ApiError } from '../utils/apiError';
+
+export const getDashboard = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [totalProducts, totalOrders, totalCustomers, totalRevenue, pendingOrders, lowStockProducts, recentOrders, recentCustomers, recentReviews] = await Promise.all([
+      prisma.product.count({ where: { isActive: true } }),
+      prisma.order.count(),
+      prisma.user.count({ where: { role: 'CUSTOMER' } }),
+      prisma.order.aggregate({ _sum: { total: true }, where: { paymentStatus: 'PAID' } }),
+      prisma.order.count({ where: { status: 'PENDING' } }),
+      prisma.product.count({ where: { stock: { lte: 5 } } }),
+      prisma.order.findMany({ take: 5, orderBy: { createdAt: 'desc' }, include: { user: { select: { name: true, email: true } } } }),
+      prisma.user.findMany({ take: 5, orderBy: { createdAt: 'desc' }, select: { id: true, name: true, email: true, avatar: true, createdAt: true } }),
+      prisma.review.findMany({ take: 5, orderBy: { createdAt: 'desc' }, include: { user: { select: { name: true } }, product: { select: { name: true } } } }),
+    ]);
+    sendSuccess(res, { stats: { totalProducts, totalOrders, totalCustomers, totalRevenue: totalRevenue._sum.total || 0, pendingOrders, lowStockProducts }, recentOrders, recentCustomers, recentReviews });
+  } catch (error) { next(error); }
+};
+
+export const getAnalytics = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const [thisMonthRevenue, lastMonthRevenue, totalOrders, totalCustomers, topProducts] = await Promise.all([
+      prisma.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: thisMonth }, paymentStatus: 'PAID' } }),
+      prisma.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: lastMonth, lt: thisMonth }, paymentStatus: 'PAID' } }),
+      prisma.order.count(),
+      prisma.user.count({ where: { role: 'CUSTOMER' } }),
+      prisma.product.findMany({ take: 10, orderBy: { reviews: { _count: 'desc' } }, include: { _count: { select: { reviews: true, orderItems: true } } } }),
+    ]);
+    sendSuccess(res, { revenue: { thisMonth: thisMonthRevenue._sum.total || 0, lastMonth: lastMonthRevenue._sum.total || 0 }, totalOrders, totalCustomers, topProducts });
+  } catch (error) { next(error); }
+};
+
+export const getSalesAnalytics = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const orders = await prisma.order.findMany({ where: { createdAt: { gte: startDate }, paymentStatus: 'PAID' }, orderBy: { createdAt: 'asc' }, select: { total: true, createdAt: true } });
+    sendSuccess(res, { period: `${days}d`, orders });
+  } catch (error) { next(error); }
+};
+
+export const getOrderAnalytics = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [byStatus, total] = await Promise.all([prisma.order.groupBy({ by: ['status'], _count: true }), prisma.order.aggregate({ _sum: { total: true } })]);
+    sendSuccess(res, { byStatus, totalRevenue: total._sum.total || 0 });
+  } catch (error) { next(error); }
+};
+
+export const getProductAnalytics = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [total, active, lowStock, outOfStock, byCategory] = await Promise.all([
+      prisma.product.count(), prisma.product.count({ where: { isActive: true } }), prisma.product.count({ where: { stock: { lte: 5 }, isActive: true } }), prisma.product.count({ where: { stock: 0 } }), prisma.product.groupBy({ by: ['categoryId'], _count: true }),
+    ]);
+    sendSuccess(res, { total, active, lowStock, outOfStock, byCategory });
+  } catch (error) { next(error); }
+};
+
+export const getCustomerAnalytics = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [total, newThisMonth, withOrders] = await Promise.all([
+      prisma.user.count({ where: { role: 'CUSTOMER' } }), prisma.user.count({ where: { role: 'CUSTOMER', createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }), prisma.user.count({ where: { role: 'CUSTOMER', orders: { some: {} } } }),
+    ]);
+    sendSuccess(res, { total, newThisMonth, withOrders });
+  } catch (error) { next(error); }
+};
+
+export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const search = req.query.search as string;
+    const categoryId = req.query.categoryId as string;
+    const status = req.query.status as string;
+    const sort = req.query.sort as string || 'createdAt';
+    const order = req.query.order as string || 'desc';
+    const where: any = {};
+    if (search) where.name = { contains: search, mode: 'insensitive' };
+    if (categoryId) where.categoryId = categoryId;
+    if (status === 'active') where.isActive = true;
+    if (status === 'inactive') where.isActive = false;
+    if (status === 'lowStock') where.stock = { lte: 5 };
+    if (status === 'outOfStock') where.stock = 0;
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { [sort]: order }, include: { category: { select: { id: true, name: true, slug: true } }, _count: { select: { reviews: true, orderItems: true } } } }),
+      prisma.product.count({ where }),
+    ]);
+    sendPaginated(res, products, { page, limit, total });
+  } catch (error) { next(error); }
+};
+
+export const getProduct = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const product = await prisma.product.findUnique({ where: { id }, include: { category: true, variants: true, reviews: { include: { user: { select: { name: true, avatar: true } } } } } });
+    if (!product) throw ApiError.notFound('Product not found');
+    sendSuccess(res, product);
+  } catch (error) { next(error); }
+};
+
+export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const product = await prisma.product.create({ data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_PRODUCT', entity: 'Product', entityId: product.id } });
+    sendCreated(res, product, 'Product created successfully');
+  } catch (error) { next(error); }
+};
+
+export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const product = await prisma.product.update({ where: { id }, data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_PRODUCT', entity: 'Product', entityId: product.id } });
+    sendSuccess(res, product, 'Product updated successfully');
+  } catch (error) { next(error); }
+};
+
+export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.product.delete({ where: { id } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT', entity: 'Product', entityId: id } });
+    sendMessage(res, 'Product deleted successfully');
+  } catch (error) { next(error); }
+};
+
+export const bulkDeleteProducts = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { ids } = req.body;
+    await prisma.product.deleteMany({ where: { id: { in: ids } } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'BULK_DELETE_PRODUCTS', entity: 'Product', metadata: { count: ids.length } } });
+    sendMessage(res, `${ids.length} products deleted successfully`);
+  } catch (error) { next(error); }
+};
+
+export const bulkUpdateProducts = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { ids, data } = req.body;
+    await prisma.product.updateMany({ where: { id: { in: ids } }, data });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'BULK_UPDATE_PRODUCTS', entity: 'Product', metadata: { count: ids.length, update: data } } });
+    sendMessage(res, `${ids.length} products updated successfully`);
+  } catch (error) { next(error); }
+};
+
+export const duplicateProduct = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const original = await prisma.product.findUnique({ where: { id }, include: { variants: true } });
+    if (!original) throw ApiError.notFound('Product not found');
+    const { createdAt, updatedAt, variants, ...productData } = original;
+    const duplicate = await prisma.product.create({
+      data: {
+        ...productData,
+        name: `${productData.name} (Copy)`,
+        slug: `${productData.slug}-copy-${Date.now()}`,
+        sku: `${productData.sku}-COPY`,
+        specifications: productData.specifications !== null ? productData.specifications : undefined,
+      } as any,
+    });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DUPLICATE_PRODUCT', entity: 'Product', entityId: duplicate.id } });
+    sendCreated(res, duplicate, 'Product duplicated successfully');
+  } catch (error) { next(error); }
+};
+
+export const getCategories = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const categories = await prisma.category.findMany({ orderBy: { displayOrder: 'asc' }, include: { _count: { select: { products: true } }, children: true } });
+    sendSuccess(res, categories);
+  } catch (error) { next(error); }
+};
+
+export const getCategory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const category = await prisma.category.findUnique({ where: { id }, include: { parent: true, children: true, products: { take: 10, orderBy: { createdAt: 'desc' } } } });
+    if (!category) throw ApiError.notFound('Category not found');
+    sendSuccess(res, category);
+  } catch (error) { next(error); }
+};
+
+export const createCategory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const category = await prisma.category.create({ data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_CATEGORY', entity: 'Category', entityId: category.id } });
+    sendCreated(res, category, 'Category created successfully');
+  } catch (error) { next(error); }
+};
+
+export const updateCategory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const category = await prisma.category.update({ where: { id }, data: req.body });
+    sendSuccess(res, category, 'Category updated successfully');
+  } catch (error) { next(error); }
+};
+
+export const deleteCategory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.category.delete({ where: { id } });
+    sendMessage(res, 'Category deleted successfully');
+  } catch (error) { next(error); }
+};
+
+export const getOrders = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const status = req.query.status as string;
+    const search = req.query.search as string;
+    const where: any = {};
+    if (status) where.status = status;
+    if (search) where.orderNumber = { contains: search, mode: 'insensitive' };
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true, email: true } }, items: true } }),
+      prisma.order.count({ where }),
+    ]);
+    sendPaginated(res, orders, { page, limit, total });
+  } catch (error) { next(error); }
+};
+
+export const getOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const order = await prisma.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: true, variant: true } } } });
+    if (!order) throw ApiError.notFound('Order not found');
+    sendSuccess(res, order);
+  } catch (error) { next(error); }
+};
+
+export const updateOrderStatus = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const { status, trackingNumber, notes } = req.body;
+    const order = await prisma.order.update({ where: { id }, data: { ...(status && { status }), ...(trackingNumber && { trackingNumber }), ...(notes && { internalNotes: notes }) } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_ORDER_STATUS', entity: 'Order', entityId: order.id, metadata: { status } } });
+    sendSuccess(res, order, 'Order status updated');
+  } catch (error) { next(error); }
+};
+
+export const deleteOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.order.delete({ where: { id } });
+    sendMessage(res, 'Order deleted');
+  } catch (error) { next(error); }
+};
+
+export const getCustomers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const search = req.query.search as string;
+    const where: any = { role: 'CUSTOMER' };
+    if (search) { where.OR = [{ name: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }]; }
+    const [customers, total] = await Promise.all([
+      prisma.user.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, select: { id: true, name: true, email: true, avatar: true, phone: true, createdAt: true, _count: { select: { orders: true, reviews: true } } } }),
+      prisma.user.count({ where }),
+    ]);
+    sendPaginated(res, customers, { page, limit, total });
+  } catch (error) { next(error); }
+};
+
+export const getCustomer = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const customer = await prisma.user.findUnique({ where: { id }, include: { addresses: true, orders: { take: 10, orderBy: { createdAt: 'desc' } }, reviews: { take: 5, include: { product: { select: { name: true } } } }, wishlist: { include: { product: { select: { id: true, name: true, slug: true, regularPrice: true, images: true } } } } } });
+    if (!customer) throw ApiError.notFound('Customer not found');
+    sendSuccess(res, customer);
+  } catch (error) { next(error); }
+};
+
+export const updateCustomer = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const { name, phone, emailVerified } = req.body;
+    const customer = await prisma.user.update({ where: { id }, data: { ...(name && { name }), ...(phone !== undefined && { phone }), ...(emailVerified !== undefined && { emailVerified }) }, select: { id: true, name: true, email: true, phone: true, avatar: true, emailVerified: true } });
+    sendSuccess(res, customer, 'Customer updated');
+  } catch (error) { next(error); }
+};
+
+export const deleteCustomer = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.user.delete({ where: { id } });
+    sendMessage(res, 'Customer deleted');
+  } catch (error) { next(error); }
+};
+
+export const getReviews = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const status = req.query.status as string;
+    const where: any = {};
+    if (status === 'pending') where.isApproved = false;
+    if (status === 'approved') where.isApproved = true;
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true, avatar: true } }, product: { select: { id: true, name: true, slug: true } } } }),
+      prisma.review.count({ where }),
+    ]);
+    sendPaginated(res, reviews, { page, limit, total });
+  } catch (error) { next(error); }
+};
+
+export const updateReview = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const { isApproved, adminReply } = req.body;
+    const review = await prisma.review.update({ where: { id }, data: { ...(isApproved !== undefined && { isApproved }), ...(adminReply !== undefined && { adminReply }) } });
+    sendSuccess(res, review, 'Review updated');
+  } catch (error) { next(error); }
+};
+
+export const deleteReview = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.review.delete({ where: { id } });
+    sendMessage(res, 'Review deleted');
+  } catch (error) { next(error); }
+};
+
+export const getCoupons = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const [coupons, total] = await Promise.all([prisma.coupon.findMany({ skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }), prisma.coupon.count()]);
+    sendPaginated(res, coupons, { page, limit, total });
+  } catch (error) { next(error); }
+};
+
+export const getCoupon = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const coupon = await prisma.coupon.findUnique({ where: { id } });
+    if (!coupon) throw ApiError.notFound('Coupon not found');
+    sendSuccess(res, coupon);
+  } catch (error) { next(error); }
+};
+
+export const createCoupon = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const coupon = await prisma.coupon.create({ data: req.body });
+    sendCreated(res, coupon, 'Coupon created');
+  } catch (error) { next(error); }
+};
+
+export const updateCoupon = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const coupon = await prisma.coupon.update({ where: { id }, data: req.body });
+    sendSuccess(res, coupon, 'Coupon updated');
+  } catch (error) { next(error); }
+};
+
+export const deleteCoupon = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.coupon.delete({ where: { id } });
+    sendMessage(res, 'Coupon deleted');
+  } catch (error) { next(error); }
+};
+
+export const getMedia = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const folder = req.query.folder as string;
+    const where: any = {};
+    if (folder) where.folder = folder;
+    const media = await prisma.media.findMany({ where, orderBy: { createdAt: 'desc' } });
+    sendSuccess(res, media);
+  } catch (error) { next(error); }
+};
+
+export const uploadMedia = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const media = await prisma.media.create({ data: { ...req.body, uploadedBy: req.user?.userId } });
+    sendCreated(res, media, 'File uploaded');
+  } catch (error) { next(error); }
+};
+
+export const deleteMedia = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.media.delete({ where: { id } });
+    sendMessage(res, 'File deleted');
+  } catch (error) { next(error); }
+};
+
+export const getSiteSettings = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const settings = await prisma.siteSetting.findMany();
+    const settingsMap: Record<string, any> = {};
+    settings.forEach((s: { key: string; value: any }) => { settingsMap[s.key] = s.value; });
+    sendSuccess(res, settingsMap);
+  } catch (error) { next(error); }
+};
+
+export const updateSiteSettings = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const updates = req.body;
+    for (const [key, value] of Object.entries(updates)) {
+      await prisma.siteSetting.upsert({ where: { key }, update: { value: value as any }, create: { key, value: value as any } });
+    }
+    sendSuccess(res, updates, 'Settings updated');
+  } catch (error) { next(error); }
+};
+
+export const getSeoEntries = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const entries = await prisma.seoEntry.findMany({ orderBy: { page: 'asc' } });
+    sendSuccess(resThe file is missing the final sections. Let me read it and complete it.
+
+<read_file>
+<path>c:/Users/buzzb/Desktop/project ecom/server/src/controllers/admin.controller.ts</path>
+<end_line>500</end_line>
+</｜｜DSML｜｜tool_calls>
+

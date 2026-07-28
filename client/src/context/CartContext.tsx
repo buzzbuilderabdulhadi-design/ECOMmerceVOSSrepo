@@ -1,0 +1,301 @@
+'use client';
+
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useCallback,
+  useEffect,
+  ReactNode,
+} from 'react';
+import type { Cart, CartItem, Product } from '@/types';
+import axiosInstance, { getErrorMessage } from '@/services/axios';
+
+// ============================================================
+// Cart Context — Shopping Cart State Management
+// ============================================================
+
+type CartAction =
+  | { type: 'SET_CART'; payload: Cart }
+  | { type: 'ADD_ITEM'; payload: CartItem }
+  | { type: 'UPDATE_QUANTITY'; payload: { id: string; quantity: number } }
+  | { type: 'REMOVE_ITEM'; payload: string }
+  | { type: 'CLEAR_CART' }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'APPLY_COUPON'; payload: { code: string; discount: number } }
+  | { type: 'REMOVE_COUPON' };
+
+interface CartContextType {
+  cart: Cart | null;
+  isLoading: boolean;
+  error: string | null;
+  itemCount: number;
+  subtotal: number;
+  addItem: (
+    product: Product,
+    quantity: number,
+    variantId?: string
+  ) => Promise<void>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
+  removeItem: (itemId: string) => Promise<void>;
+  clearCart: () => Promise<void>;
+  applyCoupon: (code: string) => Promise<void>;
+  removeCoupon: () => Promise<void>;
+  refreshCart: () => Promise<void>;
+}
+
+const CartContext = createContext<CartContextType | undefined>(undefined);
+
+const initialState: {
+  cart: Cart | null;
+  isLoading: boolean;
+  error: string | null;
+} = {
+  cart: null,
+  isLoading: false,
+  error: null,
+};
+
+const cartReducer = (
+  state: typeof initialState,
+  action: CartAction
+): typeof initialState => {
+  switch (action.type) {
+    case 'SET_CART':
+      return { ...state, cart: action.payload, isLoading: false, error: null };
+    case 'ADD_ITEM': {
+      if (!state.cart) return state;
+      const existingIndex = state.cart.items.findIndex(
+        (item) => item.id === action.payload.id
+      );
+      let newItems: CartItem[];
+      if (existingIndex >= 0) {
+        newItems = state.cart.items.map((item, i) =>
+          i === existingIndex
+            ? { ...item, quantity: item.quantity + action.payload.quantity }
+            : item
+        );
+      } else {
+        newItems = [...state.cart.items, action.payload];
+      }
+      return {
+        ...state,
+        cart: { ...state.cart, items: newItems },
+        isLoading: false,
+      };
+    }
+    case 'UPDATE_QUANTITY': {
+      if (!state.cart) return state;
+      return {
+        ...state,
+        cart: {
+          ...state.cart,
+          items: state.cart.items.map((item) =>
+            item.id === action.payload.id
+              ? { ...item, quantity: action.payload.quantity }
+              : item
+          ),
+        },
+      };
+    }
+    case 'REMOVE_ITEM': {
+      if (!state.cart) return state;
+      return {
+        ...state,
+        cart: {
+          ...state.cart,
+          items: state.cart.items.filter(
+            (item) => item.id !== action.payload
+          ),
+        },
+      };
+    }
+    case 'CLEAR_CART':
+      return { ...state, cart: null, error: null };
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, isLoading: false };
+    case 'APPLY_COUPON':
+      if (!state.cart) return state;
+      return {
+        ...state,
+        cart: {
+          ...state.cart,
+          couponCode: action.payload.code,
+          discountAmount: action.payload.discount,
+        },
+      };
+    case 'REMOVE_COUPON':
+      if (!state.cart) return state;
+      return {
+        ...state,
+        cart: {
+          ...state.cart,
+          couponCode: undefined,
+          discountAmount: undefined,
+        },
+      };
+    default:
+      return state;
+  }
+};
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(cartReducer, initialState);
+
+  const refreshCart = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const response = await axiosInstance.get('/cart');
+      dispatch({ type: 'SET_CART', payload: response.data.data });
+    } catch (error) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: getErrorMessage(error),
+      });
+    }
+  }, []);
+
+  // Load cart on mount
+  useEffect(() => {
+    refreshCart();
+  }, [refreshCart]);
+
+  const addItem = useCallback(
+    async (product: Product, quantity: number, variantId?: string) => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      try {
+        const response = await axiosInstance.post('/cart/items', {
+          productId: product.id,
+          variantId,
+          quantity,
+        });
+        dispatch({ type: 'SET_CART', payload: response.data.data });
+      } catch (error) {
+        dispatch({
+          type: 'SET_ERROR',
+          payload: getErrorMessage(error),
+        });
+      }
+    },
+    []
+  );
+
+  const updateQuantity = useCallback(
+    async (itemId: string, quantity: number) => {
+      dispatch({ type: 'UPDATE_QUANTITY', payload: { id: itemId, quantity } });
+      try {
+        await axiosInstance.put(`/cart/items/${itemId}`, { quantity });
+      } catch (error) {
+        // Revert on failure
+        refreshCart();
+        dispatch({
+          type: 'SET_ERROR',
+          payload: getErrorMessage(error),
+        });
+      }
+    },
+    [refreshCart]
+  );
+
+  const removeItem = useCallback(
+    async (itemId: string) => {
+      dispatch({ type: 'REMOVE_ITEM', payload: itemId });
+      try {
+        await axiosInstance.delete(`/cart/items/${itemId}`);
+      } catch (error) {
+        refreshCart();
+        dispatch({
+          type: 'SET_ERROR',
+          payload: getErrorMessage(error),
+        });
+      }
+    },
+    [refreshCart]
+  );
+
+  const clearCart = useCallback(async () => {
+    dispatch({ type: 'CLEAR_CART' });
+    try {
+      await axiosInstance.delete('/cart');
+    } catch (error) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: getErrorMessage(error),
+      });
+    }
+  }, []);
+
+  const applyCoupon = useCallback(async (code: string) => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const response = await axiosInstance.post('/cart/coupon', { code });
+      dispatch({
+        type: 'APPLY_COUPON',
+        payload: {
+          code,
+          discount: response.data.data.discount,
+        },
+      });
+    } catch (error) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: getErrorMessage(error),
+      });
+    }
+  }, []);
+
+  const removeCoupon = useCallback(async () => {
+    dispatch({ type: 'REMOVE_COUPON' });
+    try {
+      await axiosInstance.delete('/cart/coupon');
+    } catch (error) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: getErrorMessage(error),
+      });
+    }
+  }, []);
+
+  // Computed values
+  const itemCount =
+    state.cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0;
+
+  const subtotal =
+    state.cart?.items.reduce((sum, item) => {
+      const price = item.product?.salePrice ?? item.product?.regularPrice ?? 0;
+      return sum + price * item.quantity;
+    }, 0) || 0;
+
+  return (
+    <CartContext.Provider
+      value={{
+        cart: state.cart,
+        isLoading: state.isLoading,
+        error: state.error,
+        itemCount,
+        subtotal,
+        addItem,
+        updateQuantity,
+        removeItem,
+        clearCart,
+        applyCoupon,
+        removeCoupon,
+        refreshCart,
+      }}
+    >
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+export function useCart(): CartContextType {
+  const context = useContext(CartContext);
+  if (context === undefined) {
+    throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+}
+
