@@ -102,9 +102,9 @@ app.get('/api/health', (_req, res) => {
 // API Routes
 // ============================================================
 
-import adminRoutes from './routes/admin.routes';
+import routes from './routes';
 
-app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1', routes);
 
 // ============================================================
 // Error Handling

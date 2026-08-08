@@ -14,51 +14,16 @@ import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
+import { getProductsBySubcategory, categoryDescriptions, categories } from '@/data/products';
 
-// ============================================================
-// Category Page — Browse products by category
-// ============================================================
-
-const categoryData: Record<string, { name: string; description: string; image: string }> = {
-  'leather-jackets': {
-    name: 'Leather Jackets',
-    description: 'Discover our premium collection of handcrafted leather jackets. Each piece is meticulously crafted from the finest full-grain leather, offering timeless style and exceptional durability.',
-    image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=1200&q=80',
-  },
-  'bomber-jackets': {
-    name: 'Bomber Jackets',
-    description: 'Classic bomber jackets reimagined for the modern wardrobe. From sleek MA-1 styles to luxurious suede iterations, find your perfect layer.',
-    image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=1200&q=80',
-  },
-  'suede-jackets': {
-    name: 'Suede Jackets',
-    description: 'Luxuriously soft suede jackets that elevate any outfit. Our suede collection features both timeless silhouettes and contemporary designs.',
-    image: 'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=1200&q=80',
-  },
-  'denim-jackets': {
-    name: 'Denim Jackets',
-    description: 'Premium denim jackets crafted from Japanese selvedge denim and heavyweight cotton. Each jacket is built to last a lifetime.',
-    image: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=1200&q=80',
-  },
-};
-
-const categoryProducts: Record<string, ProductCardData[]> = {
-  'leather-jackets': [
-    { id: '1', name: 'Classic Brown Leather Jacket', slug: 'classic-brown-leather-jacket', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80', regularPrice: 450, salePrice: 395, discountPercent: 12, rating: 4.8, reviewCount: 124, isNew: true, brand: 'VOSS', category: 'Leather Jackets', colors: [{ name: 'Brown', hex: '#8B5E3C' }, { name: 'Black', hex: '#000000' }] },
-    { id: '7', name: 'Motorcycle Racer Jacket', slug: 'motorcycle-racer-jacket', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80', regularPrice: 590, salePrice: 499, discountPercent: 15, rating: 4.8, reviewCount: 145, isBestSeller: true, brand: 'VOSS', category: 'Leather Jackets', colors: [{ name: 'Black', hex: '#000000' }, { name: 'Brown', hex: '#8B5E3C' }] },
-    { id: '9', name: 'Cropped Leather Biker Jacket', slug: 'cropped-leather-biker', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80', regularPrice: 350, salePrice: 299, rating: 4.6, reviewCount: 78, brand: 'VOSS', category: 'Leather Jackets', colors: [{ name: 'Black', hex: '#000000' }] },
-  ],
-  'bomber-jackets': [
-    { id: '2', name: 'Black Suede Bomber Jacket', slug: 'black-suede-bomber-jacket', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80', regularPrice: 520, salePrice: 455, discountPercent: 12, rating: 4.9, reviewCount: 89, isBestSeller: true, brand: 'VOSS', category: 'Bomber Jackets', colors: [{ name: 'Black', hex: '#000000' }, { name: 'Navy', hex: '#112C47' }] },
-    { id: '12', name: 'Quilted Bomber Jacket', slug: 'quilted-bomber-jacket', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80', regularPrice: 480, salePrice: 399, discountPercent: 17, rating: 4.8, reviewCount: 156, isNew: true, brand: 'VOSS', category: 'Bomber Jackets', colors: [{ name: 'Navy', hex: '#112C47' }, { name: 'Green', hex: '#2E8B57' }] },
-  ],
-  'suede-jackets': [
-    { id: '3', name: 'Tan Suede Varsity Jacket', slug: 'tan-suede-varsity-jacket', image: 'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=600&q=80', regularPrice: 380, salePrice: 325, discountPercent: 14, rating: 4.7, reviewCount: 56, isNew: true, brand: 'VOSS', category: 'Suede Jackets', colors: [{ name: 'Tan', hex: '#D2B48C' }, { name: 'Brown', hex: '#8B5E3C' }] },
-  ],
-  'denim-jackets': [
-    { id: '4', name: 'Blue Denim Jacket', slug: 'blue-denim-jacket', image: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=600&q=80', regularPrice: 250, rating: 4.6, reviewCount: 203, isBestSeller: true, brand: 'VOSS', category: 'Denim Jackets', colors: [{ name: 'Blue', hex: '#1E3A5F' }, { name: 'Black', hex: '#000000' }] },
-  ],
-};
+function toProductCard(p: { id: string; name: string; slug: string; image: string; images?: string[]; regularPrice: number; salePrice?: number; discountPercent?: number; rating: number; reviewCount: number; isNew?: boolean; isBestSeller?: boolean; colors?: { name: string; hex: string }[]; stock?: number; brand: string; category: string; subcategory?: string }): ProductCardData {
+  return {
+    id: p.id, name: p.name, slug: p.slug, image: p.image, images: p.images,
+    regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
+    rating: p.rating, reviewCount: p.reviewCount, isNew: p.isNew, isBestSeller: p.isBestSeller,
+    colors: p.colors, stock: p.stock, brand: p.brand, category: p.subcategory ?? p.category,
+  };
+}
 
 export default function CategoryPage() {
   const params = useParams();
@@ -67,10 +32,11 @@ export default function CategoryPage() {
   const [error] = useState<string | null>(null);
   const [wishlistedIds] = useState<Set<string>>(new Set());
 
-  const category = categoryData[slug];
-  const products = categoryProducts[slug] || [];
+  const category = categoryDescriptions[slug];
+  const rawProducts = slug ? getProductsBySubcategory(slug) : [];
+  const products = rawProducts.map(toProductCard);
 
-  if (!category) {
+  if (!slug || !category) {
     return (
       <main className="min-h-screen">
         <Navbar />
@@ -106,10 +72,11 @@ export default function CategoryPage() {
         <Navbar />
 
         {/* Category Hero */}
-        <section className="relative overflow-hidden bg-gray-900">
+        <section className="relative overflow-hidden bg-walnut">
           <div className="absolute inset-0">
-            <Image src={category.image} alt={category.name} fill className="object-cover opacity-60" sizes="100vw" priority />
+            <Image src={category.image} alt={category.name} fill className="object-cover opacity-40" sizes="100vw" priority />
           </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-navy/70 via-navy/40 to-transparent" />
           <div className="relative z-10 mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 md:py-28">
             <Breadcrumb
               items={[
@@ -117,15 +84,15 @@ export default function CategoryPage() {
                 { label: 'Shop', href: '/shop' },
                 { label: category.name },
               ]}
-              className="text-white/70 [&_svg]:text-white/50"
+              onDark
             />
             <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
               {category.name}
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/80 sm:text-lg">
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-white sm:text-lg">
               {category.description}
             </p>
-            <p className="mt-4 text-sm text-white/60">
+            <p className="mt-4 text-sm text-white">
               {products.length} Products
             </p>
           </div>
@@ -162,4 +129,3 @@ export default function CategoryPage() {
     </PageTransition>
   );
 }
-

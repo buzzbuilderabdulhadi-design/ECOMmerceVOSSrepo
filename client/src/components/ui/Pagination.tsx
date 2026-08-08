@@ -85,8 +85,8 @@ export function Pagination({
           disabled={currentPage === 1}
           className={cn(
             sizeClasses[size],
-            'flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors duration-150',
-            'hover:bg-gray-50 hover:text-gray-700',
+            'flex items-center justify-center rounded-md border border-sage-light/30 bg-white text-slate transition-colors duration-150',
+            'hover:bg-sage-light/30 hover:text-sage-dark',
             'disabled:cursor-not-allowed disabled:opacity-50'
           )}
           aria-label="First page"
@@ -103,8 +103,8 @@ export function Pagination({
           disabled={currentPage === 1}
           className={cn(
             sizeClasses[size],
-            'flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors duration-150',
-            'hover:bg-gray-50 hover:text-gray-700',
+            'flex items-center justify-center rounded-md border border-sage-light/30 bg-white text-slate transition-colors duration-150',
+            'hover:bg-sage-light/30 hover:text-sage-dark',
             'disabled:cursor-not-allowed disabled:opacity-50'
           )}
           aria-label="Previous page"
@@ -121,7 +121,7 @@ export function Pagination({
               key={`ellipsis-${index}`}
               className={cn(
                 sizeClasses[size],
-                'flex items-center justify-center text-gray-400'
+                'flex items-center justify-center text-slate'
               )}
             >
               ...
@@ -138,8 +138,8 @@ export function Pagination({
               sizeClasses[size],
               'flex items-center justify-center rounded-md font-medium transition-all duration-150',
               isActive
-                ? 'bg-gray-900 text-white shadow-sm'
-                : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                ? 'bg-sage text-white shadow-sm'
+                : 'border border-sage-light/30 bg-white text-charcoal hover:bg-sage-light/30 hover:text-sage-dark'
             )}
             aria-current={isActive ? 'page' : undefined}
             aria-label={`Page ${page}`}
@@ -155,8 +155,8 @@ export function Pagination({
           disabled={currentPage === totalPages}
           className={cn(
             sizeClasses[size],
-            'flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors duration-150',
-            'hover:bg-gray-50 hover:text-gray-700',
+            'flex items-center justify-center rounded-md border border-sage-light/30 bg-white text-slate transition-colors duration-150',
+            'hover:bg-sage-light/30 hover:text-sage-dark',
             'disabled:cursor-not-allowed disabled:opacity-50'
           )}
           aria-label="Next page"
@@ -173,8 +173,8 @@ export function Pagination({
           disabled={currentPage === totalPages}
           className={cn(
             sizeClasses[size],
-            'flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition-colors duration-150',
-            'hover:bg-gray-50 hover:text-gray-700',
+            'flex items-center justify-center rounded-md border border-sage-light/30 bg-white text-slate transition-colors duration-150',
+            'hover:bg-sage-light/30 hover:text-sage-dark',
             'disabled:cursor-not-allowed disabled:opacity-50'
           )}
           aria-label="Last page"

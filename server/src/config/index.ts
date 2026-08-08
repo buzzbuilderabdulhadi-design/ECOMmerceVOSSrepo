@@ -45,7 +45,7 @@ const config: Config = {
   env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '5000', 10),
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/voss_ecommerce',
+    url: process.env.DATABASE_URL || 'mongodb://localhost:27017/voss_ecommerce',
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'voss_dev_secret_key',
@@ -56,7 +56,7 @@ const config: Config = {
     url: process.env.CLIENT_URL || 'http://localhost:3000',
   },
   cloudinary: {
-    name: process.env.CLOUDINARY_NAME || '',
+    name: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || '',
     apiKey: process.env.CLOUDINARY_API_KEY || '',
     apiSecret: process.env.CLOUDINARY_API_SECRET || '',
   },

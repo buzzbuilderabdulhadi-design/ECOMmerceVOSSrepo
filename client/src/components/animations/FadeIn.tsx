@@ -3,10 +3,6 @@
 import { motion, type Variants } from 'framer-motion';
 import { useMemo, type ReactNode } from 'react';
 
-// ============================================================
-// FadeIn — Reusable Framer Motion Animation Wrapper
-// ============================================================
-
 type Direction = 'up' | 'down' | 'left' | 'right' | 'none';
 type AnimationVariant = 'fadeIn' | 'fadeUp' | 'fadeDown' | 'fadeLeft' | 'fadeRight' | 'scaleIn';
 
@@ -68,7 +64,7 @@ export function FadeIn({
       transition={{
         duration,
         delay,
-        ease: [0.25, 0.1, 0.25, 1], // cubic-bezier ease
+        ease: [0.25, 0.1, 0.25, 1],
       }}
       className={className}
     >
@@ -76,10 +72,6 @@ export function FadeIn({
     </MotionComponent>
   );
 }
-
-// ============================================================
-// StaggerChildren — For staggered list/ grid animations
-// ============================================================
 
 interface StaggerChildrenProps {
   children: ReactNode;
@@ -117,10 +109,6 @@ export function StaggerChildren({
     </motion.div>
   );
 }
-
-// ============================================================
-// StaggerItem — Child item for staggered animations
-// ============================================================
 
 interface StaggerItemProps {
   children: ReactNode;
@@ -161,10 +149,6 @@ const itemVariants: Variants = {
   );
 }
 
-// ============================================================
-// HoverLift — Reusable hover effect wrapper
-// ============================================================
-
 interface HoverLiftProps {
   children: ReactNode;
   lift?: number;
@@ -182,10 +166,6 @@ export function HoverLift({ children, lift = 4, className }: HoverLiftProps) {
   );
 }
 
-// ============================================================
-// ScaleOnHover — Reusable scale effect wrapper
-// ============================================================
-
 interface ScaleOnHoverProps {
   children: ReactNode;
   scale?: number;
@@ -202,4 +182,3 @@ export function ScaleOnHover({ children, scale = 1.02, className }: ScaleOnHover
     </motion.div>
   );
 }
-

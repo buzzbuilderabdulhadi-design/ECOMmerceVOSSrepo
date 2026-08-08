@@ -62,7 +62,7 @@ export function TrustBadge({
   return (
     <div
       className={cn(
-        'rounded-xl border border-gray-100 bg-gray-50/50 p-4',
+        'rounded-xl border border-navy/10 bg-cream/50 p-4',
         variant === 'row'
           ? 'flex flex-wrap items-center justify-center gap-6'
           : 'grid grid-cols-2 gap-4 sm:grid-cols-4',
@@ -84,12 +84,12 @@ export function TrustBadge({
               variant === 'grid' && 'mx-auto'
             )}
           >
-            <span className="text-gray-700">{item.icon}</span>
+            <span className="text-charcoal">{item.icon}</span>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">{item.label}</p>
+            <p className="text-sm font-medium text-navy">{item.label}</p>
             {item.description && (
-              <p className="text-xs text-gray-500">{item.description}</p>
+              <p className="text-xs text-slate">{item.description}</p>
             )}
           </div>
         </div>

@@ -96,7 +96,7 @@ export function Carousel({
             className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow-md backdrop-blur-sm transition-all duration-200 hover:bg-white hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Previous slide"
           >
-            <svg className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-5 w-5 text-charcoal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
@@ -107,7 +107,7 @@ export function Carousel({
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow-md backdrop-blur-sm transition-all duration-200 hover:bg-white hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Next slide"
           >
-            <svg className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-5 w-5 text-charcoal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
@@ -124,8 +124,8 @@ export function Carousel({
               className={cn(
                 'h-2 rounded-full transition-all duration-300',
                 index === currentIndex
-                  ? 'w-6 bg-gray-900'
-                  : 'w-2 bg-gray-300 hover:bg-gray-400'
+                  ? 'w-6 bg-navy'
+                  : 'w-2 bg-sage-light/60 hover:bg-slate/40'
               )}
               aria-label={`Go to slide ${index + 1}`}
             />

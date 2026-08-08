@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/Button';
 
 interface NewsletterFormProps {
   onSubmit?: (email: string) => Promise<void>;
@@ -9,7 +10,7 @@ interface NewsletterFormProps {
   buttonText?: string;
   successMessage?: string;
   className?: string;
-  variant?: 'default' | 'minimal' | 'banner';
+  variant?: 'default' | 'minimal' | 'banner' | 'dark';
 }
 
 export function NewsletterForm({
@@ -51,30 +52,30 @@ export function NewsletterForm({
     }
   };
 
+  const isDark = variant === 'dark';
+
   if (status === 'success') {
     return (
       <div
         className={cn(
-          'flex items-center gap-2 text-green-600',
-          variant === 'banner' && 'justify-center py-4',
+          'flex items-center gap-3 py-2',
+          variant === 'banner' && 'justify-center',
           className
         )}
       >
-        <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
-        <span className="text-sm font-medium">{successMessage}</span>
+        <span className={cn('flex h-8 w-8 items-center justify-center rounded-full', isDark ? 'bg-gold text-navy' : 'bg-sage-dark text-white')}>
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </span>
+        <span className={cn('text-sm font-medium', isDark ? 'text-cream' : 'text-navy')}>{successMessage}</span>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className={cn('space-y-2', className)}>
-      <div
-        className={cn(
-          variant === 'banner' ? 'flex flex-col sm:flex-row gap-2' : 'space-y-2'
-        )}
-      >
+      <div className={variant === 'banner' ? 'flex flex-col gap-3 sm:flex-row' : 'flex gap-3'}>
         <div className="relative flex-1">
           <input
             type="email"
@@ -86,38 +87,31 @@ export function NewsletterForm({
             placeholder={placeholder}
             disabled={status === 'loading'}
             className={cn(
-              'w-full rounded-lg border px-4 py-2.5 text-sm transition-all duration-200',
-              'focus:outline-none focus:ring-2 focus:ring-offset-1',
-              status === 'error'
-                ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                : 'border-gray-300 focus:border-gray-900 focus:ring-gray-200',
-              'disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400'
+              'w-full py-3 text-sm transition-all duration-200',
+              'focus:outline-none',
+              status === 'error' && 'border-red-400',
+              'disabled:cursor-not-allowed disabled:opacity-60',
+              isDark
+                ? 'input-luxe border-cream/25 text-ivory placeholder-ivory/70 focus:border-gold'
+                : 'input-luxe'
             )}
             aria-label="Email address"
           />
+          {isDark && <div className="pointer-events-none absolute bottom-0 left-0 h-px w-full bg-cream/25" />}
         </div>
-        <button
+        <Button
           type="submit"
+          variant={isDark ? 'light' : 'walnut'}
+          size="md"
           disabled={status === 'loading'}
-          className={cn(
-            'inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-medium transition-all duration-200',
-            'bg-gray-900 text-white hover:bg-gray-800',
-            'focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-1',
-            'disabled:cursor-not-allowed disabled:opacity-50'
-          )}
+          isLoading={status === 'loading'}
+          className="shrink-0"
         >
-          {status === 'loading' ? (
-            <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          ) : (
-            buttonText
-          )}
-        </button>
+          {buttonText}
+        </Button>
       </div>
       {status === 'error' && (
-        <p className="text-xs text-red-500" role="alert">
+        <p className={cn('text-xs', isDark ? 'text-red-300' : 'text-red-500')} role="alert">
           {errorMessage}
         </p>
       )}

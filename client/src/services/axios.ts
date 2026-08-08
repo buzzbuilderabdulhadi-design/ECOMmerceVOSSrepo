@@ -97,13 +97,14 @@ axiosInstance.interceptors.response.use(
           { refreshToken }
         );
 
-        const { token } = response.data;
-        localStorage.setItem('voss_token', token);
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+        localStorage.setItem('voss_refresh_token', newRefreshToken);
+        localStorage.setItem('voss_token', accessToken);
 
-        processQueue(null, token);
+        processQueue(null, accessToken);
 
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         }
         return axiosInstance(originalRequest);
       } catch (refreshError) {

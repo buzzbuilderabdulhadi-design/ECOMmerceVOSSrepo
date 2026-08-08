@@ -27,11 +27,11 @@ export default function ContactPage() {
     <PageTransition>
       <main className="min-h-screen">
         <Navbar />
-        <section className="bg-gray-50 py-12 md:py-16">
+        <section className="bg-cream py-12 md:py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Contact' }]} />
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Get in Touch</h1>
-            <p className="mt-2 text-base text-gray-500">We&apos;d love to hear from you. Send us a message and we&apos;ll respond as soon as possible.</p>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight text-walnut sm:text-4xl">Get in Touch</h1>
+            <p className="mt-2 text-base text-slate">We&apos;d love to hear from you. Send us a message and we&apos;ll respond as soon as possible.</p>
           </div>
         </section>
 
@@ -47,10 +47,10 @@ export default function ContactPage() {
                 <Input label="Email" type="email" placeholder="john@example.com" required />
                 <Input label="Subject" placeholder="How can we help?" required />
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Message</label>
-                  <textarea rows={5} className="w-full rounded-lg border border-gray-300 p-3 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900" placeholder="Tell us more about your inquiry..." />
+                  <label className="mb-1 block text-sm font-medium text-charcoal">Message</label>
+                  <textarea rows={5} className="w-full rounded-lg border border-sage-light/40 p-3 text-sm focus:border-walnut focus:outline-none focus:ring-1 focus:ring-walnut" placeholder="Tell us more about your inquiry..." />
                 </div>
-                <Button variant="dark" size="lg" fullWidth isLoading={isLoading}>Send Message</Button>
+                <Button variant="walnut" size="lg" fullWidth isLoading={isLoading}>Send Message</Button>
               </div>
             </ScrollReveal>
 
@@ -59,12 +59,12 @@ export default function ContactPage() {
               <div className="space-y-6">
                 {contactInfo.map((item) => (
                   <div key={item.label} className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100">
-                      <svg className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} /></svg>
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-sage-light/40">
+                      <svg className="h-6 w-6 text-slate" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} /></svg>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{item.label}</p>
-                      <p className="text-sm text-gray-500">{item.value}</p>
+                      <p className="text-sm font-medium text-walnut">{item.label}</p>
+                      <p className="text-sm text-slate">{item.value}</p>
                     </div>
                   </div>
                 ))}

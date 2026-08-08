@@ -2,14 +2,14 @@
   "name": "voss-server",
   "version": "1.0.0",
   "description": "VOSS Luxury Fashion E-Commerce Backend API",
-  "main": "src/app.js",
+  "main": "dist/app.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "lint": "eslint src/**/*.ts",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
@@ -31,6 +31,9 @@
     "stripe": "^17.6.0",
     "uuid": "^11.1.0",
     "zod": "^3.24.2"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -52,16 +52,17 @@ export default function AboutPage() {
         <Navbar />
 
         {/* Hero */}
-        <section className="relative overflow-hidden bg-gray-900 py-24 md:py-32">
+        <section className="relative overflow-hidden bg-walnut py-24 md:py-32">
           <div className="absolute inset-0">
             <Image src="https://images.unsplash.com/photo-1551028719-00167b16eac5?w=1920&q=80" alt="VOSS Heritage" fill className="object-cover opacity-40" sizes="100vw" priority />
           </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-walnut/80 via-walnut/50 to-walnut/20" />
           <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'About' }]} className="text-white/70 [&_svg]:text-white/50" />
+            <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'About' }]} onDark />
             <h1 className="mt-6 text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
               Our Story
             </h1>
-            <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white/80">
+            <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white">
               For over three decades, VOSS has been synonymous with uncompromising quality, timeless design, and the art of fine craftsmanship.
             </p>
           </div>
@@ -72,10 +73,10 @@ export default function AboutPage() {
           <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 md:py-24">
             <div className="grid gap-12 md:grid-cols-2 md:items-center">
               <div>
-                <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                <h2 className="text-3xl font-bold tracking-tight text-walnut sm:text-4xl">
                   Crafting Excellence Since 1991
                 </h2>
-                <div className="mt-6 space-y-4 text-base leading-relaxed text-gray-600">
+                <div className="mt-6 space-y-4 text-base leading-relaxed text-slate">
                   <p>Founded in the heart of Milan, VOSS began with a simple mission: to create leather jackets that transcend time. Our founder, Alessandro Vossi, was a master artisan who believed that a jacket should be more than clothing—it should be a legacy.</p>
                   <p>From our atelier in Italy to our workshops around the world, every VOSS jacket is a testament to the belief that true luxury lies in the details. The precise stitching, the carefully selected leather, the perfect fit—these are the elements that define us.</p>
                   <p>Today, VOSS is worn by those who appreciate the difference that true craftsmanship makes. Our commitment to quality remains as strong as it was on day one.</p>
@@ -89,21 +90,21 @@ export default function AboutPage() {
         </ScrollReveal>
 
         {/* Milestones */}
-        <section className="bg-gray-50 py-16 md:py-24">
+        <section className="bg-cream py-16 md:py-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <ScrollReveal>
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl text-center">Our Journey</h2>
+              <h2 className="text-3xl font-bold tracking-tight text-walnut sm:text-4xl text-center">Our Journey</h2>
             </ScrollReveal>
             <div className="mt-12 space-y-8">
               {milestones.map((milestone, index) => (
                 <ScrollReveal key={milestone.year} direction={index % 2 === 0 ? 'left' : 'right'}>
                   <div className="flex items-start gap-6">
-                    <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-gray-900 text-white">
+                    <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-walnut text-white">
                       <span className="text-sm font-bold">{milestone.year}</span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900">{milestone.title}</h3>
-                      <p className="mt-1 text-base text-gray-500">{milestone.description}</p>
+                      <h3 className="text-lg font-semibold text-walnut">{milestone.title}</h3>
+                      <p className="mt-1 text-base text-slate">{milestone.description}</p>
                     </div>
                   </div>
                 </ScrollReveal>
@@ -115,17 +116,17 @@ export default function AboutPage() {
         {/* Values */}
         <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 md:py-24">
           <ScrollReveal>
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl text-center">What We Stand For</h2>
+            <h2 className="text-3xl font-bold tracking-tight text-walnut sm:text-4xl text-center">What We Stand For</h2>
           </ScrollReveal>
           <StaggerChildren className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2">
             {values.map((value) => (
               <StaggerItem key={value.title}>
-                <div className="rounded-xl border border-gray-200 p-6 transition-shadow hover:shadow-md">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-900 text-white">
+                <div className="rounded-xl border border-sage-light/30 p-6 transition-shadow hover:shadow-md">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-walnut text-white">
                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={value.icon} /></svg>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">{value.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-500">{value.description}</p>
+                  <h3 className="text-lg font-semibold text-walnut">{value.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate">{value.description}</p>
                 </div>
               </StaggerItem>
             ))}
@@ -133,12 +134,12 @@ export default function AboutPage() {
         </section>
 
         {/* CTA */}
-        <section className="bg-gray-900 py-16 text-center md:py-24">
+        <section className="bg-walnut py-16 text-center md:py-24">
           <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
             <ScrollReveal>
               <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Experience the Difference</h2>
-              <p className="mt-4 text-lg text-white/70">Discover our collection of handcrafted jackets designed for those who appreciate the finest things in life.</p>
-              <Link href="/shop" className="mt-8 inline-flex items-center justify-center rounded-lg bg-white px-8 py-3 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-100">
+              <p className="mt-4 text-lg text-white">Discover our collection of handcrafted jackets designed for those who appreciate the finest things in life.</p>
+              <Link href="/shop" className="mt-8 inline-flex items-center justify-center rounded-lg bg-white px-8 py-3 text-sm font-semibold text-walnut transition-colors hover:bg-cream-dark/50">
                 Shop Now
               </Link>
             </ScrollReveal>

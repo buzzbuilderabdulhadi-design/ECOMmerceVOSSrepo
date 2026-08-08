@@ -1,32 +1,27 @@
-// @ts-nocheck
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
-import { Navbar } from '@/components/layout/Navbar';
-import { Footer } from '@/components/layout/Footer';
-import { PageTransition } from '@/components/animations/PageTransition';
-import { Breadcrumb } from '@/components/ui/Breadcrumb';
-import { ScrollReveal } from '@/components/animations/ScrollReveal';
-import { FiArrowLeft } from 'react-icons/fi';
+import { FiPackage, FiArrowRight } from 'react-icons/fi';
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
+import { Button } from '@/components/ui/Button';
 
-export default function MyOrdersPage() {
-  return React.createElement(PageTransition, null,
-    React.createElement('main', { className: 'min-h-screen bg-zinc-50' },
-      React.createElement(Navbar, null),
-      React.createElement('section', { className: 'bg-white py-12 md:py-16' },
-        React.createElement('div', { className: 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8' },
-          React.createElement(Breadcrumb, { items: [{ label: 'Home', href: '/' }, { label: 'My Orders' }] }),
-          React.createElement('h1', { className: 'mt-4 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl' }, 'My Orders'),
-          React.createElement('p', { className: 'mt-2 text-base text-gray-500' }, 'View and track your orders.')
-        )
-      ),
-      React.createElement('div', { className: 'mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8' },
-        React.createElement('div', { className: 'prose prose-sm max-w-none' },
-          React.createElement('p', { className: 'text-gray-600' }, 'This page is coming soon. Content about view and track your orders. will be available shortly.')
-        )
-      ),
-      React.createElement(Footer, null)
-    )
+export default function OrdersPage() {
+  return (
+    <DashboardLayout title="My Orders" subtitle="View and track your orders.">
+      <div className="rounded-2xl border border-sage-light/30 bg-white p-10 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-sage-light/40 text-sage-dark">
+          <FiPackage className="h-7 w-7" />
+        </div>
+        <h2 className="mt-6 font-display text-3xl font-light text-navy">No orders yet</h2>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate">
+          When you place an order, it will appear here with live tracking and delivery updates.
+        </p>
+        <Link href="/shop" className="mt-8 inline-block">
+          <Button variant="walnut" size="md" rightIcon={<FiArrowRight className="h-4 w-4" />}>
+            Explore the Collection
+          </Button>
+        </Link>
+      </div>
+    </DashboardLayout>
   );
 }

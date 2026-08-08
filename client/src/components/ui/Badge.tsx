@@ -4,16 +4,16 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = {
-  default: 'bg-gray-100 text-gray-800',
-  primary: 'bg-black text-white',
-  success: 'bg-green-100 text-green-800',
-  warning: 'bg-yellow-100 text-yellow-800',
+  default: 'bg-cream-dark text-navy',
+  primary: 'bg-navy text-ivory',
+  success: 'bg-sage-light/50 text-sage-dark',
+  warning: 'bg-walnut/10 text-walnut',
   danger: 'bg-red-100 text-red-800',
-  info: 'bg-blue-100 text-blue-800',
-  premium: 'bg-gradient-to-r from-amber-200 to-amber-400 text-amber-900',
-  exclusive: 'bg-gradient-to-r from-purple-200 to-purple-400 text-purple-900',
-  new: 'bg-green-500 text-white',
-  'best-seller': 'bg-amber-500 text-white',
+  info: 'bg-navy-light/10 text-navy-light',
+  premium: 'bg-gradient-to-r from-gold/90 to-gold text-navy',
+  exclusive: 'bg-gradient-to-r from-walnut-light to-walnut text-ivory',
+  new: 'bg-sage-dark text-white',
+  'best-seller': 'bg-walnut text-ivory',
   sale: 'bg-red-500 text-white',
 };
 
@@ -51,16 +51,16 @@ export function Badge({
         <span
           className={cn(
             'h-1.5 w-1.5 rounded-full',
-            variant === 'default' && 'bg-gray-500',
+            variant === 'default' && 'bg-cream-dark',
             variant === 'primary' && 'bg-white',
-            variant === 'success' && 'bg-green-500',
-            variant === 'warning' && 'bg-yellow-500',
+            variant === 'success' && 'bg-sage-dark',
+            variant === 'warning' && 'bg-walnut',
             variant === 'danger' && 'bg-red-500',
-            variant === 'info' && 'bg-blue-500',
-            variant === 'premium' && 'bg-amber-600',
-            variant === 'exclusive' && 'bg-purple-600',
-            variant === 'new' && 'bg-green-600',
-            variant === 'best-seller' && 'bg-amber-600',
+            variant === 'info' && 'bg-navy-light',
+            variant === 'premium' && 'bg-gold',
+            variant === 'exclusive' && 'bg-walnut-light',
+            variant === 'new' && 'bg-sage-dark',
+            variant === 'best-seller' && 'bg-walnut-light',
             variant === 'sale' && 'bg-red-600'
           )}
         />

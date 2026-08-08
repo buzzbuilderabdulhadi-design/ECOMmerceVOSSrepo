@@ -1,76 +1,96 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
 import { ProductCard, type ProductCardData } from '@/components/product/ProductCard';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
-import { Button } from '@/components/ui/Button';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
-import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
+import { TextReveal } from '@/components/animations/TextReveal';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
-
-// ============================================================
-// Shop Page — Browse all products
-// ============================================================
-
-const allProducts: ProductCardData[] = [
-  { id: '1', name: 'Classic Brown Leather Jacket', slug: 'classic-brown-leather-jacket', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80', regularPrice: 450, salePrice: 395, discountPercent: 12, rating: 4.8, reviewCount: 124, isNew: true, brand: 'VOSS', category: 'Leather Jackets', colors: [{ name: 'Brown', hex: '#8B5E3C' }, { name: 'Black', hex: '#000000' }] },
-  { id: '2', name: 'Black Suede Bomber Jacket', slug: 'black-suede-bomber-jacket', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80', regularPrice: 520, salePrice: 455, discountPercent: 12, rating: 4.9, reviewCount: 89, isBestSeller: true, brand: 'VOSS', category: 'Bomber Jackets', colors: [{ name: 'Black', hex: '#000000' }, { name: 'Navy', hex: '#112C47' }] },
-  { id: '3', name: 'Tan Suede Varsity Jacket', slug: 'tan-suede-varsity-jacket', image: 'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=600&q=80', regularPrice: 380, salePrice: 325, discountPercent: 14, rating: 4.7, reviewCount: 56, isNew: true, brand: 'VOSS', category: 'Suede Jackets', colors: [{ name: 'Tan', hex: '#D2B48C' }, { name: 'Brown', hex: '#8B5E3C' }] },
-  { id: '4', name: 'Blue Denim Jacket', slug: 'blue-denim-jacket', image: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=600&q=80', regularPrice: 250, rating: 4.6, reviewCount: 203, isBestSeller: true, brand: 'VOSS', category: 'Denim Jackets', colors: [{ name: 'Blue', hex: '#1E3A5F' }, { name: 'Black', hex: '#000000' }] },
-  { id: '5', name: 'Premium Wool Peacoat', slug: 'premium-wool-peacoat', image: 'https://images.unsplash.com/photo-1544923246-77307dd270b4?w=600&q=80', regularPrice: 680, salePrice: 595, discountPercent: 12, rating: 4.9, reviewCount: 67, isNew: true, brand: 'VOSS', category: 'Winter Jackets', colors: [{ name: 'Navy', hex: '#112C47' }, { name: 'Charcoal', hex: '#36454F' }] },
-  { id: '6', name: 'Waxed Cotton Field Jacket', slug: 'waxed-cotton-field-jacket', image: 'https://images.unsplash.com/photo-1539533113208-f6df8cc8b543?w=600&q=80', regularPrice: 420, rating: 4.7, reviewCount: 98, brand: 'VOSS', category: 'Cotton Jackets', colors: [{ name: 'Olive', hex: '#556B2F' }, { name: 'Tan', hex: '#D2B48C' }] },
-  { id: '7', name: 'Motorcycle Racer Jacket', slug: 'motorcycle-racer-jacket', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80', regularPrice: 590, salePrice: 499, discountPercent: 15, rating: 4.8, reviewCount: 145, isBestSeller: true, brand: 'VOSS', category: 'Leather Jackets', colors: [{ name: 'Black', hex: '#000000' }, { name: 'Brown', hex: '#8B5E3C' }] },
-  { id: '8', name: 'Lightweight Puffer Vest', slug: 'lightweight-puffer-vest', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80', regularPrice: 195, rating: 4.5, reviewCount: 234, isNew: true, brand: 'VOSS', category: 'Vests', colors: [{ name: 'Black', hex: '#000000' }, { name: 'Navy', hex: '#112C47' }] },
-  { id: '9', name: 'Cropped Leather Biker Jacket', slug: 'cropped-leather-biker', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80', regularPrice: 350, salePrice: 299, rating: 4.6, reviewCount: 78, brand: 'VOSS', category: 'Leather Jackets', colors: [{ name: 'Black', hex: '#000000' }] },
-  { id: '10', name: 'Hooded Parka with Fur Trim', slug: 'hooded-parka-fur-trim', image: 'https://images.unsplash.com/photo-1539533113208-f6df8cc8b543?w=600&q=80', regularPrice: 750, rating: 4.9, reviewCount: 45, isBestSeller: true, brand: 'VOSS', category: 'Parkas', colors: [{ name: 'Black', hex: '#000000' }, { name: 'Olive', hex: '#556B2F' }] },
-  { id: '11', name: 'Classic Trench Coat', slug: 'classic-trench-coat', image: 'https://images.unsplash.com/photo-1544923246-77307dd270b4?w=600&q=80', regularPrice: 580, rating: 4.7, reviewCount: 112, brand: 'VOSS', category: 'Winter Jackets', colors: [{ name: 'Beige', hex: '#F5F5DC' }, { name: 'Black', hex: '#000000' }] },
-  { id: '12', name: 'Quilted Bomber Jacket', slug: 'quilted-bomber-jacket', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80', regularPrice: 480, salePrice: 399, discountPercent: 17, rating: 4.8, reviewCount: 156, isNew: true, brand: 'VOSS', category: 'Bomber Jackets', colors: [{ name: 'Navy', hex: '#112C47' }, { name: 'Green', hex: '#2E8B57' }] },
-];
+import { fetchProducts } from '@/services/products';
+import { allProducts } from '@/data/products';
 
 const sortOptions = [
   { label: 'Newest', value: 'newest' },
-  { label: 'Price: Low to High', value: 'price-asc' },
-  { label: 'Price: High to Low', value: 'price-desc' },
+  { label: 'Price: Low to High', value: 'price_asc' },
+  { label: 'Price: High to Low', value: 'price_desc' },
   { label: 'Best Rated', value: 'rating' },
-  { label: 'Most Popular', value: 'popular' },
 ];
 
+const fallbackCards = allProducts.map((p: any) => ({
+  id: p.id, name: p.name, slug: p.slug, image: p.image, images: p.images,
+  regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
+  isNew: p.isNew, isBestSeller: p.isBestSeller, stock: p.stock, brand: p.brand, category: p.subcategory,
+  colors: p.colors,
+}));
+
+function sortFallback(products: any[], sortBy: string) {
+  const sorted = [...products];
+  switch (sortBy) {
+    case 'price_asc': return sorted.sort((a, b) => (a.salePrice ?? a.regularPrice) - (b.salePrice ?? b.regularPrice));
+    case 'price_desc': return sorted.sort((a, b) => (b.salePrice ?? b.regularPrice) - (a.salePrice ?? a.regularPrice));
+    default: return sorted;
+  }
+}
+
+function mapProduct(p: any): ProductCardData {
+  const firstImage = p.images?.[0];
+  return {
+    id: p.id, name: p.name, slug: p.slug,
+    image: typeof firstImage === 'string' ? firstImage : firstImage?.url || '',
+    images: p.images?.map((i: any) => typeof i === 'string' ? i : i.url) || [],
+    regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
+    isNew: p.isNew, isBestSeller: p.isBestSeller, stock: p.stock, brand: p.brand,
+    category: p.category?.name,
+    colors: p.variants?.map((v: any) => ({ name: v.color, hex: v.colorHex })).filter((v: any) => v.hex),
+  };
+}
+
 export default function ShopPage() {
-  const [isLoading] = useState(false);
-  const [error] = useState<string | null>(null);
+  const [products, setProducts] = useState<ProductCardData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('newest');
-  const [wishlistedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 9;
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [isApi, setIsApi] = useState(true);
+  const perPage = 9;
 
-  const sortedProducts = [...allProducts].sort((a, b) => {
-    switch (sortBy) {
-      case 'price-asc': return (a.salePrice ?? a.regularPrice) - (b.salePrice ?? b.regularPrice);
-      case 'price-desc': return (b.salePrice ?? b.regularPrice) - (a.salePrice ?? a.regularPrice);
-      case 'rating': return (b.rating ?? 0) - (a.rating ?? 0);
-      case 'popular': return (b.reviewCount ?? 0) - (a.reviewCount ?? 0);
-      default: return 0;
+  const load = useCallback(async (page: number, sort: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetchProducts({ sort, page: String(page), limit: String(perPage) });
+      setProducts(res.data.map(mapProduct));
+      setTotalPages(res.pagination.totalPages);
+      setTotal(res.pagination.total);
+      setIsApi(true);
+    } catch {
+      setIsApi(false);
+      const sorted = sortFallback(fallbackCards, sort);
+      const start = (page - 1) * perPage;
+      setProducts(sorted.slice(start, start + perPage));
+      setTotalPages(Math.ceil(sorted.length / perPage));
+      setTotal(sorted.length);
+    } finally {
+      setIsLoading(false);
     }
-  });
+  }, []);
 
-  const totalPages = Math.ceil(sortedProducts.length / productsPerPage);
-  const paginatedProducts = sortedProducts.slice(
-    (currentPage - 1) * productsPerPage,
-    currentPage * productsPerPage
-  );
+  useEffect(() => { load(currentPage, sortBy); }, [currentPage, sortBy, load]);
+
+  const handleSort = (value: string) => { setSortBy(value); setCurrentPage(1); };
 
   if (error) {
     return (
       <main className="min-h-screen">
         <Navbar />
-        <div className="pt-24">
-          <ErrorState message={error} onRetry={() => window.location.reload()} />
-        </div>
+        <div className="pt-32"><ErrorState message={error} onRetry={() => load(currentPage, sortBy)} /></div>
         <Footer />
       </main>
     );
@@ -81,99 +101,115 @@ export default function ShopPage() {
       <main className="min-h-screen">
         <Navbar />
 
-        {/* Page Header */}
-        <section className="bg-gray-50 py-12 md:py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <Breadcrumb
-              items={[{ label: 'Home', href: '/' }, { label: 'Shop' }]}
-            />
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              All Products
-            </h1>
-            <p className="mt-2 text-base text-gray-500">
-              Browse our complete collection of premium jackets and luxury outerwear.
-            </p>
+        {/* ============ Editorial header ============ */}
+        <section className="relative overflow-hidden pb-8 pt-24 md:pb-14 md:pt-36">
+          <span className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[13rem]">
+            Shop
+          </span>
+          <div className="pointer-events-none absolute -left-32 top-24 h-72 w-72 rounded-full bg-sage/10 blur-[100px]" />
+
+          <div className="relative z-10 mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12">
+            <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Shop' }]} />
+            <div className="mt-6 flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <TextReveal
+                  as="h1"
+                  text="All Products"
+                  className="font-display text-5xl font-light text-navy sm:text-6xl lg:text-7xl"
+                />
+                <p className="mt-4 max-w-lg text-sm leading-relaxed text-slate sm:text-base">
+                  Browse our complete collection of premium jackets and luxury accessories.
+                </p>
+              </div>
+              <p className="font-display text-2xl font-light text-navy">
+                {isApi ? `${total}` : `${total}`} <span className="text-sm uppercase tracking-[0.2em] text-slate">Pieces</span>
+              </p>
+            </div>
           </div>
         </section>
 
-        {/* Controls Bar */}
-        <div className="border-b border-gray-200">
-          <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm text-gray-500">
-                Showing {paginatedProducts.length} of {sortedProducts.length} products
-              </p>
-              <div className="flex items-center gap-3">
-                <label htmlFor="sort" className="text-sm text-gray-500">Sort by:</label>
+        {/* ============ Toolbar ============ */}
+        <div className="hairline-b hairline-t bg-white/40">
+          <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-8 lg:px-12">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate">
+              {isApi ? `Showing ${products.length} of ${total}` : `${total} products`}
+            </p>
+            <div className="flex items-center gap-3">
+              <label htmlFor="sort" className="text-[11px] uppercase tracking-[0.2em] text-slate">Sort by</label>
+              <div className="relative">
                 <select
-                  id="sort"
-                  value={sortBy}
-                  onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                  id="sort" value={sortBy}
+                  onChange={(e) => handleSort(e.target.value)}
+                  className="appearance-none rounded-full border border-navy/15 bg-white py-2 pl-4 pr-10 text-xs uppercase tracking-[0.15em] text-navy focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/40 transition-colors"
                 >
                   {sortOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
+                <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Products Grid */}
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* ============ Products ============ */}
+        <div className="mx-auto max-w-[1400px] px-4 py-14 sm:px-8 lg:px-12">
           {isLoading ? (
-            <LoadingState variant="product-grid" count={productsPerPage} />
-          ) : paginatedProducts.length === 0 ? (
+            <LoadingState variant="product-grid" count={perPage} />
+          ) : products.length === 0 ? (
             <EmptyState
-              icon={undefined}
-              title="No products found"
+              icon={undefined} title="No products found"
               description="Try adjusting your filters or browse our categories."
-              actionLabel="View All Products"
-              actionHref="/shop"
+              actionLabel="View All Products" actionHref="/shop"
             />
           ) : (
             <>
-              <StaggerChildren className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {paginatedProducts.map((product) => (
-                  <StaggerItem key={product.id}>
-                    <ProductCard
-                      product={product}
-                      isWishlisted={wishlistedIds.has(product.id)}
-                    />
-                  </StaggerItem>
+              <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3">
+                {products.map((product, index) => (
+                  <ScrollReveal key={product.id} delay={(index % 3) * 0.08}>
+                    <ProductCard product={product} index={index} />
+                  </ScrollReveal>
                 ))}
-              </StaggerChildren>
+              </div>
 
-              {/* Pagination */}
               {totalPages > 1 && (
-                <div className="mt-12 flex items-center justify-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
+                <div className="mt-20 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage((p) => p - 1)}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 text-navy transition-all hover:border-sage-dark hover:bg-sage-dark hover:text-white active:scale-90 disabled:pointer-events-none disabled:opacity-30"
+                    aria-label="Previous page"
                   >
-                    Previous
-                  </Button>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
                   {Array.from({ length: totalPages }).map((_, i) => (
-                    <Button
+                    <button
                       key={i}
-                      variant={currentPage === i + 1 ? 'dark' : 'outline'}
-                      size="sm"
+                      type="button"
                       onClick={() => setCurrentPage(i + 1)}
+                      className={currentPage === i + 1
+                        ? 'flex h-11 w-11 items-center justify-center rounded-full bg-navy font-display text-lg text-cream'
+                        : 'flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 font-display text-lg text-navy transition-all hover:border-sage hover:bg-sage/15 active:scale-90'}
                     >
-                      {i + 1}
-                    </Button>
+                      {String(i + 1).padStart(2, '0')}
+                    </button>
                   ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
+                    type="button"
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage((p) => p + 1)}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 text-navy transition-all hover:border-sage-dark hover:bg-sage-dark hover:text-white active:scale-90 disabled:pointer-events-none disabled:opacity-30"
+                    aria-label="Next page"
                   >
-                    Next
-                  </Button>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
                 </div>
               )}
             </>
@@ -185,4 +221,3 @@ export default function ShopPage() {
     </PageTransition>
   );
 }
-

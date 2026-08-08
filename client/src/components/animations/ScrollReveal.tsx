@@ -3,10 +3,6 @@
 import { motion, type Variants } from 'framer-motion';
 import { useMemo, type ReactNode } from 'react';
 
-// ============================================================
-// ScrollReveal — Section reveal animation on scroll
-// ============================================================
-
 type RevealDirection = 'up' | 'down' | 'left' | 'right' | 'scale' | 'none';
 
 interface ScrollRevealProps {
@@ -71,32 +67,3 @@ export function ScrollReveal({
     </MotionComponent>
   );
 }
-
-// ============================================================
-// ParallaxSection — Subtle parallax scrolling effect
-// ============================================================
-
-interface ParallaxSectionProps {
-  children: ReactNode;
-  speed?: number;
-  className?: string;
-}
-
-export function ParallaxSection({
-  children,
-  speed = 0.5,
-  className,
-}: ParallaxSectionProps) {
-  return (
-    <motion.div
-      initial={{ y: 0 }}
-      whileInView={{ y: 0 }}
-      viewport={{ once: false }}
-      transition={{ duration: 0 }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
-

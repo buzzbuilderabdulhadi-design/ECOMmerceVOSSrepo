@@ -34,27 +34,21 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className={cn('w-full', containerClassName)}>
         {label && (
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">
+          <label className="mb-1.5 block font-display text-base font-medium text-navy">
             {label}
             {props.required && <span className="ml-1 text-red-500">*</span>}
           </label>
         )}
         <div className="relative">
-          {leftIcon && (
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-              {leftIcon}
-            </div>
-          )}
           <input
             ref={ref}
             type={inputType}
             className={cn(
-              'block w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-colors duration-200',
-              'focus:border-black focus:outline-none focus:ring-2 focus:ring-black/10',
-              'disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500',
-              error && 'border-red-500 focus:border-red-500 focus:ring-red-500/20',
-              !error && 'border-gray-300',
-              leftIcon && 'pl-10',
+              'block w-full border-b bg-transparent px-0 py-2.5 text-sm text-navy placeholder-slate/60 transition-colors duration-200',
+              'border-sage-light/60 focus:border-gold focus:outline-none',
+              'disabled:cursor-not-allowed disabled:bg-cream disabled:text-slate',
+              error && 'border-red-500 focus:border-red-500',
+              leftIcon && 'pl-8',
               (rightIcon || isPassword) && 'pr-10',
               className
             )}
@@ -62,11 +56,16 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             aria-describedby={error ? `${props.name}-error` : helperText ? `${props.name}-helper` : undefined}
             {...props}
           />
+          {leftIcon && (
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center text-slate">
+              {leftIcon}
+            </div>
+          )}
           {isPassword && (
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+              className="absolute inset-y-0 right-0 flex items-center text-slate hover:text-navy"
               tabIndex={-1}
             >
               {showPassword ? (
@@ -82,7 +81,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </button>
           )}
           {rightIcon && !isPassword && (
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+            <div className="absolute inset-y-0 right-0 flex items-center text-slate">
               {rightIcon}
             </div>
           )}
@@ -93,7 +92,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           </p>
         )}
         {helperText && !error && (
-          <p id={`${props.name}-helper`} className="mt-1.5 text-xs text-gray-500">
+          <p id={`${props.name}-helper`} className="mt-1.5 text-xs text-slate">
             {helperText}
           </p>
         )}

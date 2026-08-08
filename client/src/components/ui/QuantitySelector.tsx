@@ -76,7 +76,7 @@ export function QuantitySelector({
   return (
     <div
       className={cn(
-        'inline-flex items-center rounded-lg border border-gray-300 overflow-hidden',
+        'inline-flex items-center rounded-lg border border-sage-light/50 overflow-hidden',
         disabled && 'opacity-50 cursor-not-allowed',
         className
       )}
@@ -87,9 +87,9 @@ export function QuantitySelector({
         disabled={disabled || currentValue <= min}
         className={cn(
           buttonSizeClasses[size],
-          'flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors duration-150',
-          'disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent',
-          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-200'
+          'flex items-center justify-center text-slate hover:bg-sage-light/30 hover:text-sage-dark transition-colors duration-150',
+          'disabled:cursor-not-allowed disabled:text-slate/50 disabled:hover:bg-transparent',
+          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sage'
         )}
         aria-label="Decrease quantity"
       >
@@ -107,8 +107,8 @@ export function QuantitySelector({
         max={max}
         className={cn(
           sizeClasses[size],
-          'w-16 border-x border-gray-300 bg-white text-center font-medium text-gray-900',
-          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-900',
+          'w-16 border-x border-sage-light/50 bg-white text-center font-medium text-navy',
+          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sage',
           '[-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
         )}
         aria-label="Quantity"
@@ -119,9 +119,9 @@ export function QuantitySelector({
         disabled={disabled || currentValue >= max}
         className={cn(
           buttonSizeClasses[size],
-          'flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors duration-150',
-          'disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent',
-          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-200'
+          'flex items-center justify-center text-slate hover:bg-sage-light/30 hover:text-sage-dark transition-colors duration-150',
+          'disabled:cursor-not-allowed disabled:text-slate/50 disabled:hover:bg-transparent',
+          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sage'
         )}
         aria-label="Increase quantity"
       >

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 export interface TabItem {
@@ -35,25 +36,25 @@ export function Tabs({
 
   const variantStyles = {
     underline: {
-      container: 'border-b border-gray-200',
+      container: 'border-b border-sage-light/30',
       tab: (isActive: boolean, isDisabled: boolean) =>
         cn(
           'px-4 py-2.5 text-sm font-medium transition-all duration-200 border-b-2 -mb-px',
           isActive
-            ? 'border-gray-900 text-gray-900'
-            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-          isDisabled && 'cursor-not-allowed text-gray-300 hover:border-transparent'
+            ? 'border-sage text-sage-dark'
+            : 'border-transparent text-slate hover:text-sage-dark hover:border-sage-light',
+          isDisabled && 'cursor-not-allowed text-slate/50 hover:border-transparent'
         ),
     },
     pills: {
-      container: 'flex gap-1 p-1 bg-gray-100 rounded-lg',
+      container: 'flex gap-1 p-1 bg-sage-light/30 rounded-lg',
       tab: (isActive: boolean, isDisabled: boolean) =>
         cn(
           'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
           isActive
-            ? 'bg-white text-gray-900 shadow-sm'
-            : 'text-gray-500 hover:text-gray-700',
-          isDisabled && 'cursor-not-allowed text-gray-300'
+            ? 'bg-white text-navy shadow-sm'
+            : 'text-slate hover:text-navy',
+          isDisabled && 'cursor-not-allowed text-slate/50'
         ),
     },
     buttons: {
@@ -62,9 +63,9 @@ export function Tabs({
         cn(
           'px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 border',
           isActive
-            ? 'bg-gray-900 text-white border-gray-900'
-            : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400',
-          isDisabled && 'cursor-not-allowed text-gray-300 border-gray-200'
+            ? 'bg-sage-dark text-white border-sage-dark'
+            : 'bg-white text-charcoal border-sage-light/50 hover:border-sage',
+          isDisabled && 'cursor-not-allowed text-slate/50 border-sage-light/30'
         ),
     },
   };
@@ -94,8 +95,8 @@ export function Tabs({
                 className={cn(
                   'inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium',
                   activeTab === tab.id
-                    ? 'bg-gray-200 text-gray-900'
-                    : 'bg-gray-100 text-gray-500'
+                    ? 'bg-sage text-white'
+                    : 'bg-sage-light/40 text-slate'
                 )}
               >
                 {tab.badge}
@@ -113,7 +114,15 @@ export function Tabs({
           hidden={activeTab !== tab.id}
           className="pt-4"
         >
-          {tab.content}
+          {activeTab === tab.id && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {tab.content}
+            </motion.div>
+          )}
         </div>
       ))}
     </div>

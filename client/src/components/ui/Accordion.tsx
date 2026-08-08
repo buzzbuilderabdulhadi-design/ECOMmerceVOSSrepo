@@ -40,7 +40,7 @@ export function Accordion({
   );
 
   return (
-    <div className={cn('divide-y divide-gray-200 rounded-lg border border-gray-200', className)}>
+    <div className={cn('divide-y divide-sage-light/50 rounded-lg border border-sage-light/30', className)}>
       {items.map((item) => {
         const isExpanded = expandedIds.includes(item.id);
         return (
@@ -50,8 +50,8 @@ export function Accordion({
               onClick={() => toggleItem(item.id)}
               className={cn(
                 'flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium transition-colors duration-150',
-                'hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-200',
-                isExpanded ? 'text-gray-900' : 'text-gray-700'
+                'hover:bg-cream focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sage/30',
+                isExpanded ? 'text-navy' : 'text-charcoal'
               )}
               aria-expanded={isExpanded}
               aria-controls={`accordion-content-${item.id}`}
@@ -59,7 +59,7 @@ export function Accordion({
               <span>{item.title}</span>
               <svg
                 className={cn(
-                  'h-4 w-4 text-gray-400 transition-transform duration-200',
+                  'h-4 w-4 text-slate transition-transform duration-200',
                   isExpanded && 'rotate-180'
                 )}
                 fill="none"
@@ -82,7 +82,7 @@ export function Accordion({
                 isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
               )}
             >
-              <div className="border-t border-gray-100 px-4 py-3 text-sm text-gray-600">
+              <div className="border-t border-sage-light/20 px-4 py-3 text-sm text-slate">
                 {item.content}
               </div>
             </div>

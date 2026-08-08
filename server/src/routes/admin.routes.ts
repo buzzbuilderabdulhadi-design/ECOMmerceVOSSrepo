@@ -120,7 +120,7 @@ router.put('/settings', updateSiteSettings);
 
 // SEO
 router.get('/seo', getSeoEntries);
-router.put('/seo/:id', updateSeoEntry);
+router.put('/seo/:page', updateSeoEntry);
 
 // Notifications
 router.get('/notifications', getNotifications);

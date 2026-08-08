@@ -1,29 +1,23 @@
-// @ts-nocheck
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Navbar } from '@/components/layout/Navbar';
-import { Footer } from '@/components/layout/Footer';
-import { PageTransition } from '@/components/animations/PageTransition';
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
-import { FiPackage, FiHeart, FiMapPin, FiUser, FiSettings, FiLogOut, FiShoppingBag, FiStar, FiClock } from 'react-icons/fi';
-
-const sidebarLinks = [
-  { label: 'Dashboard', href: '/dashboard', icon: FiUser },
-  { label: 'My Orders', href: '/dashboard/orders', icon: FiPackage },
-  { label: 'Wishlist', href: '/wishlist', icon: FiHeart },
-  { label: 'Addresses', href: '/dashboard/addresses', icon: FiMapPin },
-  { label: 'Profile', href: '/dashboard/profile', icon: FiUser },
-  { label: 'Settings', href: '/dashboard/settings', icon: FiSettings },
-];
+import {
+  FiShoppingBag,
+  FiClock,
+  FiHeart,
+  FiStar,
+  FiUser,
+  FiMapPin,
+} from 'react-icons/fi';
 
 const statCards = [
-  { label: 'Total Orders', value: '12', icon: FiShoppingBag, color: 'text-blue-600 bg-blue-100' },
-  { label: 'Active Orders', value: '2', icon: FiClock, color: 'text-amber-600 bg-amber-100' },
-  { label: 'Wishlist', value: '8', icon: FiHeart, color: 'text-rose-600 bg-rose-100' },
-  { label: 'Reviews', value: '5', icon: FiStar, color: 'text-emerald-600 bg-emerald-100' },
+  { label: 'Total Orders', value: '12', icon: FiShoppingBag, color: 'text-sage-dark bg-sage-light/40' },
+  { label: 'Active Orders', value: '2', icon: FiClock, color: 'text-walnut bg-walnut/10' },
+  { label: 'Wishlist', value: '8', icon: FiHeart, color: 'text-navy-light bg-navy-light/10' },
+  { label: 'Reviews', value: '5', icon: FiStar, color: 'text-sage-dark bg-sage-light/40' },
 ];
 
 const orderList = [
@@ -32,110 +26,84 @@ const orderList = [
   { number: '#VOSS-2024-003', date: 'Nov 10, 2024', status: 'Processing', total: 250 },
 ];
 
-function StatusBadge(props: any) {
-  var s = props.status;
-  var c = 'bg-amber-100 text-amber-700';
-  if (s === 'Delivered') c = 'bg-green-100 text-green-700';
-  if (s === 'Shipped') c = 'bg-blue-100 text-blue-700';
-  return React.createElement('span', { className: 'inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ' + c }, s);
+function StatusBadge({ status }: { status: string }) {
+  const colorMap: Record<string, string> = {
+    Delivered: 'bg-sage-light/50 text-sage-dark',
+    Shipped: 'bg-navy-light/10 text-navy-light',
+    Processing: 'bg-walnut/10 text-walnut',
+  };
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${colorMap[status] || 'bg-slate/10 text-slate'}`}>
+      {status}
+    </span>
+  );
 }
 
 export default function DashboardPage() {
-  return React.createElement(PageTransition, null,
-    React.createElement('main', { className: 'min-h-screen bg-zinc-50' },
-      React.createElement(Navbar, null),
-      React.createElement('div', { className: 'mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8' },
-        React.createElement('div', { className: 'grid gap-8 lg:grid-cols-[280px_1fr]' },
-          React.createElement('aside', { className: 'hidden lg:block' },
-            React.createElement('nav', { className: 'space-y-1' },
-              sidebarLinks.map(function(link: any) {
-                var Icon = link.icon;
-                var cls = 'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ';
-                cls += link.href === '/dashboard' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900';
-                return React.createElement(Link, { key: link.href, href: link.href, className: cls },
-                  React.createElement(Icon, { className: 'h-5 w-5' }),
-                  link.label
-                );
-              }),
-              React.createElement('button', { type: 'button', className: 'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-red-600 transition-colors hover:bg-red-50' },
-                React.createElement(FiLogOut, { className: 'h-5 w-5' }),
-                'Sign Out'
-              )
-            )
-          ),
-          React.createElement('div', { className: 'space-y-8' },
-            React.createElement(ScrollReveal, null,
-              React.createElement('div', null,
-                React.createElement('h1', { className: 'text-2xl font-bold text-zinc-900' }, 'Welcome back, James'),
-                React.createElement('p', { className: 'mt-1 text-zinc-600' }, 'Here is your account overview.')
-              )
-            ),
-            React.createElement('div', { className: 'grid gap-6 sm:grid-cols-2 lg:grid-cols-4' },
-              statCards.map(function(stat: any, index: number) {
-                var StatIcon = stat.icon;
-                return React.createElement(ScrollReveal, { key: stat.label, delay: index * 0.05 },
-                  React.createElement(motion.div, { whileHover: { y: -2 }, className: "rounded-xl border border-zinc-200 bg-white p-6 transition-shadow hover:shadow-md" },
-                    React.createElement("div", { className: "mb-4 inline-flex rounded-lg p-3 " + stat.color },
-                      React.createElement(StatIcon, { className: "h-6 w-6" })
-                    ),
-                    React.createElement("p", { className: "text-2xl font-bold text-zinc-900" }, stat.value),
-                    React.createElement("p", { className: "mt-1 text-sm text-zinc-500" }, stat.label)
-                  )
-                );
-              })
-            ),
-            React.createElement(ScrollReveal, null,
-              React.createElement("div", { className: "rounded-xl border border-zinc-200 bg-white p-6" },
-                React.createElement("div", { className: "mb-4 flex items-center justify-between" },
-                  React.createElement("h2", { className: "text-lg font-semibold text-zinc-900" }, "Recent Orders"),
-                  React.createElement(Link, { href: "/dashboard/orders", className: "text-sm font-medium text-zinc-900 underline transition-colors hover:text-zinc-700" }, "View All")
-                ),
-                React.createElement("div", { className: "space-y-4" },
-                  orderList.map(function(order: any) {
-                    return React.createElement("div", { key: order.number, className: "flex items-center justify-between border-b border-zinc-100 pb-4 last:border-0 last:pb-0" },
-                      React.createElement("div", null,
-                        React.createElement("p", { className: "text-sm font-medium text-zinc-900" }, order.number),
-                        React.createElement("p", { className: "text-xs text-zinc-500" }, order.date)
-                      ),
-                      React.createElement("div", { className: "text-right" },
-                        React.createElement("p", { className: "text-sm font-medium text-zinc-900" }, "$" + order.total.toFixed(2)),
-                        React.createElement(StatusBadge, { status: order.status })
-                      )
-                    );
-                  })
-                )
-              )
-            ),
-            React.createElement(ScrollReveal, null,
-              React.createElement("div", { className: "grid gap-4 sm:grid-cols-2" },
-                React.createElement(Link, { href: "/dashboard/profile", className: "group rounded-xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md" },
-                  React.createElement(FiUser, { className: "mb-3 h-6 w-6 text-zinc-400 transition-colors group-hover:text-zinc-900" }),
-                  React.createElement("h3", { className: "font-medium text-zinc-900" }, "Edit Profile"),
-                  React.createElement("p", { className: "mt-1 text-sm text-zinc-500" }, "Update your personal information")
-                ),
-                React.createElement(Link, { href: "/dashboard/addresses", className: "group rounded-xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300 hover:shadow-md" },
-                  React.createElement(FiMapPin, { className: "mb-3 h-6 w-6 text-zinc-400 transition-colors group-hover:text-zinc-900" }),
-                  React.createElement("h3", { className: "font-medium text-zinc-900" }, "Manage Addresses"),
-                  React.createElement("p", { className: "mt-1 text-sm text-zinc-500" }, "Add or update shipping addresses")
-                )
-              )
-            )
-          )
-        )
-      ),
-      React.createElement("div", { className: "fixed bottom-0 left-0 right-0 border-t border-zinc-200 bg-white lg:hidden" },
-        React.createElement("div", { className: "flex justify-around py-3" },
-          sidebarLinks.slice(0, 5).map(function(link: any) {
-            var Icon = link.icon;
-            var cls = "flex flex-col items-center gap-1 " + (link.href === "/dashboard" ? "text-zinc-900" : "text-zinc-400");
-            return React.createElement(Link, { key: link.href, href: link.href, className: cls },
-              React.createElement(Icon, { className: "h-5 w-5" }),
-              React.createElement("span", { className: "text-[10px]" }, link.label)
-            );
-          })
-        )
-      ),
-      React.createElement(Footer, null)
-    )
+  return (
+    <DashboardLayout title="Welcome back, James" subtitle="Here is your account overview.">
+      {/* Stats Grid */}
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat, index) => {
+          const StatIcon = stat.icon;
+          return (
+            <ScrollReveal key={stat.label} delay={index * 0.05}>
+              <motion.div
+                whileHover={{ y: -3 }}
+                className="rounded-2xl border border-sage-light/30 bg-white p-6 transition-all hover:border-sage/30 hover:shadow-md"
+              >
+                <div className={`mb-4 inline-flex rounded-lg p-3 ${stat.color}`}>
+                  <StatIcon className="h-6 w-6" />
+                </div>
+                <p className="text-2xl font-bold text-navy">{stat.value}</p>
+                <p className="mt-1 text-sm text-slate">{stat.label}</p>
+              </motion.div>
+            </ScrollReveal>
+          );
+        })}
+      </div>
+
+      {/* Recent Orders */}
+      <ScrollReveal>
+        <div className="rounded-xl border border-sage-light/30 bg-white p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display text-2xl font-light text-navy">Recent Orders</h2>
+            <Link href="/dashboard/orders" className="link-underline text-xs font-medium uppercase tracking-[0.15em] text-walnut transition-colors hover:text-walnut-light">
+              View All
+            </Link>
+          </div>
+          <div className="space-y-4">
+            {orderList.map((order) => (
+              <div key={order.number} className="flex items-center justify-between border-b border-sage-light/30 pb-4 last:border-0 last:pb-0">
+                <div>
+                  <p className="text-sm font-medium text-navy">{order.number}</p>
+                  <p className="text-xs text-slate">{order.date}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-navy">${order.total.toFixed(2)}</p>
+                  <StatusBadge status={order.status} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </ScrollReveal>
+
+      {/* Quick Links */}
+      <ScrollReveal>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Link href="/dashboard/profile" className="group rounded-xl border border-sage-light/30 bg-white p-6 transition-all hover:border-sage/30 hover:shadow-md">
+            <FiUser className="mb-3 h-6 w-6 text-slate transition-colors group-hover:text-sage-dark" />
+            <h3 className="font-display text-xl font-light text-navy">Edit Profile</h3>
+            <p className="mt-1 text-sm text-slate">Update your personal information</p>
+          </Link>
+          <Link href="/dashboard/addresses" className="group rounded-xl border border-sage-light/30 bg-white p-6 transition-all hover:border-sage/30 hover:shadow-md">
+            <FiMapPin className="mb-3 h-6 w-6 text-slate transition-colors group-hover:text-sage-dark" />
+            <h3 className="font-display text-xl font-light text-navy">Manage Addresses</h3>
+            <p className="mt-1 text-sm text-slate">Add or update shipping addresses</p>
+          </Link>
+        </div>
+      </ScrollReveal>
+    </DashboardLayout>
   );
 }

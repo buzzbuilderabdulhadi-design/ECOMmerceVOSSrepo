@@ -15,13 +15,13 @@ export default function ShippingPage() {
     <PageTransition>
       <main className="min-h-screen">
         <Navbar />
-        <section className="bg-gray-50 py-12 md:py-16">
+        <section className="bg-cream py-12 md:py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Shipping Policy' }]} />
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Shipping Policy</h1>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight text-navy sm:text-4xl">Shipping Policy</h1>
           </div>
         </section>
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose prose-sm">
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-voss">
           <h2>Shipping Methods</h2>
           <p>We offer standard and express shipping worldwide. All orders are processed within 1-2 business days.</p>
           <h2>Free Shipping</h2>

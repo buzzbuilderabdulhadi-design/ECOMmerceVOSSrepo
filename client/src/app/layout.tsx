@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { AppProvider } from "@/context/AppProvider";
+import { CustomCursor } from "@/components/animations/CustomCursor";
+import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,6 +14,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -48,25 +58,27 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-gradient-luxury">
         <AppProvider>
+          <CustomCursor />
+          <LoadingScreen />
           {children}
           <Toaster
-            position="top-right"
+            position="bottom-right"
             toastOptions={{
               duration: 4000,
               style: {
-                background: "var(--toast-bg, #18181b)",
-                color: "var(--toast-color, #fafafa)",
+                background: "#112C47",
+                color: "#F5F0E6",
                 borderRadius: "0.5rem",
                 fontSize: "0.875rem",
               },
               success: {
                 iconTheme: {
-                  primary: "#22c55e",
-                  secondary: "#fafafa",
+                  primary: "#C4A86A",
+                  secondary: "#112C47",
                 },
               },
               error: {
@@ -82,4 +94,3 @@ export default function RootLayout({
     </html>
   );
 }
-

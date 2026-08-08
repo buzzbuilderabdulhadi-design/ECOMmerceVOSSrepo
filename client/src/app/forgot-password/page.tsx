@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
             <div className="w-full">
               <Link
                 href="/login"
-                className="mb-8 inline-flex items-center gap-2 text-sm text-zinc-500 transition-colors hover:text-zinc-900"
+                className="mb-8 inline-flex items-center gap-2 text-sm text-slate transition-colors hover:text-walnut"
               >
                 <FiArrowLeft className="h-4 w-4" />
                 Back to Login
@@ -69,15 +69,15 @@ export default function ForgotPasswordPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center"
                 >
-                  <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                    <FiCheckCircle className="h-8 w-8 text-green-600" />
+                  <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sage-light/40">
+                    <FiCheckCircle className="h-8 w-8 text-sage-dark" />
                   </div>
-                  <h1 className="mb-2 text-2xl font-bold text-zinc-900">Check Your Email</h1>
-                  <p className="mb-6 text-zinc-600">
+                  <h1 className="mb-2 text-2xl font-bold text-walnut">Check Your Email</h1>
+                  <p className="mb-6 text-slate">
                     We&apos;ve sent a password reset link to{' '}
-                    <span className="font-medium text-zinc-900">{email}</span>
+                    <span className="font-medium text-walnut">{email}</span>
                   </p>
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-slate">
                     Didn&apos;t receive the email?{' '}
                     <button
                       type="button"
@@ -85,7 +85,7 @@ export default function ForgotPasswordPage() {
                         setIsSubmitted(false);
                         setEmail('');
                       }}
-                      className="font-medium text-zinc-900 underline transition-colors hover:text-zinc-700"
+                      className="font-medium text-walnut underline transition-colors hover:text-walnut-light"
                     >
                       Try again
                     </button>
@@ -94,8 +94,8 @@ export default function ForgotPasswordPage() {
               ) : (
                 <>
                   <div className="mb-8">
-                    <h1 className="text-2xl font-bold text-zinc-900">Forgot Password</h1>
-                    <p className="mt-2 text-zinc-600">
+                    <h1 className="text-2xl font-bold text-walnut">Forgot Password</h1>
+                    <p className="mt-2 text-slate">
                       Enter your email and we&apos;ll send you a link to reset your password.
                     </p>
                   </div>
@@ -114,14 +114,14 @@ export default function ForgotPasswordPage() {
                       leftIcon={<FiMail className="h-4 w-4" />}
                       required
                     />
-                    <Button type="submit" variant="dark" size="lg" fullWidth isLoading={isLoading}>
+                    <Button type="submit" variant="walnut" size="lg" fullWidth isLoading={isLoading}>
                       Send Reset Link
                     </Button>
                   </form>
 
-                  <p className="mt-6 text-center text-sm text-zinc-500">
+                  <p className="mt-6 text-center text-sm text-slate">
                     Remember your password?{' '}
-                    <Link href="/login" className="font-medium text-zinc-900 underline transition-colors hover:text-zinc-700">
+                    <Link href="/login" className="font-medium text-walnut underline transition-colors hover:text-walnut-light">
                       Sign in
                     </Link>
                   </p>

@@ -10,6 +10,7 @@ interface RatingProps {
   size?: 'sm' | 'md' | 'lg';
   interactive?: boolean;
   showValue?: boolean;
+  onDark?: boolean;
   className?: string;
 }
 
@@ -20,6 +21,7 @@ export function Rating({
   size = 'md',
   interactive = false,
   showValue = false,
+  onDark = false,
   className,
 }: RatingProps) {
   const [hoverValue, setHoverValue] = useState<number | null>(null);
@@ -64,10 +66,10 @@ export function Rating({
                 sizeClasses[size],
                 'transition-colors duration-150',
                 filled
-                  ? 'text-yellow-400'
+                  ? onDark ? 'text-gold' : 'text-walnut'
                   : half
-                  ? 'text-yellow-400'
-                  : 'text-gray-200'
+                  ? onDark ? 'text-gold' : 'text-walnut'
+                  : 'text-slate'
               )}
               fill="currentColor"
               viewBox="0 0 20 20"
@@ -77,7 +79,7 @@ export function Rating({
                   <defs>
                     <linearGradient id={`half-${i}`}>
                       <stop offset="50%" stopColor="currentColor" />
-                      <stop offset="50%" stopColor="#E5E7EB" />
+                      <stop offset="50%" stopColor={onDark ? '#4E5A68' : '#C7BBA4'} />
                     </linearGradient>
                   </defs>
                   <path
@@ -93,7 +95,7 @@ export function Rating({
         );
       })}
       {showValue && (
-        <span className="ml-1 text-sm text-gray-500">{value.toFixed(1)}</span>
+        <span className="ml-1 text-sm text-slate">{value.toFixed(1)}</span>
       )}
     </div>
   );

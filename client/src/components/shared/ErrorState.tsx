@@ -41,11 +41,11 @@ export function ErrorState({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       </motion.div>
-      <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
-      <p className="mt-2 max-w-md text-sm text-gray-500">{message}</p>
+      <h3 className="text-xl font-semibold text-navy">{title}</h3>
+      <p className="mt-2 max-w-md text-sm text-slate">{message}</p>
       {onRetry && (
         <div className="mt-6">
-          <Button variant="dark" onClick={onRetry}>
+          <Button variant="walnut" onClick={onRetry}>
             Try Again
           </Button>
         </div>

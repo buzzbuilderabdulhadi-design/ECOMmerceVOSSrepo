@@ -15,13 +15,13 @@ export default function TermsPage() {
     <PageTransition>
       <main className="min-h-screen">
         <Navbar />
-        <section className="bg-gray-50 py-12 md:py-16">
+        <section className="bg-cream py-12 md:py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Terms of Service' }]} />
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Terms of Service</h1>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight text-navy sm:text-4xl">Terms of Service</h1>
           </div>
         </section>
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose prose-sm">
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-voss">
           <p>Last updated: January 2024</p>
           <h2>Acceptance of Terms</h2>
           <p>By accessing and using the VOSS website, you agree to be bound by these Terms of Service. If you do not agree, please do not use our services.</p>

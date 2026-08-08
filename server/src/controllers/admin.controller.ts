@@ -414,10 +414,92 @@ export const updateSiteSettings = async (req: Request, res: Response, next: Next
 export const getSeoEntries = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const entries = await prisma.seoEntry.findMany({ orderBy: { page: 'asc' } });
-    sendSuccess(resThe file is missing the final sections. Let me read it and complete it.
+    sendSuccess(res, entries);
+  } catch (error) { next(error); }
+};
 
-<read_file>
-<path>c:/Users/buzzb/Desktop/project ecom/server/src/controllers/admin.controller.ts</path>
-<end_line>500</end_line>
-</｜｜DSML｜｜tool_calls>
+export const updateSeoEntry = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = req.params.page as string;
+    const entry = await prisma.seoEntry.upsert({ where: { page }, update: req.body, create: { page, ...req.body } });
+    sendSuccess(res, entry, 'SEO entry updated');
+  } catch (error) { next(error); }
+};
 
+export const getNotifications = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const [notifications, total] = await Promise.all([
+      prisma.notification.findMany({ skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+      prisma.notification.count(),
+    ]);
+    sendPaginated(res, notifications, { page, limit, total });
+  } catch (error) { next(error); }
+};
+
+export const markNotificationRead = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await prisma.notification.update({ where: { id: req.params.id as string }, data: { isRead: true } });
+    sendMessage(res, 'Notification marked as read');
+  } catch (error) { next(error); }
+};
+
+export const markAllNotificationsRead = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    await prisma.notification.updateMany({ where: { isRead: false }, data: { isRead: true } });
+    sendMessage(res, 'All notifications marked as read');
+  } catch (error) { next(error); }
+};
+
+export const getActivityLogs = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const where: any = {};
+    if (req.query.userId) where.userId = req.query.userId as string;
+    if (req.query.entity) where.entity = req.query.entity as string;
+    if (req.query.action) where.action = req.query.action as string;
+    const [logs, total] = await Promise.all([
+      prisma.activityLog.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true } } } }),
+      prisma.activityLog.count({ where }),
+    ]);
+    sendPaginated(res, logs, { page, limit, total });
+  } catch (error) { next(error); }
+};
+
+export const clearActivityLogs = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    await prisma.activityLog.deleteMany();
+    sendMessage(res, 'Activity logs cleared');
+  } catch (error) { next(error); }
+};
+
+export const getHomepageContent = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const content = await prisma.homepageContent.findMany();
+    sendSuccess(res, content);
+  } catch (error) { next(error); }
+};
+
+export const updateHomepageContent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const content = await prisma.homepageContent.update({ where: { id }, data: req.body });
+    sendSuccess(res, content, 'Homepage content updated');
+  } catch (error) { next(error); }
+};
+
+export const createHomepageContent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const content = await prisma.homepageContent.create({ data: req.body });
+    sendCreated(res, content, 'Homepage content created');
+  } catch (error) { next(error); }
+};
+
+export const deleteHomepageContent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await prisma.homepageContent.delete({ where: { id: req.params.id as string } });
+    sendMessage(res, 'Homepage content deleted');
+  } catch (error) { next(error); }
+};

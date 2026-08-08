@@ -80,20 +80,20 @@ export default function ResetPasswordPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center"
                 >
-                  <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                    <FiCheckCircle className="h-8 w-8 text-green-600" />
+                  <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sage-light/40">
+                    <FiCheckCircle className="h-8 w-8 text-sage-dark" />
                   </div>
-                  <h1 className="mb-2 text-2xl font-bold text-zinc-900">Password Reset Successful</h1>
-                  <p className="mb-6 text-zinc-600">Your password has been updated successfully.</p>
-                  <Button variant="dark" size="lg" onClick={() => router.push('/login')}>
+                  <h1 className="mb-2 text-2xl font-bold text-walnut">Password Reset Successful</h1>
+                  <p className="mb-6 text-slate">Your password has been updated successfully.</p>
+                  <Button variant="walnut" size="lg" onClick={() => router.push('/login')}>
                     Sign In
                   </Button>
                 </motion.div>
               ) : (
                 <>
                   <div className="mb-8">
-                    <h1 className="text-2xl font-bold text-zinc-900">Reset Password</h1>
-                    <p className="mt-2 text-zinc-600">Enter your new password below.</p>
+                    <h1 className="text-2xl font-bold text-walnut">Reset Password</h1>
+                    <p className="mt-2 text-slate">Enter your new password below.</p>
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-6">
@@ -114,16 +114,16 @@ export default function ResetPasswordPage() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-[38px] text-zinc-400 hover:text-zinc-600"
+                        className="absolute right-3 top-[38px] text-slate hover:text-walnut-light"
                       >
                         {showPassword ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
                       </button>
                       {password && (
                         <div className="mt-2">
-                          <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-200">
+                          <div className="h-1 w-full overflow-hidden rounded-full bg-sage-light/50">
                             <div className={`h-full rounded-full ${strength.color} ${strength.width} transition-all duration-300`} />
                           </div>
-                          <p className="mt-1 text-xs text-zinc-500">Password strength: {strength.label}</p>
+                          <p className="mt-1 text-xs text-slate">Password strength: {strength.label}</p>
                         </div>
                       )}
                     </div>
@@ -142,13 +142,13 @@ export default function ResetPasswordPage() {
                       required
                     />
 
-                    <Button type="submit" variant="dark" size="lg" fullWidth isLoading={isLoading}>
+                    <Button type="submit" variant="walnut" size="lg" fullWidth isLoading={isLoading}>
                       Reset Password
                     </Button>
                   </form>
 
-                  <p className="mt-6 text-center text-sm text-zinc-500">
-                    <Link href="/login" className="font-medium text-zinc-900 underline transition-colors hover:text-zinc-700">
+                  <p className="mt-6 text-center text-sm text-slate">
+                    <Link href="/login" className="font-medium text-walnut underline transition-colors hover:text-walnut-light">
                       Back to Sign In
                     </Link>
                   </p>

@@ -29,7 +29,7 @@ export function useToast() {
 
 const toastIcons: Record<ToastType, React.ReactNode> = {
   success: (
-    <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="h-5 w-5 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
     </svg>
   ),
@@ -39,22 +39,22 @@ const toastIcons: Record<ToastType, React.ReactNode> = {
     </svg>
   ),
   warning: (
-    <svg className="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="h-5 w-5 text-walnut" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
     </svg>
   ),
   info: (
-    <svg className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="h-5 w-5 text-navy-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
 };
 
 const toastColors: Record<ToastType, string> = {
-  success: 'border-green-200 bg-green-50',
+  success: 'border-sage-light/60 bg-sage-light/20',
   error: 'border-red-200 bg-red-50',
-  warning: 'border-yellow-200 bg-yellow-50',
-  info: 'border-blue-200 bg-blue-50',
+  warning: 'border-walnut-light/40 bg-walnut/5',
+  info: 'border-navy-light/30 bg-navy-light/5',
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -89,15 +89,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           >
             <span className="mt-0.5 flex-shrink-0">{toastIcons[toast.type]}</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900">{toast.message}</p>
+              <p className="text-sm font-medium text-navy">{toast.message}</p>
               {toast.description && (
-                <p className="mt-1 text-xs text-gray-500">{toast.description}</p>
+                <p className="mt-1 text-xs text-slate">{toast.description}</p>
               )}
             </div>
             <button
               type="button"
               onClick={() => removeToast(toast.id)}
-              className="flex-shrink-0 rounded-full p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex-shrink-0 rounded-full p-0.5 text-slate hover:text-navy transition-colors"
               aria-label="Close notification"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

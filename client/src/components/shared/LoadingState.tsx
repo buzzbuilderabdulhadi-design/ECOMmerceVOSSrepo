@@ -30,7 +30,7 @@ export function LoadingState({
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mb-6 text-sm text-gray-500"
+          className="mb-6 text-sm text-slate"
         >
           {message}
         </motion.p>
@@ -63,7 +63,7 @@ export function LoadingState({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="flex gap-4 rounded-lg border border-gray-200 p-4"
+              className="flex gap-4 rounded-lg border border-sage-light/30 p-4"
             >
               <Skeleton className="h-20 w-20 rounded-lg" />
               <div className="flex-1 space-y-2">
@@ -94,7 +94,7 @@ export function LoadingState({
             animate={{ rotate: 360 }}
             transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
           >
-            <svg className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-8 w-8 text-slate" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </motion.div>

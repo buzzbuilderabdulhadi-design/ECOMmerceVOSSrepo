@@ -1,30 +1,43 @@
 'use client';
 
-import React, { forwardRef, ButtonHTMLAttributes, useState } from 'react';
+import React, { forwardRef, ButtonHTMLAttributes, useRef, useState } from 'react';
+import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 const variants = {
-  primary: 'bg-black text-white hover:bg-gray-800 focus:ring-black',
-  secondary: 'bg-white text-black border border-black hover:bg-gray-50 focus:ring-gray-300',
-  outline: 'bg-transparent text-black border border-gray-300 hover:border-black focus:ring-gray-300',
-  ghost: 'bg-transparent text-black hover:bg-gray-100 focus:ring-gray-200',
+  primary:
+    'bg-navy text-ivory hover:bg-navy-light focus:ring-navy shadow-lg shadow-navy/15',
+  secondary:
+    'bg-white text-navy border border-navy/30 hover:bg-navy/5 focus:ring-navy',
+  outline:
+    'bg-transparent text-navy border border-navy/40 hover:border-navy focus:ring-navy',
+  ghost: 'bg-transparent text-navy hover:bg-navy/5 focus:ring-navy',
   danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-  dark: 'bg-gray-900 text-white hover:bg-gray-800 focus:ring-gray-700',
+  gold: 'bg-gold text-navy hover:bg-gold/85 focus:ring-gold',
+  walnut: 'bg-walnut text-ivory hover:bg-walnut-light focus:ring-walnut',
+  sage: 'bg-sage text-navy hover:bg-sage-dark hover:text-white focus:ring-sage',
+  light:
+    'bg-cream text-navy hover:bg-white focus:ring-cream shadow-lg shadow-black/10',
 };
 
 const sizes = {
-  xs: 'px-2.5 py-1.5 text-xs',
-  sm: 'px-3 py-2 text-sm',
-  md: 'px-5 py-2.5 text-sm',
-  lg: 'px-6 py-3 text-base',
-  xl: 'px-8 py-4 text-lg',
+  xs: 'px-3 py-1.5 text-[11px] uppercase tracking-[0.14em]',
+  sm: 'px-4 py-2 text-xs uppercase tracking-[0.14em]',
+  md: 'px-6 py-2.5 text-xs uppercase tracking-[0.16em]',
+  lg: 'px-8 py-3.5 text-sm uppercase tracking-[0.16em]',
+  xl: 'px-10 py-4 text-sm uppercase tracking-[0.18em]',
 };
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps
+  extends Omit<
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    'onAnimationStart' | 'onDragStart' | 'onDragEnd' | 'onDrag'
+  > {
   variant?: keyof typeof variants;
   size?: keyof typeof sizes;
   isLoading?: boolean;
   isRipple?: boolean;
+  magnetic?: boolean;
   fullWidth?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -38,6 +51,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       size = 'md',
       isLoading = false,
       isRipple = true,
+      magnetic = true,
       fullWidth = false,
       leftIcon,
       rightIcon,
@@ -48,7 +62,25 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
+    const innerRef = useRef<HTMLButtonElement | null>(null);
     const [ripples, setRipples] = useState<Array<{ x: number; y: number; id: number }>>([]);
+    const mx = useMotionValue(0);
+    const my = useMotionValue(0);
+    const sx = useSpring(mx, { stiffness: 220, damping: 16, mass: 0.2 });
+    const sy = useSpring(my, { stiffness: 220, damping: 16, mass: 0.2 });
+
+    const handleMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+      const el = innerRef.current;
+      if (!el || !magnetic) return;
+      const rect = el.getBoundingClientRect();
+      mx.set((e.clientX - (rect.left + rect.width / 2)) * 0.22);
+      my.set((e.clientY - (rect.top + rect.height / 2)) * 0.22);
+    };
+
+    const handleLeave = () => {
+      mx.set(0);
+      my.set(0);
+    };
 
     const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
       if (isRipple && !disabled && !isLoading) {
@@ -65,12 +97,21 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     return (
-      <button
-        ref={ref}
+      <motion.button
+        ref={(node) => {
+          innerRef.current = node;
+          if (typeof ref === 'function') ref(node);
+          else if (ref) (ref as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+        }}
+        onMouseMove={handleMove}
+        onMouseLeave={handleLeave}
+        style={{ x: sx, y: sy }}
+        whileTap={{ scale: 0.97 }}
         disabled={disabled || isLoading}
         onClick={handleClick}
         className={cn(
-          'relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+          'relative inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+          'group/btn',
           variants[variant],
           sizes[size],
           fullWidth && 'w-full',
@@ -78,6 +119,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         {...props}
       >
+        {/* Underline accent */}
+        <span className="pointer-events-none absolute bottom-1.5 left-1/2 h-px w-0 -translate-x-1/2 bg-sage/70 transition-all duration-500 group-hover/btn:w-1/2" />
+
         {isLoading && (
           <svg
             className="h-4 w-4 animate-spin"
@@ -99,7 +143,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {ripples.map((ripple) => (
           <span
             key={ripple.id}
-            className="pointer-events-none absolute animate-ripple rounded-full bg-white/30"
+            className="pointer-events-none absolute animate-ripple rounded-full bg-white/25"
             style={{
               left: ripple.x - 10,
               top: ripple.y - 10,
@@ -108,7 +152,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             }}
           />
         ))}
-      </button>
+      </motion.button>
     );
   }
 );

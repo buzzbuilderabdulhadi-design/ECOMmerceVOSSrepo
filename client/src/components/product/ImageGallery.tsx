@@ -41,8 +41,8 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
 
   if (!images || images.length === 0) {
     return (
-      <div className={cn('flex aspect-square items-center justify-center rounded-xl bg-gray-100', className)}>
-        <svg className="h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className={cn('flex aspect-square items-center justify-center rounded-xl bg-sage-light/40', className)}>
+        <svg className="h-16 w-16 text-slate/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       </div>
@@ -57,7 +57,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
       <div
         ref={imageRef}
         className={cn(
-          'relative aspect-square overflow-hidden rounded-xl bg-gray-50',
+          'relative aspect-square overflow-hidden rounded-2xl bg-cream',
           isZoomed && 'cursor-zoom-out',
           !isZoomed && 'cursor-zoom-in'
         )}
@@ -120,8 +120,8 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
               className={cn(
                 'relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all duration-200',
                 index === selectedIndex
-                  ? 'border-gray-900 ring-1 ring-gray-900'
-                  : 'border-gray-200 hover:border-gray-400'
+                  ? 'border-gold ring-1 ring-gold'
+                  : 'border-sage-light/30 hover:border-navy/50'
               )}
               aria-label={`View image ${index + 1}`}
             >

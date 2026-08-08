@@ -89,7 +89,8 @@ export interface Product {
   regularPrice: number;
   salePrice?: number;
   discountPercent?: number;
-  images: ProductImage[];
+  stock: number;
+  images: (ProductImage | string)[];
   tags: string[];
   isNew: boolean;
   isBestSeller: boolean;

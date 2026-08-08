@@ -4,11 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
-import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
-
-// ============================================================
-// WhyChooseVOSS — Trust-building feature highlights
-// ============================================================
+import { TextReveal } from '@/components/animations/TextReveal';
 
 interface Feature {
   icon: React.ReactNode;
@@ -81,43 +77,115 @@ const defaultFeatures: Feature[] = [
 ];
 
 export function WhyChooseVOSS({
-  title = 'Why Choose VOSS',
+  title = 'The VOSS Difference',
   description = 'Experience the difference of true craftsmanship and uncompromising quality.',
   features = defaultFeatures,
   className,
 }: WhyChooseVOSSProps) {
   return (
-    <section className={cn('bg-gray-50 py-16 md:py-24', className)}>
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <ScrollReveal>
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              {title}
-            </h2>
-            <p className="mt-3 text-base leading-relaxed text-gray-500">
-              {description}
-            </p>
-          </div>
-        </ScrollReveal>
+    <section className={cn('bg-gradient-beige-cream relative overflow-hidden py-20 grain md:py-28', className)}>
+      {/* Ambient light glows */}
+      <div className="pointer-events-none absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-sage/15 blur-[110px]" />
+      <div className="pointer-events-none absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-walnut/10 blur-[110px]" />
 
-        <StaggerChildren className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature, index) => (
-            <StaggerItem key={index}>
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="group rounded-xl border border-gray-200 bg-white p-6 transition-shadow hover:shadow-md"
-              >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-900 text-white transition-colors group-hover:bg-amber-700">
-                  {feature.icon}
+      <div className="relative z-10 mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12">
+        <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+          {/* Left — sticky intro on light background */}
+          <div className="lg:sticky lg:top-32 lg:self-start">
+            <ScrollReveal>
+              <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-walnut">
+                <span className="inline-block h-px w-10 bg-walnut" />
+                Why VOSS
+              </p>
+              <TextReveal
+                as="h2"
+                text={title}
+                className="mt-5 font-display text-4xl font-medium leading-tight text-navy sm:text-5xl lg:text-[3.25rem]"
+              />
+              <p className="mt-6 max-w-md text-base leading-relaxed text-charcoal sm:text-lg">
+                {description}
+              </p>
+
+              <div className="mt-10 hidden max-w-md lg:block">
+                <div className="hairline-b" />
+                <div className="flex items-center justify-between pt-6">
+                  <div>
+                    <p className="font-display text-7xl font-light leading-none text-navy">
+                      {String(features.length).padStart(2, '0')}
+                    </p>
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-walnut">
+                      Reasons to stay
+                    </p>
+                  </div>
+                  <p className="max-w-[10rem] text-xs italic leading-relaxed text-slate">
+                    Crafted with pride, guaranteed without exception.
+                  </p>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">{feature.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-500">{feature.description}</p>
-              </motion.div>
-            </StaggerItem>
-          ))}
-        </StaggerChildren>
+              </div>
+            </ScrollReveal>
+          </div>
+
+          {/* Right — deep navy content container */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+            className="bg-gradient-night grain relative overflow-hidden rounded-3xl p-8 shadow-[0_30px_80px_-20px_rgba(31,42,68,0.4)] sm:p-10 lg:p-14"
+          >
+            {/* Subtle inner glow */}
+            <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-sage/15 blur-[100px]" />
+            <span className="pointer-events-none absolute right-8 top-8 h-1 w-1 rounded-full bg-gold/70" />
+
+            {/* Card header */}
+            <div className="relative">
+              <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-sage-light">
+                <span className="inline-block h-px w-8 bg-sage" />
+                A promise of excellence
+              </p>
+              <h3 className="mt-4 font-display text-3xl font-light leading-tight text-ivory sm:text-4xl">
+                Everything you expect, <span className="display-italic text-sage-light">and more</span>
+              </h3>
+              <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-ivory">
+                Six commitments that define every piece that bears the VOSS name.
+              </p>
+            </div>
+
+            {/* Features grid */}
+            <div className="relative mt-10 grid gap-x-10 gap-y-0 sm:grid-cols-2">
+              {features.map((feature, index) => (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.55, delay: index * 0.06, ease: [0.25, 0.1, 0.25, 1] }}
+                  className="group flex items-start gap-5 border-b border-ivory/10 py-7 first:pt-0 hover:border-sage/40"
+                >
+                  <div className="relative shrink-0">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-walnut text-ivory shadow-lg shadow-black/20 transition-all duration-500 group-hover:bg-walnut-light group-hover:scale-105">
+                      {feature.icon}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-3">
+                      <span className="font-display text-sm font-light leading-none text-sage-light transition-colors duration-300 group-hover:text-sage-light">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <h4 className="font-display text-xl font-medium leading-snug text-ivory">
+                        {feature.title}
+                      </h4>
+                    </div>
+                    <p className="mt-2.5 text-sm leading-relaxed text-ivory">
+                      {feature.description}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
       </div>
     </section>
   );
 }
-

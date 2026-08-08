@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
@@ -8,46 +8,65 @@ import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { ProductCard, type ProductCardData } from '@/components/product/ProductCard';
 import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { TextReveal } from '@/components/animations/TextReveal';
+import { useWishlist } from '@/context/WishlistContext';
 
-// ============================================================
-// Wishlist Page — User's saved/favorite items
-// ============================================================
-
-const wishlistItems: ProductCardData[] = [
-  { id: '1', name: 'Classic Brown Leather Jacket', slug: 'classic-brown-leather-jacket', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80', regularPrice: 450, salePrice: 395, discountPercent: 12, rating: 4.8, reviewCount: 124, isNew: true, brand: 'VOSS', category: 'Leather Jackets', colors: [{ name: 'Brown', hex: '#8B5E3C' }, { name: 'Black', hex: '#000000' }] },
-  { id: '5', name: 'Premium Wool Peacoat', slug: 'premium-wool-peacoat', image: 'https://images.unsplash.com/photo-1544923246-77307dd270b4?w=600&q=80', regularPrice: 680, salePrice: 595, discountPercent: 12, rating: 4.9, reviewCount: 67, isNew: true, brand: 'VOSS', category: 'Winter Jackets', colors: [{ name: 'Navy', hex: '#112C47' }, { name: 'Charcoal', hex: '#36454F' }] },
-  { id: '10', name: 'Hooded Parka with Fur Trim', slug: 'hooded-parka-fur-trim', image: 'https://images.unsplash.com/photo-1539533113208-f6df8cc8b543?w=600&q=80', regularPrice: 750, rating: 4.9, reviewCount: 45, isBestSeller: true, brand: 'VOSS', category: 'Parkas', colors: [{ name: 'Black', hex: '#000000' }, { name: 'Olive', hex: '#556B2F' }] },
-];
+function toProductCardData(item: any): ProductCardData {
+  const p = item.product;
+  const firstImage = p.images?.[0];
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    image: typeof firstImage === 'string' ? firstImage : firstImage?.url || '',
+    images: p.images?.map((i: any) => typeof i === 'string' ? i : i.url) || [],
+    regularPrice: p.regularPrice,
+    salePrice: p.salePrice,
+    discountPercent: p.discountPercent,
+    stock: p.stock,
+    brand: p.brand,
+    category: p.category?.name,
+    colors: p.variants?.map((v: any) => ({ name: v.color, hex: v.colorHex })).filter((v: any) => v.hex),
+  };
+}
 
 export default function WishlistPage() {
-  const [items] = useState<ProductCardData[]>(wishlistItems);
-  const [wishlistedIds] = useState<Set<string>>(new Set(items.map((i) => i.id)));
+  const { items, isLoading, removeItem, toggleItem, isInWishlist } = useWishlist();
 
   const handleWishlistToggle = (productId: string) => {
-    // Will be implemented with API integration
-    console.log('Toggle wishlist:', productId);
+    const wlItem = items.find((i) => i.productId === productId);
+    if (wlItem) removeItem(wlItem.id);
   };
 
   return (
     <PageTransition>
       <main className="min-h-screen">
         <Navbar />
-        <section className="bg-gray-50 py-12 md:py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <section className="relative overflow-hidden pb-4 pt-24 md:pt-36">
+          <span className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[12rem]">
+            Saved
+          </span>
+          <div className="relative z-10 mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Wishlist' }]} />
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              My Wishlist
-            </h1>
-            <p className="mt-2 text-base text-gray-500">
-              {items.length} {items.length === 1 ? 'item' : 'items'} saved
+            <div className="mt-6">
+              <TextReveal as="h1" text="My Wishlist" className="font-display text-5xl font-light text-navy sm:text-6xl" />
+            </div>
+            <p className="mt-3 text-sm uppercase tracking-[0.25em] text-sage-dark">
+              {items.length} {items.length === 1 ? 'piece' : 'pieces'} saved
             </p>
           </div>
         </section>
 
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          {items.length === 0 ? (
+        <div className="mx-auto max-w-[1400px] px-4 py-10 sm:px-8 lg:px-12">
+          {isLoading ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[1,2,3,4].map((i) => (
+                <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-sage-light/20" />
+              ))}
+            </div>
+          ) : items.length === 0 ? (
             <EmptyState
-              icon={undefined}
+              type="wishlist"
               title="Your wishlist is empty"
               description="Save items you love to your wishlist and come back to them anytime."
               actionLabel="Explore Products"
@@ -55,11 +74,11 @@ export default function WishlistPage() {
             />
           ) : (
             <StaggerChildren className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {items.map((product) => (
-                <StaggerItem key={product.id}>
+              {items.map((item) => (
+                <StaggerItem key={item.id}>
                   <ProductCard
-                    product={product}
-                    isWishlisted={wishlistedIds.has(product.id)}
+                    product={toProductCardData(item)}
+                    isWishlisted={true}
                     onWishlistToggle={handleWishlistToggle}
                   />
                 </StaggerItem>

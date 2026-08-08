@@ -110,12 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'LOGIN_START' });
     try {
       const response = await axiosInstance.post('/auth/login', credentials);
-      const { user, token } = response.data.data;
+      const { user, accessToken, refreshToken } = response.data.data;
 
-      localStorage.setItem('voss_token', token);
+      localStorage.setItem('voss_token', accessToken);
+      localStorage.setItem('voss_refresh_token', refreshToken);
       localStorage.setItem('voss_user', JSON.stringify(user));
 
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
     } catch (error) {
       const message = getErrorMessage(error);
       dispatch({ type: 'LOGIN_FAILURE', payload: message });
@@ -127,12 +128,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'LOGIN_START' });
     try {
       const response = await axiosInstance.post('/auth/register', data);
-      const { user, token } = response.data.data;
+      const { user, accessToken, refreshToken } = response.data.data;
 
-      localStorage.setItem('voss_token', token);
+      localStorage.setItem('voss_token', accessToken);
+      localStorage.setItem('voss_refresh_token', refreshToken);
       localStorage.setItem('voss_user', JSON.stringify(user));
 
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
     } catch (error) {
       const message = getErrorMessage(error);
       dispatch({ type: 'LOGIN_FAILURE', payload: message });

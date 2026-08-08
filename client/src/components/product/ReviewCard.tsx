@@ -55,17 +55,17 @@ export function ReviewCard({ review, onHelpful, className }: ReviewCardProps) {
     .slice(0, 2);
 
   return (
-    <div className={cn('rounded-xl border border-gray-100 bg-white p-5 transition-all duration-200 hover:border-gray-200 hover:shadow-sm', className)}>
+    <div className={cn('rounded-xl border border-sage-light/20 bg-white p-5 transition-all duration-200 hover:border-sage/30 hover:shadow-sm', className)}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-light/40 text-sm font-semibold text-slate">
             {initials}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-900">{customerName}</span>
+              <span className="text-sm font-medium text-navy">{customerName}</span>
               {isVerifiedPurchase && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-sage-light/40 px-2 py-0.5 text-[10px] font-medium text-sage-dark">
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
@@ -76,24 +76,24 @@ export function ReviewCard({ review, onHelpful, className }: ReviewCardProps) {
             <div className="mt-0.5 flex items-center gap-2">
               <Rating value={rating} size="sm" />
               {country && (
-                <span className="text-xs text-gray-400">{country}</span>
+                <span className="text-xs text-slate">{country}</span>
               )}
-              <span className="text-xs text-gray-400">{formatDate(date)}</span>
+              <span className="text-xs text-slate">{formatDate(date)}</span>
             </div>
           </div>
         </div>
       </div>
 
       {title && (
-        <h4 className="mt-3 text-sm font-semibold text-gray-900">{title}</h4>
+        <h4 className="mt-3 text-sm font-semibold text-navy">{title}</h4>
       )}
 
-      <p className="mt-1.5 text-sm leading-relaxed text-gray-600">{text}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-slate">{text}</p>
 
       {images && images.length > 0 && (
         <div className="mt-3 flex gap-2">
           {images.slice(0, 4).map((image, index) => (
-            <div key={index} className="relative h-16 w-16 overflow-hidden rounded-lg border border-gray-200">
+            <div key={index} className="relative h-16 w-16 overflow-hidden rounded-lg border border-sage-light/30">
               <Image
                 src={image}
                 alt={`Review image ${index + 1}`}
@@ -104,7 +104,7 @@ export function ReviewCard({ review, onHelpful, className }: ReviewCardProps) {
             </div>
           ))}
           {images.length > 4 && (
-            <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-xs text-gray-400">
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-sage-light/30 bg-cream text-xs text-slate">
               +{images.length - 4}
             </div>
           )}
@@ -112,12 +112,12 @@ export function ReviewCard({ review, onHelpful, className }: ReviewCardProps) {
       )}
 
       {onHelpful && (
-        <div className="mt-3 flex items-center gap-3 border-t border-gray-100 pt-3">
-          <span className="text-xs text-gray-400">Was this helpful?</span>
+        <div className="mt-3 flex items-center gap-3 border-t border-sage-light/20 pt-3">
+          <span className="text-xs text-slate">Was this helpful?</span>
           <button
             type="button"
             onClick={() => onHelpful(id)}
-            className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200"
+            className="inline-flex items-center gap-1 rounded-full bg-sage-light/40 px-3 py-1 text-xs font-medium text-slate transition-colors hover:bg-cream-dark"
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />

@@ -52,7 +52,7 @@ export function ColorSwatch({
             className={cn(
               'group relative flex items-center justify-center rounded-full transition-all duration-200',
               sizeClasses[size],
-              isSelected && `${borderSize[size]} ring-gray-900 ring-offset-2`,
+              isSelected && `${borderSize[size]} ring-sage ring-offset-2`,
               !isSelected && !color.disabled && 'hover:scale-110',
               color.disabled && 'cursor-not-allowed opacity-40'
             )}
@@ -73,7 +73,7 @@ export function ColorSwatch({
             )}
             {color.disabled && (
               <span className="absolute inset-0 flex items-center justify-center">
-                <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-4 w-4 text-slate" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </span>
@@ -89,7 +89,7 @@ export function ColorSwatch({
         );
       })}
       {showLabel && selectedColor && (
-        <span className="ml-1 self-center text-sm text-gray-500">
+        <span className="ml-1 self-center text-sm text-slate">
           {selectedColor}
         </span>
       )}

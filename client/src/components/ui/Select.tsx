@@ -112,7 +112,7 @@ export function Select({
   return (
     <div className={cn('relative', className)} ref={containerRef}>
       {label && (
-        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+        <label className="mb-1.5 block text-sm font-medium text-navy">
           {label}
           {required && <span className="ml-1 text-red-500">*</span>}
         </label>
@@ -126,22 +126,22 @@ export function Select({
           'focus:outline-none focus:ring-2 focus:ring-offset-1',
           error
             ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-            : 'border-gray-300 focus:border-gray-900 focus:ring-gray-200',
-          disabled && 'cursor-not-allowed bg-gray-50 text-gray-400',
-          !disabled && 'hover:border-gray-400',
-          isOpen && 'border-gray-900 ring-1 ring-gray-200'
+            : 'border-sage-light/40 focus:border-navy focus:ring-sage/30',
+          disabled && 'cursor-not-allowed bg-cream text-slate/60',
+          !disabled && 'hover:border-navy/50',
+          isOpen && 'border-navy/30 ring-1 ring-sage/20'
         )}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-invalid={!!error}
       >
-        <span
-          className={cn(
-            'truncate',
-            !selectedOption && 'text-gray-400',
-            selectedOption && 'text-gray-900'
-          )}
-        >
+          <span
+            className={cn(
+              'truncate',
+              !selectedOption && 'text-slate',
+              selectedOption && 'text-navy'
+            )}
+          >
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <span className="ml-2 flex items-center gap-1">
@@ -149,7 +149,7 @@ export function Select({
             <button
               type="button"
               onClick={handleClear}
-              className="rounded-full p-0.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+              className="rounded-full p-0.5 text-slate hover:text-navy focus:outline-none"
               aria-label="Clear selection"
             >
               <svg
@@ -169,7 +169,7 @@ export function Select({
           )}
           <svg
             className={cn(
-              'h-4 w-4 text-gray-400 transition-transform duration-200',
+              'h-4 w-4 text-slate transition-transform duration-200',
               isOpen && 'rotate-180'
             )}
             fill="none"
@@ -186,16 +186,16 @@ export function Select({
         </span>
       </button>
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-sage-light/30 bg-white shadow-lg animate-in fade-in slide-in-from-top-1 duration-200">
           {searchable && (
-            <div className="border-b border-gray-100 p-2">
+            <div className="border-b border-sage-light/20 p-2">
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search..."
-                className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-gray-400 focus:outline-none"
+                className="w-full rounded-md border border-sage-light/30 px-3 py-1.5 text-sm focus:border-navy/50 focus:outline-none"
               />
             </div>
           )}
@@ -205,7 +205,7 @@ export function Select({
             aria-label="Options"
           >
             {filteredOptions.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-gray-400">
+              <li className="px-3 py-2 text-sm text-slate">
                 No options found
               </li>
             ) : (
@@ -218,16 +218,16 @@ export function Select({
                   className={cn(
                     'cursor-pointer px-3 py-2 text-sm transition-colors duration-150',
                     value === option.value
-                      ? 'bg-gray-100 font-medium text-gray-900'
-                      : 'text-gray-700 hover:bg-gray-50',
-                    option.disabled && 'cursor-not-allowed text-gray-300'
+                      ? 'bg-sage-light/40 font-medium text-navy'
+                      : 'text-charcoal hover:bg-cream',
+                    option.disabled && 'cursor-not-allowed text-slate/50'
                   )}
                 >
                   <span className="flex items-center justify-between">
                     {option.label}
                     {value === option.value && (
                       <svg
-                        className="h-4 w-4 text-gray-900"
+                        className="h-4 w-4 text-navy"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
