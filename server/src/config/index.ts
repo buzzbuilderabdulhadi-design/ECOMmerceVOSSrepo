@@ -45,7 +45,10 @@ const config: Config = {
   env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '5000', 10),
   database: {
-    url: process.env.DATABASE_URL || 'mongodb://localhost:27017/voss_ecommerce',
+    url:
+      process.env.MONGODB_URI ||
+      process.env.DATABASE_URL ||
+      'mongodb://localhost:27017/voss_ecommerce',
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'voss_dev_secret_key',

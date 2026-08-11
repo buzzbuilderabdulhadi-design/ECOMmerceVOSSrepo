@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "mongodb"
-  url      = env("DATABASE_URL")
+  url      = env("MONGODB_URI")
 }
 
 model User {
@@ -31,7 +31,7 @@ model User {
 
 model Address {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String
+  userId    String  @db.ObjectId
   label     String
   fullName  String
   phone     String
@@ -55,7 +55,7 @@ model Category {
   slug           String    @unique
   description    String?
   image          String?
-  parentId       String?
+  parentId       String?  @db.ObjectId
   seoTitle       String?
   seoDescription String?
   displayOrder   Int       @default(0)
@@ -81,8 +81,8 @@ model Product {
   specifications    Json?
   material          String?
   brand             String?
-  categoryId        String
-  subcategoryId     String?
+  categoryId        String  @db.ObjectId
+  subcategoryId     String? @db.ObjectId
   regularPrice      Float
   salePrice         Float?
   discountPercent   Int?
@@ -116,7 +116,7 @@ model Product {
 
 model ProductVariant {
   id            String  @id @default(auto()) @map("_id") @db.ObjectId
-  productId     String
+  productId     String  @db.ObjectId
   color         String
   colorHex      String?
   size          String
@@ -137,7 +137,7 @@ model ProductVariant {
 
 model Cart {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String?  @unique
+  userId         String?  @unique @db.ObjectId
   sessionId      String?
   couponCode     String?
   discountAmount Float?
@@ -151,10 +151,10 @@ model Cart {
 }
 
 model CartItem {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
-  cartId    String
-  productId String
-  variantId String?
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  cartId    String  @db.ObjectId
+  productId String  @db.ObjectId
+  variantId String? @db.ObjectId
   quantity  Int    @default(1)
 
   cart    Cart            @relation(fields: [cartId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -168,7 +168,7 @@ model CartItem {
 model Order {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
   orderNumber       String   @unique
-  userId            String
+  userId            String   @db.ObjectId
   status            String   @default("PENDING")
   subtotal          Float
   shippingCost      Float    @default(0)
@@ -177,8 +177,8 @@ model Order {
   total             Float
   paymentMethod     String?
   paymentStatus     String   @default("PENDING")
-  shippingAddressId String?
-  billingAddressId  String?
+  shippingAddressId String?  @db.ObjectId
+  billingAddressId  String?  @db.ObjectId
   notes             String?
   internalNotes     String?
   couponCode        String?
@@ -196,10 +196,10 @@ model Order {
 }
 
 model OrderItem {
-  id              String @id @default(auto()) @map("_id") @db.ObjectId
-  orderId         String
-  productId       String
-  variantId       String?
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String  @db.ObjectId
+  productId       String  @db.ObjectId
+  variantId       String? @db.ObjectId
   productSnapshot Json
   quantity        Int
   unitPrice       Float
@@ -214,8 +214,8 @@ model OrderItem {
 
 model Review {
   id                 String   @id @default(auto()) @map("_id") @db.ObjectId
-  productId          String
-  userId             String
+  productId          String   @db.ObjectId
+  userId             String   @db.ObjectId
   rating             Int
   title              String?
   text               String?
@@ -237,9 +237,9 @@ model Review {
 
 model WishlistItem {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String
-  productId String
-  variantId String?
+  userId    String   @db.ObjectId
+  productId String   @db.ObjectId
+  variantId String?  @db.ObjectId
   addedAt   DateTime @default(now())
 
   user    User           @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -252,8 +252,8 @@ model WishlistItem {
 
 model ProductQuestion {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  productId       String
-  userId          String
+  productId       String    @db.ObjectId
+  userId          String    @db.ObjectId
   question        String
   answer          String?
   adminAnsweredAt DateTime?
@@ -284,7 +284,7 @@ model Coupon {
 
 model Notification {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String?
+  userId    String?  @db.ObjectId
   title     String
   message   String
   type      String   @default("info")
@@ -301,7 +301,7 @@ model Notification {
 
 model ActivityLog {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String?
+  userId    String?  @db.ObjectId
   action    String
   entity    String?
   entityId  String?
@@ -328,7 +328,7 @@ model Media {
   width      Int?
   height     Int?
   folder     String?
-  uploadedBy String?
+  uploadedBy String?  @db.ObjectId
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
