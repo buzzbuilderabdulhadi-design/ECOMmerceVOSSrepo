@@ -23,11 +23,15 @@ export const generateAccessToken = (payload: TokenPayload): string => {
 };
 
 export const generateRefreshToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, config.jwt.secret, { expiresIn: config.jwt.refreshExpiresIn as any });
+  return jwt.sign(payload, config.jwt.refreshSecret, { expiresIn: config.jwt.refreshExpiresIn as any });
 };
 
 export const verifyToken = (token: string): TokenPayload => {
   return jwt.verify(token, config.jwt.secret) as TokenPayload;
+};
+
+export const verifyRefreshToken = (token: string): TokenPayload => {
+  return jwt.verify(token, config.jwt.refreshSecret) as TokenPayload;
 };
 
 export const generateResetToken = (): string => {
@@ -62,12 +66,12 @@ export const loginUser = async (email: string, password: string) => {
   if (!isValid) throw ApiError.unauthorized('Invalid email or password');
   const accessToken = generateAccessToken({ userId: user.id, role: user.role });
   const refreshToken = generateRefreshToken({ userId: user.id, role: user.role });
-  const { passwordHash, ...userWithoutPassword } = user;
+  const { passwordHash: _, ...userWithoutPassword } = user;
   return { user: userWithoutPassword, accessToken, refreshToken };
 };
 
 export const refreshUserToken = async (token: string) => {
-  const decoded = verifyToken(token);
+  const decoded = verifyRefreshToken(token);
   const user = await prisma.user.findUnique({ where: { id: decoded.userId }, select: { id: true, role: true } });
   if (!user) throw ApiError.unauthorized('User not found');
   const accessToken = generateAccessToken({ userId: user.id, role: user.role });

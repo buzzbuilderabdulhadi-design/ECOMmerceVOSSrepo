@@ -1,7 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { sendSuccess, sendCreated, sendPaginated, sendMessage } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
+
+const isForeignKeyError = (error: unknown): boolean => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === 'P2003';
+  }
+  return false;
+};
 
 export const getDashboard = async (_req: Request, res: Response, next: NextFunction) => {
   try {
@@ -41,8 +49,24 @@ export const getSalesAnalytics = async (req: Request, res: Response, next: NextF
     const days = parseInt(req.query.days as string) || 30;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    const orders = await prisma.order.findMany({ where: { createdAt: { gte: startDate }, paymentStatus: 'PAID' }, orderBy: { createdAt: 'asc' }, select: { total: true, createdAt: true } });
-    sendSuccess(res, { period: `${days}d`, orders });
+
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [orders, thisMonthRevenue, lastMonthRevenue, topProducts] = await Promise.all([
+      prisma.order.findMany({ where: { createdAt: { gte: startDate }, paymentStatus: 'PAID' }, orderBy: { createdAt: 'asc' }, select: { total: true, createdAt: true } }),
+      prisma.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: thisMonth }, paymentStatus: 'PAID' } }),
+      prisma.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: lastMonth, lt: thisMonth }, paymentStatus: 'PAID' } }),
+      prisma.product.findMany({ take: 10, orderBy: { orderItems: { _count: 'desc' } }, include: { _count: { select: { reviews: true, orderItems: true } } } }),
+    ]);
+
+    sendSuccess(res, {
+      period: `${days}d`,
+      orders,
+      revenue: { thisMonth: thisMonthRevenue._sum.total || 0, lastMonth: lastMonthRevenue._sum.total || 0 },
+      topProducts,
+    });
   } catch (error) { next(error); }
 };
 
@@ -124,6 +148,19 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
+    const [orderItemCount, reviewCount, variantCount] = await Promise.all([
+      prisma.orderItem.count({ where: { productId: id } }),
+      prisma.review.count({ where: { productId: id } }),
+      prisma.productVariant.count({ where: { productId: id } }),
+    ]);
+    if (orderItemCount > 0) {
+      await prisma.product.update({ where: { id }, data: { isActive: false } });
+      await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT', entity: 'Product', entityId: id, metadata: { softDelete: true, reason: 'has order history' } } });
+      sendMessage(res, 'Product deactivated (it has order history and cannot be permanently deleted)');
+      return;
+    }
+    await prisma.review.deleteMany({ where: { productId: id } });
+    await prisma.productVariant.deleteMany({ where: { productId: id } });
     await prisma.product.delete({ where: { id } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT', entity: 'Product', entityId: id } });
     sendMessage(res, 'Product deleted successfully');
@@ -168,6 +205,40 @@ export const duplicateProduct = async (req: Request, res: Response, next: NextFu
   } catch (error) { next(error); }
 };
 
+export const createProductVariant = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const productId = req.params.id as string;
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw ApiError.notFound('Product not found');
+    const variant = await prisma.productVariant.create({ data: { ...req.body, productId } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: variant.id, metadata: { productId } } });
+    sendCreated(res, variant, 'Variant created');
+  } catch (error) { next(error); }
+};
+
+export const updateProductVariant = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const variant = await prisma.productVariant.update({ where: { id }, data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: variant.id } });
+    sendSuccess(res, variant, 'Variant updated');
+  } catch (error) { next(error); }
+};
+
+export const deleteProductVariant = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    try {
+      await prisma.productVariant.delete({ where: { id } });
+    } catch (error) {
+      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete variant: it has related order items or cart entries');
+      throw error;
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: id } });
+    sendMessage(res, 'Variant deleted');
+  } catch (error) { next(error); }
+};
+
 export const getCategories = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const categories = await prisma.category.findMany({ orderBy: { displayOrder: 'asc' }, include: { _count: { select: { products: true } }, children: true } });
@@ -196,6 +267,7 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
   try {
     const id = req.params.id as string;
     const category = await prisma.category.update({ where: { id }, data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_CATEGORY', entity: 'Category', entityId: category.id } });
     sendSuccess(res, category, 'Category updated successfully');
   } catch (error) { next(error); }
 };
@@ -203,7 +275,15 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
 export const deleteCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
+    const [productCount, childCount] = await Promise.all([
+      prisma.product.count({ where: { categoryId: id } }),
+      prisma.category.count({ where: { parentId: id } }),
+    ]);
+    if (productCount > 0 || childCount > 0) {
+      throw ApiError.badRequest(`Cannot delete category: it has ${productCount} products and ${childCount} subcategories. Move or delete them first.`);
+    }
     await prisma.category.delete({ where: { id } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_CATEGORY', entity: 'Category', entityId: id } });
     sendMessage(res, 'Category deleted successfully');
   } catch (error) { next(error); }
 };
@@ -228,7 +308,7 @@ export const getOrders = async (req: Request, res: Response, next: NextFunction)
 export const getOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const order = await prisma.order.findUnique({ where: { id }, include: { user: true, shippingAddress: true, items: { include: { product: true, variant: true } } } });
+    const order = await prisma.order.findUnique({ where: { id }, include: { user: { select: { id: true, name: true, email: true, phone: true, avatar: true } }, shippingAddress: true, items: { include: { product: true, variant: true } } } });
     if (!order) throw ApiError.notFound('Order not found');
     sendSuccess(res, order);
   } catch (error) { next(error); }
@@ -247,7 +327,13 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
 export const deleteOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    await prisma.order.delete({ where: { id } });
+    try {
+      await prisma.order.delete({ where: { id } });
+    } catch (error) {
+      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete order: it has related items');
+      throw error;
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_ORDER', entity: 'Order', entityId: id } });
     sendMessage(res, 'Order deleted');
   } catch (error) { next(error); }
 };
@@ -270,9 +356,16 @@ export const getCustomers = async (req: Request, res: Response, next: NextFuncti
 export const getCustomer = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const customer = await prisma.user.findUnique({ where: { id }, include: { addresses: true, orders: { take: 10, orderBy: { createdAt: 'desc' } }, reviews: { take: 5, include: { product: { select: { name: true } } } }, wishlist: { include: { product: { select: { id: true, name: true, slug: true, regularPrice: true, images: true } } } } } });
+    const customer = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true, email: true, avatar: true, phone: true, createdAt: true, emailVerified: true, addresses: true, orders: { take: 10, orderBy: { createdAt: 'desc' } }, reviews: { take: 5, include: { product: { select: { name: true } } } }, wishlist: { include: { product: { select: { id: true, name: true, slug: true, regularPrice: true, images: true } } } } } });
     if (!customer) throw ApiError.notFound('Customer not found');
-    sendSuccess(res, customer);
+
+    const [totalSpentResult, orderCount, reviewCount] = await Promise.all([
+      prisma.order.aggregate({ where: { userId: id, paymentStatus: 'PAID' }, _sum: { total: true } }),
+      prisma.order.count({ where: { userId: id } }),
+      prisma.review.count({ where: { userId: id } }),
+    ]);
+
+    sendSuccess(res, { ...customer, _stats: { totalSpent: totalSpentResult._sum.total || 0, orderCount, reviewCount } });
   } catch (error) { next(error); }
 };
 
@@ -281,6 +374,7 @@ export const updateCustomer = async (req: Request, res: Response, next: NextFunc
     const id = req.params.id as string;
     const { name, phone, emailVerified } = req.body;
     const customer = await prisma.user.update({ where: { id }, data: { ...(name && { name }), ...(phone !== undefined && { phone }), ...(emailVerified !== undefined && { emailVerified }) }, select: { id: true, name: true, email: true, phone: true, avatar: true, emailVerified: true } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_CUSTOMER', entity: 'Customer', entityId: customer.id } });
     sendSuccess(res, customer, 'Customer updated');
   } catch (error) { next(error); }
 };
@@ -288,7 +382,13 @@ export const updateCustomer = async (req: Request, res: Response, next: NextFunc
 export const deleteCustomer = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    await prisma.user.delete({ where: { id } });
+    try {
+      await prisma.user.delete({ where: { id } });
+    } catch (error) {
+      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete customer: they have related orders, reviews, or wishlist items');
+      throw error;
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_CUSTOMER', entity: 'Customer', entityId: id } });
     sendMessage(res, 'Customer deleted');
   } catch (error) { next(error); }
 };
@@ -314,6 +414,7 @@ export const updateReview = async (req: Request, res: Response, next: NextFuncti
     const id = req.params.id as string;
     const { isApproved, adminReply } = req.body;
     const review = await prisma.review.update({ where: { id }, data: { ...(isApproved !== undefined && { isApproved }), ...(adminReply !== undefined && { adminReply }) } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_REVIEW', entity: 'Review', entityId: review.id, metadata: { isApproved } } });
     sendSuccess(res, review, 'Review updated');
   } catch (error) { next(error); }
 };
@@ -321,7 +422,13 @@ export const updateReview = async (req: Request, res: Response, next: NextFuncti
 export const deleteReview = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    await prisma.review.delete({ where: { id } });
+    try {
+      await prisma.review.delete({ where: { id } });
+    } catch (error) {
+      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete review: it has related data');
+      throw error;
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_REVIEW', entity: 'Review', entityId: id } });
     sendMessage(res, 'Review deleted');
   } catch (error) { next(error); }
 };
@@ -347,6 +454,7 @@ export const getCoupon = async (req: Request, res: Response, next: NextFunction)
 export const createCoupon = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const coupon = await prisma.coupon.create({ data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_COUPON', entity: 'Coupon', entityId: coupon.id } });
     sendCreated(res, coupon, 'Coupon created');
   } catch (error) { next(error); }
 };
@@ -355,6 +463,7 @@ export const updateCoupon = async (req: Request, res: Response, next: NextFuncti
   try {
     const id = req.params.id as string;
     const coupon = await prisma.coupon.update({ where: { id }, data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_COUPON', entity: 'Coupon', entityId: coupon.id } });
     sendSuccess(res, coupon, 'Coupon updated');
   } catch (error) { next(error); }
 };
@@ -362,7 +471,13 @@ export const updateCoupon = async (req: Request, res: Response, next: NextFuncti
 export const deleteCoupon = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    await prisma.coupon.delete({ where: { id } });
+    try {
+      await prisma.coupon.delete({ where: { id } });
+    } catch (error) {
+      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete coupon: it has related data');
+      throw error;
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_COUPON', entity: 'Coupon', entityId: id } });
     sendMessage(res, 'Coupon deleted');
   } catch (error) { next(error); }
 };
@@ -379,7 +494,44 @@ export const getMedia = async (req: Request, res: Response, next: NextFunction) 
 
 export const uploadMedia = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const media = await prisma.media.create({ data: { ...req.body, uploadedBy: req.user?.userId } });
+    let media;
+    if (req.file) {
+      const { v2: cloudinary } = require('cloudinary');
+      const config = require('../config').default;
+      cloudinary.config({ cloud_name: config.cloudinary.name, api_key: config.cloudinary.apiKey, api_secret: config.cloudinary.apiSecret });
+      const folder = (req.body.folder as string) || 'general';
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: `voss/${folder}`,
+        resource_type: 'auto',
+      });
+      media = await prisma.media.create({
+        data: {
+          fileName: req.file.originalname,
+          url: result.secure_url,
+          publicId: result.public_id,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          width: result.width,
+          height: result.height,
+          folder,
+          altText: (req.body.altText as string) || req.file.originalname,
+          uploadedBy: req.user?.userId,
+        },
+      });
+    } else {
+      media = await prisma.media.create({
+        data: {
+          url: (req.body.url as string) || '',
+          fileName: (req.body.fileName as string) || 'file',
+          folder: (req.body.folder as string) || 'general',
+          mimeType: (req.body.mimeType as string) || 'image/jpeg',
+          size: parseInt(req.body.size as string) || 0,
+          altText: (req.body.altText as string) || 'Untitled',
+          uploadedBy: req.user?.userId,
+        },
+      });
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPLOAD_MEDIA', entity: 'Media', entityId: media.id } });
     sendCreated(res, media, 'File uploaded');
   } catch (error) { next(error); }
 };
@@ -387,7 +539,22 @@ export const uploadMedia = async (req: Request, res: Response, next: NextFunctio
 export const deleteMedia = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    await prisma.media.delete({ where: { id } });
+    const media = await prisma.media.findUnique({ where: { id } });
+    if (media?.publicId) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        await cloudinary.uploader.destroy(media.publicId);
+      } catch {
+        // ignore cloudinary delete errors
+      }
+    }
+    try {
+      await prisma.media.delete({ where: { id } });
+    } catch (error) {
+      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete: record has related data');
+      throw error;
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_MEDIA', entity: 'Media', entityId: id } });
     sendMessage(res, 'File deleted');
   } catch (error) { next(error); }
 };
@@ -407,6 +574,7 @@ export const updateSiteSettings = async (req: Request, res: Response, next: Next
     for (const [key, value] of Object.entries(updates)) {
       await prisma.siteSetting.upsert({ where: { key }, update: { value: value as any }, create: { key, value: value as any } });
     }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_SETTINGS', entity: 'SiteSetting', metadata: { keys: Object.keys(updates) } } });
     sendSuccess(res, updates, 'Settings updated');
   } catch (error) { next(error); }
 };
@@ -422,6 +590,7 @@ export const updateSeoEntry = async (req: Request, res: Response, next: NextFunc
   try {
     const page = req.params.page as string;
     const entry = await prisma.seoEntry.upsert({ where: { page }, update: req.body, create: { page, ...req.body } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_SEO', entity: 'SeoEntry', entityId: page } });
     sendSuccess(res, entry, 'SEO entry updated');
   } catch (error) { next(error); }
 };
@@ -468,8 +637,9 @@ export const getActivityLogs = async (req: Request, res: Response, next: NextFun
   } catch (error) { next(error); }
 };
 
-export const clearActivityLogs = async (_req: Request, res: Response, next: NextFunction) => {
+export const clearActivityLogs = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CLEAR_ACTIVITY_LOGS', entity: 'ActivityLog', metadata: { clearedAt: new Date().toISOString() } } });
     await prisma.activityLog.deleteMany();
     sendMessage(res, 'Activity logs cleared');
   } catch (error) { next(error); }
@@ -486,6 +656,7 @@ export const updateHomepageContent = async (req: Request, res: Response, next: N
   try {
     const id = req.params.id as string;
     const content = await prisma.homepageContent.update({ where: { id }, data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_HOMEPAGE_CONTENT', entity: 'HomepageContent', entityId: content.id } });
     sendSuccess(res, content, 'Homepage content updated');
   } catch (error) { next(error); }
 };
@@ -493,13 +664,21 @@ export const updateHomepageContent = async (req: Request, res: Response, next: N
 export const createHomepageContent = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const content = await prisma.homepageContent.create({ data: req.body });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_HOMEPAGE_CONTENT', entity: 'HomepageContent', entityId: content.id } });
     sendCreated(res, content, 'Homepage content created');
   } catch (error) { next(error); }
 };
 
 export const deleteHomepageContent = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.homepageContent.delete({ where: { id: req.params.id as string } });
+    const id = req.params.id as string;
+    try {
+      await prisma.homepageContent.delete({ where: { id } });
+    } catch (error) {
+      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete: record has related data');
+      throw error;
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_HOMEPAGE_CONTENT', entity: 'HomepageContent', entityId: id } });
     sendMessage(res, 'Homepage content deleted');
   } catch (error) { next(error); }
 };

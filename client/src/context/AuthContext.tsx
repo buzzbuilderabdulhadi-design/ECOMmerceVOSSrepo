@@ -80,6 +80,14 @@ const authReducer = (
   }
 };
 
+function setCookie(name: string, value: string, maxAgeSeconds: number) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+}
+
+function removeCookie(name: string) {
+  document.cookie = `${name}=; path=/; max-age=0`;
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -94,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (token && userStr) {
           const user = JSON.parse(userStr) as User;
+          setCookie('voss_access_token', token, 60 * 60 * 24 * 7);
           dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
         } else {
           dispatch({ type: 'LOGOUT' });
@@ -115,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('voss_token', accessToken);
       localStorage.setItem('voss_refresh_token', refreshToken);
       localStorage.setItem('voss_user', JSON.stringify(user));
+      setCookie('voss_access_token', accessToken, 60 * 60 * 24 * 7);
 
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
     } catch (error) {
@@ -133,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('voss_token', accessToken);
       localStorage.setItem('voss_refresh_token', refreshToken);
       localStorage.setItem('voss_user', JSON.stringify(user));
+      setCookie('voss_access_token', accessToken, 60 * 60 * 24 * 7);
 
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
     } catch (error) {
@@ -146,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('voss_token');
     localStorage.removeItem('voss_user');
     localStorage.removeItem('voss_refresh_token');
+    removeCookie('voss_access_token');
     dispatch({ type: 'LOGOUT' });
   }, []);
 

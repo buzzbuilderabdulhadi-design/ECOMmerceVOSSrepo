@@ -15,6 +15,7 @@ interface Config {
   };
   jwt: {
     secret: string;
+    refreshSecret: string;
     expiresIn: string;
     refreshExpiresIn: string;
   };
@@ -51,7 +52,8 @@ const config: Config = {
       'mongodb://localhost:27017/voss_ecommerce',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'voss_dev_secret_key',
+    secret: process.env.JWT_SECRET || '',
+    refreshSecret: process.env.JWT_REFRESH_SECRET || '',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
@@ -78,19 +80,36 @@ const config: Config = {
   },
 };
 
-// Validate required config in production
+// Validate required config
 export function validateConfig(): void {
-  if (config.env === 'production') {
-    const required = [
-      ['JWT_SECRET', config.jwt.secret],
-      ['DATABASE_URL', config.database.url],
-      ['CLOUDINARY_NAME', config.cloudinary.name],
-      ['CLOUDINARY_API_KEY', config.cloudinary.apiKey],
-      ['CLOUDINARY_API_SECRET', config.cloudinary.apiSecret],
-      ['CLIENT_URL', config.client.url],
-    ] as const;
+  const requiredInProduction = [
+    ['JWT_SECRET', config.jwt.secret],
+    ['JWT_REFRESH_SECRET', config.jwt.refreshSecret],
+    ['DATABASE_URL', config.database.url],
+    ['CLOUDINARY_NAME', config.cloudinary.name],
+    ['CLOUDINARY_API_KEY', config.cloudinary.apiKey],
+    ['CLOUDINARY_API_SECRET', config.cloudinary.apiSecret],
+    ['CLIENT_URL', config.client.url],
+  ] as const;
 
-    for (const [name, value] of required) {
+  // Always require JWT secrets (even in development)
+  const alwaysRequired: Array<[string, string]> = [
+    ['JWT_SECRET', config.jwt.secret],
+    ['JWT_REFRESH_SECRET', config.jwt.refreshSecret],
+  ];
+
+  for (const [name, value] of alwaysRequired) {
+    if (!value || value.length < 32) {
+      throw new Error(
+        `Environment variable ${name} must be set and at least 32 characters long. ` +
+        `Generate one with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
+      );
+    }
+  }
+
+  // Production-only checks
+  if (config.env === 'production') {
+    for (const [name, value] of requiredInProduction) {
       if (!value || value.startsWith('your_')) {
         throw new Error(
           `Missing or invalid required environment variable: ${name}`

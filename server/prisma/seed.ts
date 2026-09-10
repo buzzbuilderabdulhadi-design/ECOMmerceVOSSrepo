@@ -27,11 +27,21 @@ async function main() {
   await prisma.homepageContent.deleteMany();
   await prisma.user.deleteMany();
 
-  const passwordHash = await bcrypt.hash('admin123', 12);
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail || !adminPassword) {
+    console.error('❌ ADMIN_EMAIL and ADMIN_PASSWORD environment variables are required for seeding the admin account.');
+    console.error('   Set them before running: npx prisma db seed');
+    console.error('   Example: ADMIN_EMAIL=admin@voss.com ADMIN_PASSWORD=your_secure_password npx prisma db seed');
+    process.exit(1);
+  }
+
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
   const userHash = await bcrypt.hash('user123', 12);
 
   const admin = await prisma.user.create({
-    data: { name: 'Admin VOSS', email: 'admin@voss.com', passwordHash, role: 'ADMIN', emailVerified: true },
+    data: { name: 'Admin VOSS', email: adminEmail.toLowerCase(), passwordHash, role: 'ADMIN', emailVerified: true },
   });
 
   const customer = await prisma.user.create({

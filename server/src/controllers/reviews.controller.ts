@@ -41,7 +41,13 @@ export const updateReview = async (req: Request, res: Response, next: NextFuncti
 
 export const deleteReview = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.review.delete({ where: { id: req.params.id as string } });
+    const id = req.params.id as string;
+    const review = await prisma.review.findUnique({ where: { id }, select: { id: true, userId: true } });
+    if (!review) throw ApiError.notFound('Review not found');
+    if (review.userId !== req.user!.userId) {
+      throw ApiError.forbidden('You can only delete your own reviews');
+    }
+    await prisma.review.delete({ where: { id } });
     sendMessage(res, 'Review deleted');
   } catch (error) { next(error); }
 };
