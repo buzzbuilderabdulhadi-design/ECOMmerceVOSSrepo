@@ -1,4 +1,4 @@
-# VOSS - DATABASE SPECIFICATION
+# ZOYA GOODS - DATABASE SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the MongoDB database architecture for the VOSS MERN eCommerce platform.
+This document defines the MongoDB database architecture for the ZOYA GOODS MERN eCommerce platform.
 
 The database should be scalable, secure, optimized, and production-ready.
 
@@ -748,4 +748,4 @@ without major redesign.
 
 The MongoDB database should be clean, scalable, secure, and easy to maintain.
 
-It should support every feature of the VOSS platform while remaining performant as the business grows.
+It should support every feature of the ZOYA GOODS platform while remaining performant as the business grows.

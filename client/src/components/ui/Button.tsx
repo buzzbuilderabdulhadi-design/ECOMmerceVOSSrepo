@@ -21,11 +21,11 @@ const variants = {
 };
 
 const sizes = {
-  xs: 'px-3 py-1.5 text-[11px] uppercase tracking-[0.14em]',
-  sm: 'px-4 py-2 text-xs uppercase tracking-[0.14em]',
-  md: 'px-6 py-2.5 text-xs uppercase tracking-[0.16em]',
-  lg: 'px-8 py-3.5 text-sm uppercase tracking-[0.16em]',
-  xl: 'px-10 py-4 text-sm uppercase tracking-[0.18em]',
+  xs: 'min-h-[32px] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em]',
+  sm: 'min-h-[40px] px-4 py-2 text-xs uppercase tracking-[0.14em]',
+  md: 'min-h-[44px] px-6 py-2.5 text-xs uppercase tracking-[0.16em]',
+  lg: 'min-h-[52px] px-8 py-3.5 text-sm uppercase tracking-[0.16em]',
+  xl: 'min-h-[56px] px-10 py-4 text-sm uppercase tracking-[0.18em]',
 };
 
 export interface ButtonProps
@@ -39,11 +39,14 @@ export interface ButtonProps
   isRipple?: boolean;
   magnetic?: boolean;
   fullWidth?: boolean;
+  href?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+type ButtonElement = HTMLButtonElement | HTMLAnchorElement;
+
+const Button = forwardRef<ButtonElement, ButtonProps>(
   (
     {
       className,
@@ -53,23 +56,25 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       isRipple = true,
       magnetic = true,
       fullWidth = false,
+      href,
       leftIcon,
       rightIcon,
       disabled,
+      type,
       children,
       onClick,
       ...props
     },
     ref
   ) => {
-    const innerRef = useRef<HTMLButtonElement | null>(null);
+    const innerRef = useRef<ButtonElement | null>(null);
     const [ripples, setRipples] = useState<Array<{ x: number; y: number; id: number }>>([]);
     const mx = useMotionValue(0);
     const my = useMotionValue(0);
     const sx = useSpring(mx, { stiffness: 220, damping: 16, mass: 0.2 });
     const sy = useSpring(my, { stiffness: 220, damping: 16, mass: 0.2 });
 
-    const handleMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const handleMove = (e: React.MouseEvent<ButtonElement>) => {
       const el = innerRef.current;
       if (!el || !magnetic) return;
       const rect = el.getBoundingClientRect();
@@ -82,7 +87,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       my.set(0);
     };
 
-    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const handleClick = (e: React.MouseEvent<ButtonElement>) => {
       if (isRipple && !disabled && !isLoading) {
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -93,33 +98,20 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           setRipples((prev) => prev.filter((r) => r.id !== id));
         }, 600);
       }
-      onClick?.(e);
+      onClick?.(e as React.MouseEvent<HTMLButtonElement, MouseEvent>);
     };
 
-    return (
-      <motion.button
-        ref={(node) => {
-          innerRef.current = node;
-          if (typeof ref === 'function') ref(node);
-          else if (ref) (ref as React.MutableRefObject<HTMLButtonElement | null>).current = node;
-        }}
-        onMouseMove={handleMove}
-        onMouseLeave={handleLeave}
-        style={{ x: sx, y: sy }}
-        whileTap={{ scale: 0.97 }}
-        disabled={disabled || isLoading}
-        onClick={handleClick}
-        className={cn(
-          'relative inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
-          'group/btn',
-          variants[variant],
-          sizes[size],
-          fullWidth && 'w-full',
-          className
-        )}
-        {...props}
-      >
-        {/* Underline accent */}
+    const sharedClassNames = cn(
+      'relative inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+      'group/btn',
+      variants[variant],
+      sizes[size],
+      fullWidth && 'w-full',
+      className
+    );
+
+    const rippleContent = (
+      <>
         <span className="pointer-events-none absolute bottom-1.5 left-1/2 h-px w-0 -translate-x-1/2 bg-sage/70 transition-all duration-500 group-hover/btn:w-1/2" />
 
         {isLoading && (
@@ -152,6 +144,46 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             }}
           />
         ))}
+      </>
+    );
+
+    const motionProps = {
+      onMouseMove: handleMove,
+      onMouseLeave: handleLeave,
+      style: { x: sx, y: sy },
+      whileTap: { scale: 0.97 },
+      onClick: handleClick,
+      className: sharedClassNames,
+    };
+
+    const setRefs = (node: ButtonElement | null) => {
+      innerRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as React.MutableRefObject<ButtonElement | null>).current = node;
+    };
+
+    if (href) {
+      return (
+        <motion.a
+          href={href}
+          ref={setRefs as React.Ref<HTMLAnchorElement>}
+          {...(motionProps as object)}
+          aria-disabled={disabled || isLoading || undefined}
+          data-disabled={disabled || isLoading || undefined}
+        >
+          {rippleContent}
+        </motion.a>
+      );
+    }
+
+    return (
+      <motion.button
+        ref={setRefs as React.Ref<HTMLButtonElement>}
+        type={type ?? 'button'}
+        disabled={disabled || isLoading}
+        {...(motionProps as object)}
+      >
+        {rippleContent}
       </motion.button>
     );
   }

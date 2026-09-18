@@ -1,4 +1,4 @@
-# VOSS - CODING STANDARDS
+# ZOYA GOODS - CODING STANDARDS
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the coding standards that must be followed throughout the VOSS eCommerce project.
+This document defines the coding standards that must be followed throughout the ZOYA GOODS eCommerce project.
 
 Every file, component, function, API, and database model must follow these standards.
 
@@ -340,4 +340,4 @@ Do not simplify functionality unless explicitly instructed.
 
 # FINAL GOAL
 
-The entire VOSS codebase should be clean, professional, scalable, production-ready, and easy for another developer to understand and maintain.
+The entire ZOYA GOODS codebase should be clean, professional, scalable, production-ready, and easy for another developer to understand and maintain.

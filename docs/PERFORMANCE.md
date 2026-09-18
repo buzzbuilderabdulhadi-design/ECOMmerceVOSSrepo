@@ -1,4 +1,4 @@
-# VOSS - PERFORMANCE OPTIMIZATION
+# ZOYA GOODS - PERFORMANCE OPTIMIZATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines all performance requirements for the VOSS MERN eCommerce platform.
+This document defines all performance requirements for the ZOYA GOODS MERN eCommerce platform.
 
 The goal is to deliver a website that feels instant, responsive, and smooth across desktop and mobile devices.
 
@@ -354,6 +354,6 @@ Do not keep unused state.
 
 # FINAL GOAL
 
-The VOSS platform should feel exceptionally fast, smooth, and responsive.
+The ZOYA GOODS platform should feel exceptionally fast, smooth, and responsive.
 
 Every interaction should feel immediate while maintaining a premium luxury experience, even on slower devices and average internet connections.

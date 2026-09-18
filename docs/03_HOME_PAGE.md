@@ -1,4 +1,4 @@
-# VOSS - HOME PAGE SPECIFICATION
+# ZOYA GOODS - HOME PAGE SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the complete Home Page of the VOSS luxury fashion eCommerce platform.
+This document defines the complete Home Page of the ZOYA GOODS luxury fashion eCommerce platform.
 
 The Home Page is the first impression of the brand.
 
@@ -107,7 +107,7 @@ NewArrivals
 
 LuxuryBanner
 
-WhyChooseVOSS
+WhyChooseZoya
 
 RecentlyViewed
 
@@ -471,7 +471,7 @@ Everything editable from Admin Panel.
 
 ------------------------------------------------------------
 
-# WHY CHOOSE VOSS
+# WHY CHOOSE ZOYA GOODS
 
 Create a premium section highlighting trust.
 
@@ -805,7 +805,7 @@ New Arrivals
 
 Luxury Banner
 
-Why Choose VOSS
+Why Choose ZOYA GOODS
 
 Testimonials
 
@@ -855,4 +855,4 @@ Professional
 
 Trustworthy
 
-Every animation, transition, spacing decision, typography choice, and interaction should reinforce the premium identity of VOSS.
+Every animation, transition, spacing decision, typography choice, and interaction should reinforce the premium identity of ZOYA GOODS.

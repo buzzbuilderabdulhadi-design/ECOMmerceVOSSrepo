@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { PageTransition } from '@/components/animations/PageTransition';
 import { FadeIn } from '@/components/animations/FadeIn';
 import { FiMail, FiArrowLeft, FiCheckCircle } from 'react-icons/fi';
+import axiosInstance, { getErrorMessage } from '@/services/axios';
 
 // ============================================================
 // Forgot Password Page
@@ -39,10 +40,10 @@ export default function ForgotPasswordPage() {
     setError('');
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await axiosInstance.post('/auth/forgot-password', { email });
       setIsSubmitted(true);
-    } catch {
-      setError('Failed to send reset email. Please try again.');
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to send reset email. Please try again.');
     } finally {
       setIsLoading(false);
     }

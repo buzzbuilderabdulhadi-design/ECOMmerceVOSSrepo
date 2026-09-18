@@ -102,14 +102,21 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     router.push('/admin/login');
   };
 
-  // Redirect away from admin login if already authenticated as admin
+  useEffect(() => {
+    if (isLoginPage && !isLoading && isAuthenticated && user?.role === 'ADMIN') {
+      router.replace('/admin');
+    }
+  }, [isLoginPage, isLoading, isAuthenticated, user, router]);
+
   if (isLoginPage) {
     if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-navy"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" /></div>;
-    if (isAuthenticated && user?.role === 'ADMIN') {
-      router.push('/admin');
-      return <div className="min-h-screen flex items-center justify-center bg-navy"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" /></div>;
-    }
-    return <>{children}</>;
+    if (isAuthenticated && user?.role === 'ADMIN') return <div className="min-h-screen flex items-center justify-center bg-navy"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" /></div>;
+    return (
+      <>
+        <meta name="robots" content="noindex, nofollow" />
+        {children}
+      </>
+    );
   }
 
   if (isLoading) {
@@ -122,6 +129,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen bg-cream">
+      <meta name="robots" content="noindex, nofollow" />
       {/* Mobile overlay */}
       <AnimatePresence>
         {mobileOpen && (
@@ -145,7 +153,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <div className="flex h-16 items-center justify-between border-b border-sage-light/30 px-4">
           <Link href="/admin" className="flex items-center gap-2">
             <span className={cn('font-display text-xl font-bold tracking-wider text-navy transition-all', !sidebarOpen && 'lg:text-lg')}>
-              {sidebarOpen ? 'VOSS' : 'V'}
+              {sidebarOpen ? 'ZOYA GOODS' : 'Z'}
             </span>
             {sidebarOpen && (
               <span className="hidden lg:inline-block text-[10px] uppercase tracking-[0.2em] text-walnut font-medium">

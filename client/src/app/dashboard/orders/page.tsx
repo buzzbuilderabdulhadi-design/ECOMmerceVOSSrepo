@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { FiPackage, FiArrowRight } from 'react-icons/fi';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Button } from '@/components/ui/Button';
@@ -16,11 +15,9 @@ export default function OrdersPage() {
         <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate">
           When you place an order, it will appear here with live tracking and delivery updates.
         </p>
-        <Link href="/shop" className="mt-8 inline-block">
-          <Button variant="walnut" size="md" rightIcon={<FiArrowRight className="h-4 w-4" />}>
+        <Button href="/shop" className="mt-8" variant="walnut" size="md" rightIcon={<FiArrowRight className="h-4 w-4" />}>
             Explore the Collection
           </Button>
-        </Link>
       </div>
     </DashboardLayout>
   );

@@ -15,8 +15,8 @@ import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
 // ============================================================
 
 const milestones = [
-  { year: '1991', title: 'The Beginning', description: 'VOSS was founded in Milan with a vision to create the world\'s finest leather jackets.' },
-  { year: '2000', title: 'Global Expansion', description: 'Opened flagship stores in London, Paris, and New York, bringing VOSS to the global stage.' },
+  { year: '1991', title: 'The Beginning', description: 'ZOYA GOODS was founded in Milan with a vision to create the world\'s finest leather jackets.' },
+  { year: '2000', title: 'Global Expansion', description: 'Opened flagship stores in London, Paris, and New York, bringing ZOYA GOODS to the global stage.' },
   { year: '2010', title: 'Digital Transformation', description: 'Launched our e-commerce platform, making luxury accessible worldwide.' },
   { year: '2020', title: 'Sustainable Luxury', description: 'Committed to 100% sustainable sourcing and ethical manufacturing practices.' },
   { year: '2024', title: 'The Future', description: 'Continuing to innovate with cutting-edge design while honoring our heritage of craftsmanship.' },
@@ -25,7 +25,7 @@ const milestones = [
 const values = [
   {
     title: 'Artisan Craftsmanship',
-    description: 'Every VOSS jacket is handcrafted by master artisans with decades of experience, ensuring unparalleled quality and attention to detail.',
+    description: 'Every ZOYA GOODS jacket is handcrafted by master artisans with decades of experience, ensuring unparalleled quality and attention to detail.',
     icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
   },
   {
@@ -54,7 +54,7 @@ export default function AboutPage() {
         {/* Hero */}
         <section className="relative overflow-hidden bg-walnut py-24 md:py-32">
           <div className="absolute inset-0">
-            <Image src="https://images.unsplash.com/photo-1551028719-00167b16eac5?w=1920&q=80" alt="VOSS Heritage" fill className="object-cover opacity-40" sizes="100vw" priority />
+            <Image src="https://images.unsplash.com/photo-1551028719-00167b16eac5?w=1920&q=80" alt="ZOYA GOODS Heritage" fill className="object-cover opacity-40" sizes="100vw" priority />
           </div>
           <div className="absolute inset-0 bg-gradient-to-r from-walnut/80 via-walnut/50 to-walnut/20" />
           <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -63,7 +63,7 @@ export default function AboutPage() {
               Our Story
             </h1>
             <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white">
-              For over three decades, VOSS has been synonymous with uncompromising quality, timeless design, and the art of fine craftsmanship.
+              For over three decades, ZOYA GOODS has been synonymous with uncompromising quality, timeless design, and the art of fine craftsmanship.
             </p>
           </div>
         </section>
@@ -77,13 +77,13 @@ export default function AboutPage() {
                   Crafting Excellence Since 1991
                 </h2>
                 <div className="mt-6 space-y-4 text-base leading-relaxed text-slate">
-                  <p>Founded in the heart of Milan, VOSS began with a simple mission: to create leather jackets that transcend time. Our founder, Alessandro Vossi, was a master artisan who believed that a jacket should be more than clothing—it should be a legacy.</p>
-                  <p>From our atelier in Italy to our workshops around the world, every VOSS jacket is a testament to the belief that true luxury lies in the details. The precise stitching, the carefully selected leather, the perfect fit—these are the elements that define us.</p>
-                  <p>Today, VOSS is worn by those who appreciate the difference that true craftsmanship makes. Our commitment to quality remains as strong as it was on day one.</p>
+                  <p>Founded in the heart of Milan, ZOYA GOODS began with a simple mission: to create leather jackets that transcend time. Our founder, Alessandro Vossi, was a master artisan who believed that a jacket should be more than clothing—it should be a legacy.</p>
+                  <p>From our atelier in Italy to our workshops around the world, every ZOYA GOODS jacket is a testament to the belief that true luxury lies in the details. The precise stitching, the carefully selected leather, the perfect fit—these are the elements that define us.</p>
+                  <p>Today, ZOYA GOODS is worn by those who appreciate the difference that true craftsmanship makes. Our commitment to quality remains as strong as it was on day one.</p>
                 </div>
               </div>
               <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
-                <Image src="https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=800&q=80" alt="VOSS Craftsmanship" fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+                <Image src="https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=800&q=80" alt="ZOYA GOODS Craftsmanship" fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
               </div>
             </div>
           </section>

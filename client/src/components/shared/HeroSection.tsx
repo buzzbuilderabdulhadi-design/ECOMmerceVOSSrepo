@@ -2,7 +2,6 @@
 
 import React, { useRef } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { motion, useMotionValue, useSpring, useScroll, useTransform } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
@@ -132,7 +131,7 @@ export function HeroSection({
         className="display-outline-light pointer-events-none absolute right-6 top-24 hidden select-none font-display text-[16rem] leading-none xl:block"
         style={{ y: bgY }}
       >
-        VOSS
+        ZOYA GOODS
       </motion.span>
 
       {/* Vertical label */}
@@ -190,27 +189,24 @@ export function HeroSection({
               <motion.div variants={childVariants} className="mt-10 flex flex-wrap items-center gap-5">
                 {primaryCta && (
                   <Magnetic>
-                    <Link href={primaryCta.href}>
-                      <Button variant="light" size="lg">
-                        {primaryCta.label}
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                        </svg>
-                      </Button>
-                    </Link>
+                    <Button href={primaryCta.href} variant="light" size="lg">
+                      {primaryCta.label}
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                    </Button>
                   </Magnetic>
                 )}
                 {secondaryCta && (
                   <Magnetic>
-                    <Link href={secondaryCta.href}>
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        className="border-cream/30 text-ivory hover:border-sage-light hover:bg-sage/10 hover:text-sage-light"
-                      >
-                        {secondaryCta.label}
-                      </Button>
-                    </Link>
+                    <Button
+                      href={secondaryCta.href}
+                      variant="outline"
+                      size="lg"
+                      className="border-cream/30 text-ivory hover:border-sage-light hover:bg-sage/10 hover:text-sage-light"
+                    >
+                      {secondaryCta.label}
+                    </Button>
                   </Magnetic>
                 )}
               </motion.div>
@@ -256,7 +252,7 @@ export function HeroSection({
                   <circle cx="200" cy="200" r="198" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 6" opacity="0.5" />
                   <text className="fill-sage-light/70" fontSize="13" letterSpacing="5">
                     <textPath href="#heroCircle">
-                      HANDCRAFTED IN MILANO • VOSS LUXURY FASHION •
+                      HANDCRAFTED IN MILANO • ZOYA GOODS LUXURY FASHION •
                     </textPath>
                   </text>
                 </svg>
@@ -324,7 +320,7 @@ export function HeroSection({
                 style={{ transform: 'translateZ(80px)' }}
               >
                 <div className="relative aspect-[3/4]">
-                  <Image src={accentOne} alt="VOSS look" fill sizes="176px" className="object-cover" />
+                  <Image src={accentOne} alt="ZOYA GOODS look" fill sizes="176px" className="object-cover" />
                 </div>
                 <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-2xl" />
               </motion.div>
@@ -338,7 +334,7 @@ export function HeroSection({
                 style={{ transform: 'translateZ(70px)', animationDelay: '1.2s' }}
               >
                 <div className="relative aspect-[3/4]">
-                  <Image src={accentTwo} alt="VOSS detail" fill sizes="160px" className="object-cover" />
+                  <Image src={accentTwo} alt="ZOYA GOODS detail" fill sizes="160px" className="object-cover" />
                 </div>
                 <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-2xl" />
               </motion.div>

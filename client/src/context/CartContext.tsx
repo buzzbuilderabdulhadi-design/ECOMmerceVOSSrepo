@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import type { Cart, CartItem, Product } from '@/types';
 import axiosInstance, { getErrorMessage } from '@/services/axios';
+import { useAuth } from '@/context/AuthContext';
 
 // ============================================================
 // Cart Context — Shopping Cart State Management
@@ -24,7 +25,8 @@ type CartAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'APPLY_COUPON'; payload: { code: string; discount: number } }
-  | { type: 'REMOVE_COUPON' };
+  | { type: 'REMOVE_COUPON' }
+  | { type: 'SET_GUEST_EMPTY' };
 
 interface CartContextType {
   cart: Cart | null;
@@ -36,12 +38,12 @@ interface CartContextType {
     product: Product,
     quantity: number,
     variantId?: string
-  ) => Promise<void>;
-  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
-  removeItem: (itemId: string) => Promise<void>;
-  clearCart: () => Promise<void>;
-  applyCoupon: (code: string) => Promise<void>;
-  removeCoupon: () => Promise<void>;
+  ) => Promise<boolean>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<boolean>;
+  removeItem: (itemId: string) => Promise<boolean>;
+  clearCart: () => Promise<boolean>;
+  applyCoupon: (code: string) => Promise<boolean>;
+  removeCoupon: () => Promise<boolean>;
   refreshCart: () => Promise<void>;
 }
 
@@ -51,10 +53,12 @@ const initialState: {
   cart: Cart | null;
   isLoading: boolean;
   error: string | null;
+  hasLoaded: boolean;
 } = {
   cart: null,
   isLoading: false,
   error: null,
+  hasLoaded: false,
 };
 
 const cartReducer = (
@@ -63,7 +67,7 @@ const cartReducer = (
 ): typeof initialState => {
   switch (action.type) {
     case 'SET_CART':
-      return { ...state, cart: action.payload, isLoading: false, error: null };
+      return { ...state, cart: action.payload, isLoading: false, error: null, hasLoaded: true };
     case 'ADD_ITEM': {
       if (!state.cart) return state;
       const existingIndex = state.cart.items.findIndex(
@@ -83,6 +87,7 @@ const cartReducer = (
         ...state,
         cart: { ...state.cart, items: newItems },
         isLoading: false,
+        hasLoaded: true,
       };
     }
     case 'UPDATE_QUANTITY': {
@@ -112,11 +117,13 @@ const cartReducer = (
       };
     }
     case 'CLEAR_CART':
-      return { ...state, cart: null, error: null };
+      return { ...state, cart: null, error: null, hasLoaded: true };
     case 'SET_LOADING':
-      return { ...state, isLoading: action.payload };
+      return { ...state, isLoading: action.payload, error: action.payload ? null : state.error };
     case 'SET_ERROR':
-      return { ...state, error: action.payload, isLoading: false };
+      return { ...state, error: action.payload, isLoading: false, hasLoaded: true };
+    case 'SET_GUEST_EMPTY':
+      return { cart: { id: '', items: [] }, isLoading: false, error: null, hasLoaded: false };
     case 'APPLY_COUPON':
       if (!state.cart) return state;
       return {
@@ -144,6 +151,7 @@ const cartReducer = (
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, initialState);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const refreshCart = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -158,10 +166,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Load cart on mount
   useEffect(() => {
-    refreshCart();
-  }, [refreshCart]);
+    if (isAuthenticated) {
+      refreshCart();
+    } else {
+      dispatch({ type: 'SET_GUEST_EMPTY' });
+    }
+  }, [isAuthenticated, refreshCart]);
 
   const addItem = useCallback(
     async (product: Product, quantity: number, variantId?: string) => {
@@ -173,11 +184,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
           quantity,
         });
         dispatch({ type: 'SET_CART', payload: response.data.data });
+        return true;
       } catch (error) {
         dispatch({
           type: 'SET_ERROR',
           payload: getErrorMessage(error),
         });
+        return false;
       }
     },
     []
@@ -188,6 +201,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'UPDATE_QUANTITY', payload: { id: itemId, quantity } });
       try {
         await axiosInstance.put(`/cart/items/${itemId}`, { quantity });
+        return true;
       } catch (error) {
         // Revert on failure
         refreshCart();
@@ -195,6 +209,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           type: 'SET_ERROR',
           payload: getErrorMessage(error),
         });
+        return false;
       }
     },
     [refreshCart]
@@ -205,12 +220,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'REMOVE_ITEM', payload: itemId });
       try {
         await axiosInstance.delete(`/cart/items/${itemId}`);
+        return true;
       } catch (error) {
         refreshCart();
         dispatch({
           type: 'SET_ERROR',
           payload: getErrorMessage(error),
         });
+        return false;
       }
     },
     [refreshCart]
@@ -220,11 +237,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_CART' });
     try {
       await axiosInstance.delete('/cart');
+      return true;
     } catch (error) {
       dispatch({
         type: 'SET_ERROR',
         payload: getErrorMessage(error),
       });
+      return false;
     }
   }, []);
 
@@ -239,11 +258,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
           discount: response.data.data.discount,
         },
       });
+      return true;
     } catch (error) {
       dispatch({
         type: 'SET_ERROR',
         payload: getErrorMessage(error),
       });
+      return false;
     }
   }, []);
 
@@ -251,11 +272,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'REMOVE_COUPON' });
     try {
       await axiosInstance.delete('/cart/coupon');
+      return true;
     } catch (error) {
       dispatch({
         type: 'SET_ERROR',
         payload: getErrorMessage(error),
       });
+      return false;
     }
   }, []);
 
@@ -265,15 +288,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const subtotal =
     state.cart?.items.reduce((sum, item) => {
-      const price = item.product?.salePrice ?? item.product?.regularPrice ?? 0;
+      const price = item.variant?.priceOverride ?? item.product?.salePrice ?? item.product?.regularPrice ?? 0;
       return sum + price * item.quantity;
     }, 0) || 0;
+
+  // While the session is being restored (or a known authenticated cart has
+  // not loaded yet), report loading so consumers never flash an empty state.
+  const isLoading =
+    state.isLoading ||
+    authLoading ||
+    (isAuthenticated && !state.hasLoaded);
 
   return (
     <CartContext.Provider
       value={{
         cart: state.cart,
-        isLoading: state.isLoading,
+        isLoading,
         error: state.error,
         itemCount,
         subtotal,

@@ -1,4 +1,4 @@
-# VOSS - PRODUCT DETAILS PAGE SPECIFICATION
+# ZOYA GOODS - PRODUCT DETAILS PAGE SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the complete Product Details page for the VOSS luxury fashion eCommerce platform.
+This document defines the complete Product Details page for the ZOYA GOODS luxury fashion eCommerce platform.
 
 The Product Details page is where customers decide whether to purchase a product.
 

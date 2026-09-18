@@ -57,7 +57,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           >
             <div className="flex items-center justify-between border-b border-navy/10 px-6 py-5">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.3em] text-sage-dark">VOSS</p>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-sage-dark">ZOYA GOODS</p>
                 <h2 className="font-display text-2xl font-light text-navy">
                   Your Selection <span className="text-sage-dark">({itemCount})</span>
                 </h2>
@@ -144,7 +144,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                           <div className="flex min-w-0 flex-1 flex-col justify-between">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-[9px] uppercase tracking-[0.25em] text-sage-dark">{p.brand || 'VOSS'}</p>
+                                <p className="text-[9px] uppercase tracking-[0.25em] text-sage-dark">{p.brand || 'ZOYA GOODS'}</p>
                                 <Link href={`/products/${p.slug}`} onClick={onClose} className="line-clamp-1 font-display text-base font-medium text-navy hover:text-walnut">
                                   {p.name}
                                 </Link>
@@ -208,16 +208,16 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       </span>
                     </div>
                   </div>
-                  <Link href="/checkout" onClick={onClose} className="mt-4 block">
-                    <Button variant="light" size="lg" fullWidth>
-                      Checkout
-                    </Button>
-                  </Link>
-                  <Link href="/cart" onClick={onClose} className="mt-2 block">
-                    <Button variant="light" size="sm" fullWidth className="bg-cream/10 text-ivory hover:bg-cream/20">
-                      View Full Cart
-                    </Button>
-                  </Link>
+                  <Button href="/checkout" onClick={onClose} className="mt-4 block w-full">
+                    <span className="block w-full">
+                    Checkout
+                    </span>
+                  </Button>
+                  <Button href="/cart" onClick={onClose} variant="light" size="sm" fullWidth className="mt-2 bg-cream/10 text-ivory hover:bg-cream/20">
+                    <span className="block w-full">
+                    View Full Cart
+                    </span>
+                  </Button>
                 </div>
               </>
             )}

@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Middleware for admin routes.
+ * Proxy for admin routes (formerly middleware).
  *
- * Because auth tokens are stored in localStorage (not cookies), this middleware
+ * Because auth tokens are stored in localStorage (not cookies), this proxy
  * cannot verify JWT validity. It provides URL-based access control as a
  * defense-in-depth layer alongside the client-side auth guard in admin/layout.tsx.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow the login page, API routes, static assets, and Next.js internals

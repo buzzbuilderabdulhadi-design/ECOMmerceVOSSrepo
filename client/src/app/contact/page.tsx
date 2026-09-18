@@ -14,14 +14,41 @@ import { ScrollReveal } from '@/components/animations/ScrollReveal';
 // ============================================================
 
 const contactInfo = [
-  { icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', label: 'Email', value: 'hello@voss.com' },
+  { icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', label: 'Email', value: 'hello@zoyagoods.com' },
   { icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z', label: 'Phone', value: '+1 (555) 000-0000' },
   { icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z', label: 'Address', value: '123 Luxury Row, Milan, Italy' },
   { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Hours', value: 'Mon–Fri, 9:00 AM – 6:00 PM EST' },
 ];
 
 export default function ContactPage() {
-  const [isLoading] = useState(false);
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', subject: '', message: '' });
+  const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
+  const [sent, setSent] = useState(false);
+
+  const updateField = (field: keyof typeof form, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
+    setSent(false);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const errs: Partial<Record<keyof typeof form, string>> = {};
+    if (!form.firstName.trim()) errs.firstName = 'First name is required';
+    if (!form.lastName.trim()) errs.lastName = 'Last name is required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = 'Enter a valid email address';
+    if (!form.subject.trim()) errs.subject = 'Subject is required';
+    if (!form.message.trim()) errs.message = 'Message is required';
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    const subject = encodeURIComponent(`[ZOYA GOODS Contact] ${form.subject}`);
+    const body = encodeURIComponent(
+      `${form.firstName} ${form.lastName}\n${form.email}\n\n${form.message}`
+    );
+    window.location.href = `mailto:hello@zoyagoods.com?subject=${subject}&body=${body}`;
+    setSent(true);
+  };
 
   return (
     <PageTransition>
@@ -39,19 +66,31 @@ export default function ContactPage() {
           <div className="grid gap-12 md:grid-cols-2">
             {/* Contact Form */}
             <ScrollReveal direction="left">
-              <div className="space-y-6">
+              <form onSubmit={handleSubmit} noValidate className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="First Name" placeholder="John" required />
-                  <Input label="Last Name" placeholder="Doe" required />
+                  <Input label="First Name" placeholder="John" required value={form.firstName} onChange={(e) => updateField('firstName', e.target.value)} error={errors.firstName} />
+                  <Input label="Last Name" placeholder="Doe" required value={form.lastName} onChange={(e) => updateField('lastName', e.target.value)} error={errors.lastName} />
                 </div>
-                <Input label="Email" type="email" placeholder="john@example.com" required />
-                <Input label="Subject" placeholder="How can we help?" required />
+                <Input label="Email" type="email" placeholder="john@example.com" required value={form.email} onChange={(e) => updateField('email', e.target.value)} error={errors.email} />
+                <Input label="Subject" placeholder="How can we help?" required value={form.subject} onChange={(e) => updateField('subject', e.target.value)} error={errors.subject} />
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-charcoal">Message</label>
-                  <textarea rows={5} className="w-full rounded-lg border border-sage-light/40 p-3 text-sm focus:border-walnut focus:outline-none focus:ring-1 focus:ring-walnut" placeholder="Tell us more about your inquiry..." />
+                  <label htmlFor="contact-message" className="mb-1 block text-sm font-medium text-charcoal">Message</label>
+                  <textarea
+                    id="contact-message"
+                    rows={5}
+                    required
+                    value={form.message}
+                    onChange={(e) => updateField('message', e.target.value)}
+                    className={`w-full rounded-lg border p-3 text-sm focus:outline-none focus:ring-2 ${errors.message ? 'border-red-400 focus:border-red-500 focus:ring-red-500/30' : 'border-sage-light/40 focus:border-walnut focus:ring-walnut/30'}`}
+                    placeholder="Tell us more about your inquiry..."
+                    aria-invalid={!!errors.message}
+                    aria-describedby={errors.message ? 'contact-message-error' : undefined}
+                  />
+                  {errors.message && <p id="contact-message-error" className="mt-1 text-xs text-red-600" role="alert">{errors.message}</p>}
+                  {sent && <p className="mt-1 text-xs text-sage-dark">Your email client should open with your message pre-filled.</p>}
                 </div>
-                <Button variant="walnut" size="lg" fullWidth isLoading={isLoading}>Send Message</Button>
-              </div>
+                <Button variant="walnut" size="lg" fullWidth type="submit">Send Message</Button>
+              </form>
             </ScrollReveal>
 
             {/* Contact Info */}

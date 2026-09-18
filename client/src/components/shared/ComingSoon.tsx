@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -26,7 +25,7 @@ export function ComingSoon({ title, eyebrow, description, icon, children }: Comi
 
         {/* Editorial header */}
         <section className="relative overflow-hidden pb-8 pt-24 md:pb-14 md:pt-36">
-          <span className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[13rem]">
+          <span aria-hidden="true" className="display-outline pointer-events-none absolute -right-4 top-10 select-none whitespace-nowrap font-display text-[5rem] leading-none opacity-50 sm:text-[8rem] lg:text-[13rem]">
             {title}
           </span>
           <div className="pointer-events-none absolute -left-32 top-24 h-72 w-72 rounded-full bg-sage/10 blur-[100px]" />
@@ -57,15 +56,11 @@ export function ComingSoon({ title, eyebrow, description, icon, children }: Comi
                 </div>
                 <h2 className="mt-6 font-display text-3xl font-light text-navy">Crafting this space</h2>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
-                  {description} Our atelier is curating this page to the VOSS standard. It will be unveiled shortly.
+                  {description} Our atelier is curating this page to the ZOYA GOODS standard. It will be unveiled shortly.
                 </p>
                 <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
-                  <Link href="/">
-                    <Button variant="walnut" size="md">Back to Home</Button>
-                  </Link>
-                  <Link href="/contact">
-                    <Button variant="outline" size="md">Contact Us</Button>
-                  </Link>
+                  <Button href="/" variant="walnut" size="md">Back to Home</Button>
+                  <Button href="/contact" variant="outline" size="md">Contact Us</Button>
                 </div>
               </div>
             )}

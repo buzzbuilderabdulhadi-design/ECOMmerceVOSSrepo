@@ -27,6 +27,7 @@ export function ErrorState({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
+      role="alert"
       className={cn(
         'flex flex-col items-center justify-center py-16 text-center',
         className

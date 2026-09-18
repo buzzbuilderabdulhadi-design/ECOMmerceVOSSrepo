@@ -1,4 +1,4 @@
-# VOSS - API DOCUMENTATION
+# ZOYA GOODS - API DOCUMENTATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines every REST API endpoint required for the VOSS MERN eCommerce platform.
+This document defines every REST API endpoint required for the ZOYA GOODS MERN eCommerce platform.
 
 The API must be:
 
@@ -859,6 +859,6 @@ Previous Page
 
 # FINAL GOAL
 
-The VOSS API should be consistent, secure, scalable, and easy to extend.
+The ZOYA GOODS API should be consistent, secure, scalable, and easy to extend.
 
 It should serve as the foundation for a production-ready MERN eCommerce platform capable of supporting future features without major redesign.

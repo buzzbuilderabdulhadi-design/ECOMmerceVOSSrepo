@@ -44,7 +44,7 @@ const customerService: FooterLink[] = [
 ];
 
 const companyLinks: FooterLink[] = [
-  { label: 'About VOSS', href: '/about' },
+  { label: 'About ZOYA GOODS', href: '/about' },
   { label: 'Careers', href: '/careers' },
   { label: 'Press', href: '/press' },
   { label: 'Sustainability', href: '/sustainability' },
@@ -94,8 +94,8 @@ const contactItems = [
       </svg>
     ),
     content: (
-      <a href="mailto:care@voss.com" className="text-sm text-ivory transition-colors duration-300 hover:text-gold">
-        care@voss.com
+      <a href="mailto:care@zoyagoods.com" className="text-sm text-ivory transition-colors duration-300 hover:text-gold">
+        care@zoyagoods.com
       </a>
     ),
   },
@@ -120,7 +120,7 @@ export function Footer({ className }: FooterProps) {
     <footer className={cn('relative overflow-hidden bg-gradient-footer grain', className)}>
       {/* Giant watermark */}
       <span className="pointer-events-none absolute -bottom-10 left-1/2 -translate-x-1/2 select-none font-display text-[24rem] font-light leading-none text-ivory/[0.06] lg:text-[36rem]">
-        VOSS
+        ZOYA GOODS
       </span>
 
       {/* Gold hairline across the very top */}
@@ -135,7 +135,7 @@ export function Footer({ className }: FooterProps) {
                 <div>
                   <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-sage-light">
                     <span className="inline-block h-px w-10 bg-walnut-light" />
-                    Join the VOSS Circle
+                    Join the ZOYA GOODS Circle
                   </p>
                   <h3 className="mt-5 font-display text-4xl font-light leading-[1.08] text-ivory sm:text-5xl">
                     The Journal is where <span className="display-italic text-gold">style begins</span>
@@ -163,7 +163,7 @@ export function Footer({ className }: FooterProps) {
               <div className="col-span-12 md:col-span-6 xl:col-span-4">
                 <Link href="/" className="group inline-flex items-baseline gap-2.5">
                   <span className="font-display text-[28px] font-medium leading-none tracking-[0.3em] text-ivory transition-colors duration-300 group-hover:text-gold">
-                    VOSS
+                    ZOYA GOODS
                   </span>
                   <span className="h-1.5 w-1.5 rounded-full bg-gold transition-transform duration-300 group-hover:scale-150" />
                 </Link>
@@ -228,7 +228,7 @@ export function Footer({ className }: FooterProps) {
               <div className="flex flex-col items-center justify-between gap-7 lg:flex-row">
                 <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-6">
                   <p className="text-xs text-sage-light">
-                    &copy; {new Date().getFullYear()} VOSS. All rights reserved.
+                    &copy; {new Date().getFullYear()} ZOYA GOODS. All rights reserved.
                   </p>
                   <span className="hidden h-3 w-px bg-cream/20 sm:block" />
                   <div className="flex items-center gap-5">

@@ -1,4 +1,4 @@
-# VOSS - AI DEVELOPMENT WORKFLOW
+# ZOYA GOODS - AI DEVELOPMENT WORKFLOW
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines exactly how the AI should develop the VOSS project.
+This document defines exactly how the AI should develop the ZOYA GOODS project.
 
 The AI must think like a senior full-stack software engineer, software architect, UI/UX designer, database engineer, DevOps engineer, QA tester, and security engineer.
 

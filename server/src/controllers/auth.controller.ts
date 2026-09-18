@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/db';
-import { registerUser, loginUser, refreshUserToken, changePassword } from '../services/auth.service';
+import { registerUser, loginUser, refreshUserToken, changePassword, requestPasswordReset, resetPassword } from '../services/auth.service';
 import { sendSuccess, sendCreated, sendMessage } from '../utils/apiResponse';
-import { registerSchema, loginSchema, refreshTokenSchema, changePasswordSchema } from '../validation/auth.validation';
+import { registerSchema, loginSchema, refreshTokenSchema, changePasswordSchema, forgotPasswordSchema, resetPasswordSchema } from '../validation/auth.validation';
+import { sendPasswordResetEmail } from '../utils/email';
+import config from '../config';
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -43,5 +45,25 @@ export const updatePassword = async (req: Request, res: Response, next: NextFunc
     const data = changePasswordSchema.parse(req.body);
     await changePassword(req.user!.userId, data.currentPassword, data.newPassword);
     sendMessage(res, 'Password changed successfully');
+  } catch (error) { next(error); }
+};
+
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = forgotPasswordSchema.parse(req.body);
+    const result = await requestPasswordReset(email);
+    if (result) {
+      const resetUrl = `${config.client.url}/reset-password/${result.resetToken}`;
+      await sendPasswordResetEmail(result.email, resetUrl);
+    }
+    sendMessage(res, 'If that email is registered, a reset link has been sent');
+  } catch (error) { next(error); }
+};
+
+export const resetPasswordEndpoint = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token, newPassword } = resetPasswordSchema.parse(req.body);
+    await resetPassword(token, newPassword);
+    sendMessage(res, 'Password reset successfully');
   } catch (error) { next(error); }
 };

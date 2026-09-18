@@ -37,15 +37,15 @@ export function Breadcrumb({
   };
 
   return (
-    <nav aria-label="Breadcrumb" className={cn('flex items-center', className)}>
-      <ol className="flex items-center space-x-2">
+    <nav aria-label="Breadcrumb" className={cn('flex min-w-0 items-start', className)}>
+      <ol className="flex min-w-0 flex-wrap items-center space-x-2">
         {items.map((item, index) => {
           const isLast = index === items.length - 1;
           return (
-            <li key={index} className="flex items-center space-x-2">
+            <li key={index} className="flex min-w-0 items-center space-x-2">
               {index > 0 && (
                 <span
-                  className={onDark ? 'text-sage-light' : 'text-slate'}
+                  className={cn(onDark ? 'text-sage-light' : 'text-slate', 'flex-shrink-0')}
                   aria-hidden="true"
                 >
                   {separatorIcon[separator]}
@@ -54,7 +54,7 @@ export function Breadcrumb({
               {isLast ? (
                 <span
                   className={cn(
-                    'text-sm font-medium',
+                    'truncate text-sm font-medium',
                     onDark ? 'text-white' : 'text-navy'
                   )}
                   aria-current="page"
@@ -65,7 +65,7 @@ export function Breadcrumb({
                 <Link
                   href={item.href}
                   className={cn(
-                    'text-sm transition-colors duration-150',
+                    'truncate text-sm transition-colors duration-150',
                     onDark
                       ? 'text-ivory hover:text-gold'
                       : 'text-slate hover:text-sage-dark'
@@ -74,7 +74,7 @@ export function Breadcrumb({
                   {item.label}
                 </Link>
               ) : (
-                <span className={cn('text-sm', onDark ? 'text-ivory' : 'text-slate')}>{item.label}</span>
+                <span className={cn('truncate text-sm', onDark ? 'text-ivory' : 'text-slate')}>{item.label}</span>
               )}
             </li>
           );

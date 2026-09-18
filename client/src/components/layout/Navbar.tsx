@@ -42,6 +42,33 @@ export function Navbar({ className }: NavbarProps) {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [openMobileCategory, setOpenMobileCategory] = useState<string | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mobileCloseRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const trapFocus = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return;
+    const focusables = e.currentTarget.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
+  useEffect(() => {
+    if (isMobileMenuOpen) mobileCloseRef.current?.focus();
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    if (isSearchOpen) searchInputRef.current?.focus();
+  }, [isSearchOpen]);
 
   const isCategoryActive = (label: string) => {
     const item = NAV_CATEGORIES.find((c) => c.label === label);
@@ -102,13 +129,17 @@ export function Navbar({ className }: NavbarProps) {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
               className="bg-gradient-night fixed inset-0 z-[90] flex flex-col grain"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Search"
+              onKeyDown={trapFocus}
             >
               <div className="flex items-center justify-between px-6 py-5 sm:px-12">
-                <span className="font-display text-xl tracking-[0.3em] text-ivory">VOSS</span>
+                <span className="font-display text-xl tracking-[0.3em] text-ivory">ZOYA GOODS</span>
                 <button
                   type="button"
                   onClick={() => setIsSearchOpen(false)}
-                  className="rounded-full border border-cream/20 p-2.5 text-ivory transition-all hover:scale-105 hover:border-sage-light/60 hover:text-ivory"
+                  className="rounded-full border border-cream/20 p-3 text-ivory transition-all hover:scale-105 hover:border-sage-light/60 hover:text-ivory focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-light"
                   aria-label="Close search"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -127,12 +158,12 @@ export function Navbar({ className }: NavbarProps) {
                   <label className="text-[11px] uppercase tracking-[0.35em] text-sage-light">Search</label>
                   <div className="relative mt-4">
                     <input
+                      ref={searchInputRef}
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="What are you looking for?"
                       className="w-full border-b border-cream/25 bg-transparent pb-4 font-display text-3xl font-light text-ivory placeholder-ivory/80 focus:border-sage-light focus:outline-none sm:text-5xl"
-                      autoFocus
                     />
                     <svg className="absolute right-0 top-1/2 h-7 w-7 -translate-y-1/2 text-sage-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -179,13 +210,18 @@ export function Navbar({ className }: NavbarProps) {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
               className="bg-gradient-night fixed inset-0 z-[80] flex flex-col grain lg:hidden"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu"
+              onKeyDown={trapFocus}
             >
               <div className="flex items-center justify-between px-6 py-5">
-                <span className="font-display text-xl tracking-[0.3em] text-ivory">VOSS</span>
+                <span className="font-display text-xl tracking-[0.3em] text-ivory">ZOYA GOODS</span>
                 <button
+                  ref={mobileCloseRef}
                   type="button"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="rounded-full border border-cream/20 p-2.5 text-ivory hover:border-sage-light/60 hover:text-ivory"
+                  className="rounded-full border border-cream/20 p-3 text-ivory hover:border-sage-light/60 hover:text-ivory focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-light"
                   aria-label="Close menu"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -308,22 +344,29 @@ export function Navbar({ className }: NavbarProps) {
       >
         {/* Top announcement bar */}
         <div className="flex items-center justify-center gap-3 overflow-hidden bg-walnut px-4 py-2">
-          <span className="h-1 w-1 rounded-full bg-sage-light animate-pulse-gold" />
-          <p className="text-[11px] font-medium tracking-[0.12em] text-ivory uppercase">
+          <span className="h-1 w-1 flex-shrink-0 rounded-full bg-sage-light animate-pulse-gold" />
+          <p className="min-w-0 truncate text-[11px] font-medium tracking-[0.12em] text-ivory uppercase">
             Complimentary worldwide shipping on orders over $200
           </p>
-          <span className="hidden text-[10px] uppercase tracking-[0.2em] text-ivory sm:block">VOSS&nbsp;2024</span>
+          <span className="hidden flex-shrink-0 text-[10px] uppercase tracking-[0.2em] text-ivory sm:block">ZOYA GOODS&nbsp;2024</span>
         </div>
 
         {/* Main bar */}
         <div className="border-b border-navy/5">
-          <div className="relative mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12">
+          <div
+            className="relative mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12"
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                closeDropdownNow();
+              }
+            }}
+          >
             <div className="flex h-[72px] items-center justify-between">
               {/* Mobile menu button */}
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="inline-flex items-center justify-center rounded-full p-2.5 text-navy transition-colors hover:bg-navy/5 lg:hidden"
+                className="inline-flex items-center justify-center rounded-full p-3 text-navy transition-colors hover:bg-navy/5 lg:hidden"
                 aria-label="Toggle menu"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -338,7 +381,7 @@ export function Navbar({ className }: NavbarProps) {
               {/* Logo */}
               <Link href="/" className="group relative flex items-center">
                 <span className="font-display text-[26px] font-medium tracking-[0.3em] text-navy transition-colors duration-300">
-                  VOSS
+                  ZOYA GOODS
                 </span>
                 <span className="absolute -right-4 top-0.5 h-1.5 w-1.5 rounded-full bg-sage transition-transform duration-300 group-hover:scale-150" />
               </Link>
@@ -357,9 +400,8 @@ export function Navbar({ className }: NavbarProps) {
                       href={item.href}
                       onMouseEnter={() => openDropdown(item.label)}
                       onFocus={() => openDropdown(item.label)}
-                      onBlur={closeDropdown}
                       onClick={closeDropdownNow}
-                      aria-haspopup="true"
+                      aria-haspopup="menu"
                       aria-expanded={isOpen}
                       className={cn(
                         'group/link relative flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors duration-300',
@@ -394,7 +436,7 @@ export function Navbar({ className }: NavbarProps) {
                 <button
                   type="button"
                   onClick={() => setIsSearchOpen(true)}
-                  className="rounded-full p-2.5 transition-all hover:scale-105 hover:bg-navy/5 active:scale-95"
+                  className="rounded-full p-3 transition-all hover:scale-105 hover:bg-navy/5 active:scale-95"
                   aria-label="Search"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -404,7 +446,7 @@ export function Navbar({ className }: NavbarProps) {
 
                 <Link
                   href="/wishlist"
-                  className="relative hidden rounded-full p-2.5 transition-all hover:scale-105 active:scale-95 sm:inline-flex"
+                  className="relative hidden rounded-full p-3 transition-all hover:scale-105 active:scale-95 sm:inline-flex"
                   aria-label="Wishlist"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -414,7 +456,7 @@ export function Navbar({ className }: NavbarProps) {
 
                 <Link
                   href="/cart"
-                  className="relative rounded-full p-2.5 transition-all hover:scale-105 active:scale-95"
+                  className="relative rounded-full p-3 transition-all hover:scale-105 active:scale-95"
                   aria-label="Cart"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -434,7 +476,7 @@ export function Navbar({ className }: NavbarProps) {
 
                 <Link
                   href="/dashboard"
-                  className="hidden rounded-full p-2.5 transition-all hover:scale-105 active:scale-95 sm:inline-flex"
+                  className="hidden rounded-full p-3 transition-all hover:scale-105 active:scale-95 sm:inline-flex"
                   aria-label="Account"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

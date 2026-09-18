@@ -1,4 +1,4 @@
-# VOSS - BACKEND ARCHITECTURE
+# ZOYA GOODS - BACKEND ARCHITECTURE
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the complete backend architecture for the VOSS MERN eCommerce platform.
+This document defines the complete backend architecture for the ZOYA GOODS MERN eCommerce platform.
 
 The backend must be modular, scalable, secure, production-ready, and easy to maintain.
 
@@ -476,4 +476,4 @@ Protected Routes
 
 # FINAL GOAL
 
-The backend should be scalable, secure, modular, production-ready, and easy to extend as the VOSS platform grows.
+The backend should be scalable, secure, modular, production-ready, and easy to extend as the ZOYA GOODS platform grows.

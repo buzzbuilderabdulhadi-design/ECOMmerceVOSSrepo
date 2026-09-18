@@ -22,6 +22,7 @@ interface Config {
   client: {
     url: string;
   };
+  trustProxy: number | boolean | string;
   cloudinary: {
     name: string;
     apiKey: string;
@@ -30,6 +31,7 @@ interface Config {
   rateLimit: {
     windowMs: number;
     max: number;
+    publicMax: number;
   };
   email: {
     service: string;
@@ -40,6 +42,18 @@ interface Config {
     secretKey: string;
     webhookSecret: string;
   };
+}
+
+// `trust proxy` accepts a boolean, a hop count, or a subnet list. Default to a
+// single trusted proxy (typical reverse-proxy deployment) and allow operators
+// to override/disable it explicitly via TRUST_PROXY.
+function parseTrustProxy(): number | boolean | string {
+  const raw = process.env.TRUST_PROXY;
+  if (raw === undefined || raw === '') return 1;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) ? numeric : raw;
 }
 
 const config: Config = {
@@ -60,6 +74,7 @@ const config: Config = {
   client: {
     url: process.env.CLIENT_URL || 'http://localhost:3000',
   },
+  trustProxy: parseTrustProxy(),
   cloudinary: {
     name: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || '',
     apiKey: process.env.CLOUDINARY_API_KEY || '',
@@ -68,6 +83,9 @@ const config: Config = {
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+    // Public API budget. Kept separate from the auth limiter so raising it can
+    // never weaken authentication limits (auth stays at 20 / 15 min).
+    publicMax: parseInt(process.env.RATE_LIMIT_PUBLIC_MAX || '1000', 10),
   },
   email: {
     service: process.env.EMAIL_SERVICE || '',

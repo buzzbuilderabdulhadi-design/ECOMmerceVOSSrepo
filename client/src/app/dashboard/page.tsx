@@ -1,9 +1,13 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
+import { useAuth } from '@/context/AuthContext';
+import { fetchOrders } from '@/services/orders';
+import type { Order } from '@/types';
 import {
   FiShoppingBag,
   FiClock,
@@ -13,35 +17,51 @@ import {
   FiMapPin,
 } from 'react-icons/fi';
 
-const statCards = [
-  { label: 'Total Orders', value: '12', icon: FiShoppingBag, color: 'text-sage-dark bg-sage-light/40' },
-  { label: 'Active Orders', value: '2', icon: FiClock, color: 'text-walnut bg-walnut/10' },
-  { label: 'Wishlist', value: '8', icon: FiHeart, color: 'text-navy-light bg-navy-light/10' },
-  { label: 'Reviews', value: '5', icon: FiStar, color: 'text-sage-dark bg-sage-light/40' },
-];
-
-const orderList = [
-  { number: '#VOSS-2024-001', date: 'Dec 15, 2024', status: 'Delivered', total: 395 },
-  { number: '#VOSS-2024-002', date: 'Nov 28, 2024', status: 'Shipped', total: 520 },
-  { number: '#VOSS-2024-003', date: 'Nov 10, 2024', status: 'Processing', total: 250 },
-];
-
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
-    Delivered: 'bg-sage-light/50 text-sage-dark',
-    Shipped: 'bg-navy-light/10 text-navy-light',
-    Processing: 'bg-walnut/10 text-walnut',
+    DELIVERED: 'bg-sage-light/50 text-sage-dark',
+    SHIPPED: 'bg-navy-light/10 text-navy-light',
+    PROCESSING: 'bg-walnut/10 text-walnut',
+    PENDING: 'bg-walnut/10 text-walnut',
+    CONFIRMED: 'bg-sage-light/50 text-sage-dark',
+    CANCELLED: 'bg-red-100 text-red-700',
   };
   return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${colorMap[status] || 'bg-slate/10 text-slate'}`}>
+    <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${colorMap[status] || 'bg-slate/10 text-slate'}`}>
       {status}
     </span>
   );
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [totalOrders, setTotalOrders] = useState(0);
+
+  useEffect(() => {
+    fetchOrders({ limit: '3', sort: '-createdAt' })
+      .then((res) => {
+        setOrders(Array.isArray(res.data) ? res.data : []);
+        setTotalOrders(res.pagination?.total ?? 0);
+      })
+      .catch(() => {});
+  }, []);
+
+  const activeOrders = orders.filter(
+    (o) => o.status === 'PROCESSING' || o.status === 'SHIPPED' || o.status === 'PENDING' || o.status === 'CONFIRMED'
+  ).length;
+
+  const firstName = user?.name?.split(' ')[0] || 'there';
+
+  const statCards = [
+    { label: 'Total Orders', value: String(totalOrders), icon: FiShoppingBag, color: 'text-sage-dark bg-sage-light/40' },
+    { label: 'Active Orders', value: String(activeOrders), icon: FiClock, color: 'text-walnut bg-walnut/10' },
+    { label: 'Wishlist', value: '—', icon: FiHeart, color: 'text-navy-light bg-navy-light/10' },
+    { label: 'Reviews', value: '—', icon: FiStar, color: 'text-sage-dark bg-sage-light/40' },
+  ];
+
   return (
-    <DashboardLayout title="Welcome back, James" subtitle="Here is your account overview.">
+    <DashboardLayout title={`Welcome back, ${firstName}`} subtitle="Here is your account overview.">
       {/* Stats Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => {
@@ -73,11 +93,14 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-4">
-            {orderList.map((order) => (
-              <div key={order.number} className="flex items-center justify-between border-b border-sage-light/30 pb-4 last:border-0 last:pb-0">
+            {orders.length === 0 && (
+              <p className="py-4 text-center text-sm text-slate">No orders yet. Start shopping to see them here.</p>
+            )}
+            {orders.map((order) => (
+              <div key={order.id} className="flex items-center justify-between border-b border-sage-light/30 pb-4 last:border-0 last:pb-0">
                 <div>
-                  <p className="text-sm font-medium text-navy">{order.number}</p>
-                  <p className="text-xs text-slate">{order.date}</p>
+                  <p className="text-sm font-medium text-navy">#{order.orderNumber}</p>
+                  <p className="text-xs text-slate">{new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium text-navy">${order.total.toFixed(2)}</p>

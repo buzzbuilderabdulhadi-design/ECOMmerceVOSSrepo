@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +29,8 @@ export function Modal({
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent) => {
@@ -46,14 +48,39 @@ export function Modal({
       }
     };
 
+    const handleTabTrap = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !modalRef.current) return;
+      const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableElements.length === 0) return;
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === modalRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
     if (isOpen) {
+      const activeElement = document.activeElement as HTMLElement | null;
+      previouslyFocusedRef.current = activeElement;
       document.addEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleTabTrap);
       document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleTabTrap);
       document.body.style.overflow = '';
+      if (isOpen) {
+        previouslyFocusedRef.current?.focus();
+      }
     };
   }, [isOpen, closeOnEscape, onClose]);
 
@@ -85,7 +112,8 @@ export function Modal({
           onClick={handleOverlayClick}
           role="dialog"
           aria-modal="true"
-          aria-labelledby={title ? 'modal-title' : undefined}
+          aria-labelledby={title ? titleId : undefined}
+          aria-label={title ? undefined : 'Dialog'}
         >
           <motion.div
             initial={{ opacity: 0 }}
@@ -102,7 +130,7 @@ export function Modal({
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className={cn(
-              'relative z-10 w-full rounded-2xl bg-white shadow-2xl',
+              'relative z-10 flex max-h-[calc(100dvh-2rem)] w-full flex-col rounded-2xl bg-white shadow-2xl',
               sizeClasses[size],
               className
             )}
@@ -112,7 +140,7 @@ export function Modal({
               <div className="flex items-center justify-between border-b border-sage-light/30 px-6 py-4">
                 {title && (
                   <h2
-                    id="modal-title"
+                    id={titleId}
                     className="text-lg font-semibold text-navy"
                   >
                     {title}
@@ -144,7 +172,7 @@ export function Modal({
             )}
 
             {/* Content */}
-            <div className="overflow-y-auto px-6 py-4">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{children}</div>
           </motion.div>
         </div>
       )}

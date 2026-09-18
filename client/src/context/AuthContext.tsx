@@ -4,12 +4,17 @@ import React, {
   createContext,
   useContext,
   useReducer,
-  useEffect,
+  useLayoutEffect,
   useCallback,
   ReactNode,
 } from 'react';
 import type { User, AuthState, LoginCredentials, RegisterData } from '@/types';
 import axiosInstance, { getErrorMessage } from '@/services/axios';
+import {
+  clearStoredSession,
+  getStoredSession,
+  saveStoredSession,
+} from '@/lib/session';
 
 // ============================================================
 // Auth Context — State Management for Authentication
@@ -93,26 +98,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Restore session on mount
-  useEffect(() => {
-    const restoreSession = () => {
-      try {
-        const token = localStorage.getItem('voss_token');
-        const userStr = localStorage.getItem('voss_user');
+  // Restore session before the first paint so an existing locally
+  // stored session is recognized immediately (no logged-out flash).
+  // useLayoutEffect is a no-op during server rendering, so this stays
+  // SSR/hydration-safe: the initial render still matches the server.
+  useLayoutEffect(() => {
+    const session = getStoredSession();
 
-        if (token && userStr) {
-          const user = JSON.parse(userStr) as User;
-          setCookie('voss_access_token', token, 60 * 60 * 24 * 7);
-          dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
-        } else {
-          dispatch({ type: 'LOGOUT' });
-        }
-      } catch {
-        dispatch({ type: 'LOGOUT' });
-      }
-    };
-
-    restoreSession();
+    if (session) {
+      setCookie('voss_access_token', session.token, 60 * 60 * 24 * 7);
+      dispatch({ type: 'LOGIN_SUCCESS', payload: session });
+    } else {
+      dispatch({ type: 'LOGOUT' });
+    }
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
@@ -121,9 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await axiosInstance.post('/auth/login', credentials);
       const { user, accessToken, refreshToken } = response.data.data;
 
-      localStorage.setItem('voss_token', accessToken);
+      saveStoredSession(user, accessToken);
       localStorage.setItem('voss_refresh_token', refreshToken);
-      localStorage.setItem('voss_user', JSON.stringify(user));
       setCookie('voss_access_token', accessToken, 60 * 60 * 24 * 7);
 
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
@@ -140,9 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await axiosInstance.post('/auth/register', data);
       const { user, accessToken, refreshToken } = response.data.data;
 
-      localStorage.setItem('voss_token', accessToken);
+      saveStoredSession(user, accessToken);
       localStorage.setItem('voss_refresh_token', refreshToken);
-      localStorage.setItem('voss_user', JSON.stringify(user));
       setCookie('voss_access_token', accessToken, 60 * 60 * 24 * 7);
 
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
@@ -154,17 +150,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('voss_token');
-    localStorage.removeItem('voss_user');
+    clearStoredSession();
     localStorage.removeItem('voss_refresh_token');
     removeCookie('voss_access_token');
     dispatch({ type: 'LOGOUT' });
   }, []);
 
   const updateUser = useCallback((user: User) => {
-    localStorage.setItem('voss_user', JSON.stringify(user));
+    saveStoredSession(user, state.token ?? '');
     dispatch({ type: 'SET_USER', payload: user });
-  }, []);
+  }, [state.token]);
 
   const clearError = useCallback(() => {
     dispatch({ type: 'CLEAR_ERROR' });

@@ -7,7 +7,7 @@ export default function CareersPage() {
     <ComingSoon
       title="Careers"
       eyebrow="Careers"
-      description="Join the VOSS team and help shape the future of luxury fashion."
+      description="Join the ZOYA GOODS team and help shape the future of luxury fashion."
     />
   );
 }

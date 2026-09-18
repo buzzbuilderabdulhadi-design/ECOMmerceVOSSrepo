@@ -1,4 +1,4 @@
-# VOSS - MASTER PROJECT SPECIFICATION
+# ZOYA GOODS - MASTER PROJECT SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Project Type:
 Production Ready Full Stack MERN E-Commerce Platform
 
 Brand:
-VOSS
+ZOYA GOODS
 
 Project Status:
 Planning Phase
@@ -141,7 +141,7 @@ Build this project exactly like a senior engineering team would.
 
 # PROJECT OBJECTIVE
 
-Build a world-class premium luxury fashion eCommerce platform called VOSS.
+Build a world-class premium luxury fashion eCommerce platform called ZOYA GOODS.
 
 The website specializes in jackets including but not limited to:
 
@@ -307,7 +307,7 @@ Use them only as inspiration for:
 • elegance
 • smooth interactions
 
-Create an original interface for VOSS.
+Create an original interface for ZOYA GOODS.
 
 ------------------------------------------------------------
 

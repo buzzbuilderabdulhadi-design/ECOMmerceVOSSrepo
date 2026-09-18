@@ -1,4 +1,4 @@
-# VOSS - DEPLOYMENT SPECIFICATION
+# ZOYA GOODS - DEPLOYMENT SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines how the VOSS platform should be prepared and deployed to a production environment.
+This document defines how the ZOYA GOODS platform should be prepared and deployed to a production environment.
 
 The deployment must prioritize security, performance, scalability, and maintainability.
 
@@ -271,4 +271,4 @@ Optimized database queries.
 
 # FINAL GOAL
 
-The VOSS platform should be deployable with minimal configuration and should meet production standards for security, performance, scalability, and maintainability.
+The ZOYA GOODS platform should be deployable with minimal configuration and should meet production standards for security, performance, scalability, and maintainability.

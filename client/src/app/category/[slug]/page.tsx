@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
@@ -8,13 +8,11 @@ import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
 import { ProductCard, type ProductCardData } from '@/components/product/ProductCard';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
-import { Button } from '@/components/ui/Button';
-import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
-import { getProductsBySubcategory, categoryDescriptions, categories } from '@/data/products';
+import { getProductsBySubcategory, categoryDescriptions } from '@/data/products';
 
 function toProductCard(p: { id: string; name: string; slug: string; image: string; images?: string[]; regularPrice: number; salePrice?: number; discountPercent?: number; rating: number; reviewCount: number; isNew?: boolean; isBestSeller?: boolean; colors?: { name: string; hex: string }[]; stock?: number; brand: string; category: string; subcategory?: string }): ProductCardData {
   return {

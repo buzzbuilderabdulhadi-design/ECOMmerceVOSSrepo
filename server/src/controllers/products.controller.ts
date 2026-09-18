@@ -2,6 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/db';
 import { sendSuccess, sendPaginated } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
+import { cacheGet, cacheSet } from '../utils/cache';
+
+const PRODUCT_TTL_MS = 15_000;
+const LIST_TTL_MS = 20_000;
 
 export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -30,6 +34,13 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       default: orderBy.createdAt = 'desc';
     }
 
+    const cacheKey = `products:list:${JSON.stringify({ page, limit, category, search, minPrice, maxPrice, sort, color, size, material, brand, isNew, isBestSeller, isFeatured })}`;
+    const cached = cacheGet<{ products: unknown[]; total: number }>(cacheKey);
+    if (cached) {
+      sendPaginated(res, cached.products, { page, limit, total: cached.total });
+      return;
+    }
+
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
@@ -44,6 +55,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       }),
       prisma.product.count({ where }),
     ]);
+    cacheSet(cacheKey, { products, total }, LIST_TTL_MS);
     sendPaginated(res, products, { page, limit, total });
   } catch (error) { next(error); }
 };
@@ -51,63 +63,102 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
 export const getProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const slug = req.params.slug as string;
-    const product = await prisma.product.findUnique({
-      where: { slug },
-      include: {
-        category: { select: { id: true, name: true, slug: true } },
-        variants: { where: { isActive: true }, orderBy: { color: 'asc' } },
-        reviews: {
-          where: { isApproved: true },
-          orderBy: { createdAt: 'desc' },
-          include: { user: { select: { id: true, name: true, avatar: true } } },
-        },
-        _count: { select: { reviews: true, questions: true } },
-      },
-    });
+    const cacheKey = `products:slug:${slug}`;
+    const cached = cacheGet<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      sendSuccess(res, cached);
+      return;
+    }
+
+    const product = await prisma.product.findUnique({ where: { slug } });
     if (!product) throw ApiError.notFound('Product not found');
-    sendSuccess(res, product);
+
+    // Prisma's MongoDB connector issues one round-trip per relation, so nested
+    // includes are sequential and multiply Atlas latency. The relations below
+    // are independent — load them in parallel and merge into the same shape.
+    const [category, variants, reviews, reviewCount, questionCount] = await Promise.all([
+      prisma.category.findUnique({
+        where: { id: product.categoryId },
+        select: { id: true, name: true, slug: true },
+      }),
+      prisma.productVariant.findMany({
+        where: { productId: product.id, isActive: true },
+        orderBy: { color: 'asc' },
+      }),
+      prisma.review.findMany({
+        where: { productId: product.id, isApproved: true },
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { id: true, name: true, avatar: true } } },
+      }),
+      prisma.review.count({ where: { productId: product.id } }),
+      prisma.productQuestion.count({ where: { productId: product.id } }),
+    ]);
+
+    const payload = {
+      ...product,
+      category,
+      variants,
+      reviews,
+      _count: { reviews: reviewCount, questions: questionCount },
+    };
+    cacheSet(cacheKey, payload, PRODUCT_TTL_MS);
+    sendSuccess(res, payload);
   } catch (error) { next(error); }
 };
 
+const productListWhere = {
+  featured: { isActive: true, isFeatured: true },
+  newArrivals: { isActive: true, isNew: true },
+  bestSellers: { isActive: true, isBestSeller: true },
+} as const;
+
+async function sendCachedProductList(
+  res: Response,
+  cacheKey: string,
+  where: Record<string, unknown>
+): Promise<void> {
+  const cached = cacheGet<unknown[]>(cacheKey);
+  if (cached) {
+    sendSuccess(res, cached);
+    return;
+  }
+  const products = await prisma.product.findMany({
+    where,
+    take: 8,
+    orderBy: { createdAt: 'desc' },
+    include: { category: { select: { name: true, slug: true } }, variants: { where: { isActive: true } } },
+  });
+  cacheSet(cacheKey, products, LIST_TTL_MS);
+  sendSuccess(res, products);
+}
+
 export const getFeaturedProducts = async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const products = await prisma.product.findMany({
-      where: { isActive: true, isFeatured: true },
-      take: 8,
-      orderBy: { createdAt: 'desc' },
-      include: { category: { select: { name: true, slug: true } }, variants: { where: { isActive: true } } },
-    });
-    sendSuccess(res, products);
+    await sendCachedProductList(res, 'products:featured', productListWhere.featured);
   } catch (error) { next(error); }
 };
 
 export const getNewArrivals = async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const products = await prisma.product.findMany({
-      where: { isActive: true, isNew: true },
-      take: 8,
-      orderBy: { createdAt: 'desc' },
-      include: { category: { select: { name: true, slug: true } }, variants: { where: { isActive: true } } },
-    });
-    sendSuccess(res, products);
+    await sendCachedProductList(res, 'products:new-arrivals', productListWhere.newArrivals);
   } catch (error) { next(error); }
 };
 
 export const getBestSellers = async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const products = await prisma.product.findMany({
-      where: { isActive: true, isBestSeller: true },
-      take: 8,
-      orderBy: { createdAt: 'desc' },
-      include: { category: { select: { name: true, slug: true } }, variants: { where: { isActive: true } } },
-    });
-    sendSuccess(res, products);
+    await sendCachedProductList(res, 'products:best-sellers', productListWhere.bestSellers);
   } catch (error) { next(error); }
 };
 
 export const getRelatedProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const slug = req.params.slug as string;
+    const cacheKey = `products:related:${slug}`;
+    const cached = cacheGet<unknown[]>(cacheKey);
+    if (cached) {
+      sendSuccess(res, cached);
+      return;
+    }
     const product = await prisma.product.findUnique({ where: { slug }, select: { categoryId: true, id: true } });
     if (!product) throw ApiError.notFound('Product not found');
     const products = await prisma.product.findMany({
@@ -116,6 +167,7 @@ export const getRelatedProducts = async (req: Request, res: Response, next: Next
       orderBy: { createdAt: 'desc' },
       include: { category: { select: { name: true, slug: true } }, variants: { where: { isActive: true } } },
     });
+    cacheSet(cacheKey, products, LIST_TTL_MS);
     sendSuccess(res, products);
   } catch (error) { next(error); }
 };

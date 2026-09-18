@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { FiMapPin, FiArrowRight } from 'react-icons/fi';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Button } from '@/components/ui/Button';
@@ -16,11 +15,9 @@ export default function AddressesPage() {
         <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate">
           Add a shipping address to enjoy a swifter, more seamless checkout experience.
         </p>
-        <Link href="/contact" className="mt-8 inline-block">
-          <Button variant="walnut" size="md" rightIcon={<FiArrowRight className="h-4 w-4" />}>
+        <Button href="/contact" className="mt-8" variant="walnut" size="md" rightIcon={<FiArrowRight className="h-4 w-4" />}>
             Add an Address
           </Button>
-        </Link>
       </div>
     </DashboardLayout>
   );

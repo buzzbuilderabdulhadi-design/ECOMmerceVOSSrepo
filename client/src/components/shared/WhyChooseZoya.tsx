@@ -12,7 +12,7 @@ interface Feature {
   description: string;
 }
 
-interface WhyChooseVOSSProps {
+interface WhyChooseZoyaProps {
   title?: string;
   description?: string;
   features?: Feature[];
@@ -76,12 +76,12 @@ const defaultFeatures: Feature[] = [
   },
 ];
 
-export function WhyChooseVOSS({
-  title = 'The VOSS Difference',
+export function WhyChooseZoya({
+  title = 'The ZOYA GOODS Difference',
   description = 'Experience the difference of true craftsmanship and uncompromising quality.',
   features = defaultFeatures,
   className,
-}: WhyChooseVOSSProps) {
+}: WhyChooseZoyaProps) {
   return (
     <section className={cn('bg-gradient-beige-cream relative overflow-hidden py-20 grain md:py-28', className)}>
       {/* Ambient light glows */}
@@ -95,7 +95,7 @@ export function WhyChooseVOSS({
             <ScrollReveal>
               <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-walnut">
                 <span className="inline-block h-px w-10 bg-walnut" />
-                Why VOSS
+                Why ZOYA GOODS
               </p>
               <TextReveal
                 as="h2"
@@ -147,7 +147,7 @@ export function WhyChooseVOSS({
                 Everything you expect, <span className="display-italic text-sage-light">and more</span>
               </h3>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-ivory">
-                Six commitments that define every piece that bears the VOSS name.
+                Six commitments that define every piece that bears the ZOYA GOODS name.
               </p>
             </div>
 

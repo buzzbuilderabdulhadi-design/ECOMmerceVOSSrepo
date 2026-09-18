@@ -61,7 +61,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = Math.random().toString(36).substr(2, 9);
+    const id = Math.random().toString(36).slice(2, 11);
     setToasts((prev) => [...prev, { ...toast, id }]);
 
     setTimeout(() => {
@@ -85,7 +85,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               'flex items-start gap-3 rounded-lg border p-4 shadow-lg animate-in slide-in-from-right fade-in duration-300 max-w-sm',
               toastColors[toast.type]
             )}
-            role="alert"
+            role={toast.type === 'error' ? 'alert' : 'status'}
           >
             <span className="mt-0.5 flex-shrink-0">{toastIcons[toast.type]}</span>
             <div className="flex-1 min-w-0">

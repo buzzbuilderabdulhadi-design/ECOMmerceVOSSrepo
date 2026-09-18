@@ -14,7 +14,7 @@ const badgeVariants = {
   exclusive: 'bg-gradient-to-r from-walnut-light to-walnut text-ivory',
   new: 'bg-sage-dark text-white',
   'best-seller': 'bg-walnut text-ivory',
-  sale: 'bg-red-500 text-white',
+  sale: 'bg-red-600 text-white',
 };
 
 const badgeSizes = {

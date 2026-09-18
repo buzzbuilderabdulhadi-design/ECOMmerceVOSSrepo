@@ -1,4 +1,4 @@
-# VOSS - TESTING SPECIFICATION
+# ZOYA GOODS - TESTING SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the testing requirements for the VOSS MERN eCommerce platform.
+This document defines the testing requirements for the ZOYA GOODS MERN eCommerce platform.
 
 Every feature must be tested before it is considered complete.
 
@@ -664,4 +664,4 @@ Verify no regression.
 
 No feature should be considered complete until it has been thoroughly tested.
 
-The VOSS platform should be reliable, secure, responsive, fast, and production-ready before deployment.
+The ZOYA GOODS platform should be reliable, secure, responsive, fast, and production-ready before deployment.

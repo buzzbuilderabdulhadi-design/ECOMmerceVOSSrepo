@@ -11,7 +11,7 @@ import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import logger from './utils/logger';
 
 // ============================================================
-// VOSS — Express Application Entry Point
+// ZOYA GOODS — Express Application Entry Point
 // ============================================================
 
 const app = express();
@@ -20,8 +20,10 @@ const app = express();
 // Security & Utility Middleware
 // ============================================================
 
-// Trust proxy for rate limiting behind reverse proxy
-app.set('trust proxy', 1);
+// Trust proxy for rate limiting behind reverse proxy. Configurable via
+// TRUST_PROXY so deployments can match their actual topology (and disable
+// header trust when no proxy is present, preventing X-Forwarded-For spoofing).
+app.set('trust proxy', config.trustProxy);
 
 // Security headers
 app.use(helmet({
@@ -47,8 +49,10 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging
-if (config.env !== 'test') {
+// Request logging (development only). Per-request synchronous stdout logging
+// is a known event-loop bottleneck under load, so production skips it and
+// relies on the structured logger for errors.
+if (config.env === 'development') {
   app.use(morgan('dev'));
 }
 
@@ -56,9 +60,10 @@ if (config.env !== 'test') {
 // Rate Limiting
 // ============================================================
 
+// Public API limiter — sized for launch traffic (default 1000 / 15 min).
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.max,
+  max: config.rateLimit.publicMax,
   message: {
     success: false,
     error: 'Too many requests, please try again later.',
@@ -130,7 +135,7 @@ async function startServer(): Promise<void> {
     validateConfig();
 
     app.listen(config.port, () => {
-      logger.info(`🚀 VOSS Server running on port ${config.port}`);
+      logger.info(`🚀 ZOYA GOODS Server running on port ${config.port}`);
       logger.info(`🌍 Environment: ${config.env}`);
       logger.info(`🔗 Client URL: ${config.client.url}`);
 

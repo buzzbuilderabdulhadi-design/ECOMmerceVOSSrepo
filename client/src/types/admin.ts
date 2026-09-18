@@ -1,5 +1,5 @@
 // ============================================================
-// VOSS - Admin-specific Type Definitions
+// ZOYA GOODS - Admin-specific Type Definitions
 // ============================================================
 
 import type { User, Product, Order, Review, Coupon, Address } from './index';

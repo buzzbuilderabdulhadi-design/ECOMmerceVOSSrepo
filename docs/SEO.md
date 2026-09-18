@@ -1,4 +1,4 @@
-# VOSS - SEO SPECIFICATION
+# ZOYA GOODS - SEO SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the complete SEO strategy for the VOSS MERN eCommerce platform.
+This document defines the complete SEO strategy for the ZOYA GOODS MERN eCommerce platform.
 
 The goal is to maximize search engine visibility while maintaining excellent user experience.
 
@@ -72,23 +72,23 @@ Examples:
 
 Home
 
-VOSS | Premium Leather Jackets
+ZOYA GOODS | Premium Leather Jackets
 
 Product
 
-Men's Brown Leather Jacket | VOSS
+Men's Brown Leather Jacket | ZOYA GOODS
 
 Category
 
-Men's Jackets | VOSS
+Men's Jackets | ZOYA GOODS
 
 Cart
 
-Shopping Cart | VOSS
+Shopping Cart | ZOYA GOODS
 
 Checkout
 
-Secure Checkout | VOSS
+Secure Checkout | ZOYA GOODS
 
 ---
 
@@ -534,6 +534,6 @@ Do not keyword stuff.
 
 # FINAL GOAL
 
-The VOSS website should be fully optimized for search engines while maintaining a premium user experience.
+The ZOYA GOODS website should be fully optimized for search engines while maintaining a premium user experience.
 
 Every page should be crawlable, indexable, fast, accessible, mobile-friendly, and ready to achieve strong rankings on Google and other search engines.

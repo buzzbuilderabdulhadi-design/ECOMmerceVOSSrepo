@@ -1,4 +1,4 @@
-# VOSS - FOLDER STRUCTURE
+# ZOYA GOODS - FOLDER STRUCTURE
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the official folder structure for the VOSS MERN eCommerce platform.
+This document defines the official folder structure for the ZOYA GOODS MERN eCommerce platform.
 
 The AI must strictly follow this structure.
 

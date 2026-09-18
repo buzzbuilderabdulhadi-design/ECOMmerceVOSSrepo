@@ -28,14 +28,16 @@ export default function CartPage() {
   const isFreeShipping = subtotal >= SHIPPING_THRESHOLD;
   const shipping = isFreeShipping ? 0 : SHIPPING_COST;
   const discount = cart?.discountAmount || 0;
-  const tax = subtotal * TAX_RATE;
-  const total = Math.max(0, subtotal - discount + shipping + tax);
+  const netSubtotal = Math.max(0, subtotal - discount);
+  const tax = netSubtotal * TAX_RATE;
+  const total = Math.max(0, netSubtotal + shipping + tax);
   const shippingProgress = Math.min((subtotal / SHIPPING_THRESHOLD) * 100, 100);
   const amountUntilFree = SHIPPING_THRESHOLD - subtotal;
 
-  const handleClearCart = () => {
-    clearCart();
-    toast.success('Cart cleared');
+  const handleClearCart = async () => {
+    const ok = await clearCart();
+    if (ok) toast.success('Cart cleared');
+    else toast.error('Could not clear your cart.');
   };
 
   const header = (
@@ -79,7 +81,9 @@ export default function CartPage() {
     );
   }
 
-  if (error) {
+  // Only block the page when the cart itself failed to load. A mutation error
+  // that happens after cart data is already loaded must not blank the cart.
+  if (error && !cart) {
     return (
       <PageTransition>
         <main className="min-h-screen">
@@ -92,9 +96,7 @@ export default function CartPage() {
               </svg>
               <h2 className="mt-4 font-display text-2xl font-light text-red-700">Something went wrong</h2>
               <p className="mt-2 text-sm text-red-600">{error}</p>
-              <Link href="/shop">
-                <Button variant="primary" className="mt-6">Continue Shopping</Button>
-              </Link>
+              <Button href="/shop" variant="primary" className="mt-6">Continue Shopping</Button>
             </div>
           </div>
           <Footer />
@@ -176,7 +178,7 @@ export default function CartPage() {
                           <div className="flex flex-col">
                             <div className="flex items-start justify-between gap-4">
                               <div>
-                                <p className="text-[10px] uppercase tracking-[0.25em] text-sage-dark">{p.brand || 'VOSS'}</p>
+                                <p className="text-[10px] uppercase tracking-[0.25em] text-sage-dark">{p.brand || 'ZOYA GOODS'}</p>
                                 <Link href={`/products/${p.slug}`} className="mt-1 block font-display text-xl font-medium text-navy transition-colors hover:text-walnut sm:text-2xl">
                                   {p.name}
                                 </Link>
@@ -188,9 +190,10 @@ export default function CartPage() {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  removeItem(item.id);
-                                  toast.success('Item removed');
+                                onClick={async () => {
+                                  const ok = await removeItem(item.id);
+                                  if (ok) toast.success('Item removed');
+                                  else toast.error('Could not remove this item.');
                                 }}
                                 className="rounded-full p-2 text-slate transition-all hover:bg-red-50 hover:text-red-500 active:scale-90"
                                 aria-label={`Remove ${p.name} from cart`}
@@ -255,19 +258,15 @@ export default function CartPage() {
                     </div>
                   </div>
 
-                  <Link href="/checkout" className="mt-8 block">
-                    <Button variant="light" size="lg" fullWidth>
+                  <Button href="/checkout" variant="light" size="lg" fullWidth className="mt-8">
                       Proceed to Checkout
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                       </svg>
                     </Button>
-                  </Link>
-                  <Link href="/shop" className="mt-4 block">
-                    <Button variant="light" size="sm" fullWidth className="bg-cream/10 text-ivory hover:bg-cream/20">
+                    <Button href="/shop" variant="light" size="sm" fullWidth className="mt-4 bg-cream/10 text-ivory hover:bg-cream/20">
                       Continue Shopping
                     </Button>
-                  </Link>
 
                   <p className="mt-6 flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.2em] text-sage-light">
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

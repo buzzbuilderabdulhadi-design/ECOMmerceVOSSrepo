@@ -134,7 +134,7 @@ export function FeaturedProducts({
               >
                 <span className="animate-spin-slow flex h-32 w-32 items-center justify-center rounded-full border border-dashed border-sage/50">
                   <span className="font-display text-2xl font-light text-navy transition-transform duration-500 group-hover:scale-110">
-                    VOSS
+                    ZOYA GOODS
                   </span>
                 </span>
                 <span className="text-[11px] uppercase tracking-[0.3em] text-navy transition-colors group-hover:text-walnut">

@@ -34,12 +34,40 @@ export function Tabs({
     onChange?.(tabId);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+
+    const findEnabledIndex = (from: number, step: 1 | -1): number => {
+      let i = from;
+      for (let count = 0; count < tabs.length; count++) {
+        if (!tabs[i]?.disabled) return i;
+        i = (i + step + tabs.length) % tabs.length;
+      }
+      return -1;
+    };
+
+    let nextIndex = index;
+    if (e.key === 'ArrowRight') nextIndex = findEnabledIndex((index + 1) % tabs.length, 1);
+    if (e.key === 'ArrowLeft') nextIndex = findEnabledIndex((index - 1 + tabs.length) % tabs.length, -1);
+    if (e.key === 'Home') nextIndex = findEnabledIndex(0, 1);
+    if (e.key === 'End') nextIndex = findEnabledIndex(tabs.length - 1, -1);
+
+    if (nextIndex >= 0) {
+      handleTabChange(tabs[nextIndex].id);
+      const tabList = e.currentTarget.parentElement;
+      const nextButton = tabList?.querySelectorAll<HTMLElement>('[role="tab"]')[nextIndex];
+      nextButton?.focus();
+    }
+  };
+
   const variantStyles = {
     underline: {
-      container: 'border-b border-sage-light/30',
+      container: 'flex overflow-x-auto border-b border-sage-light/30',
       tab: (isActive: boolean, isDisabled: boolean) =>
         cn(
-          'px-4 py-2.5 text-sm font-medium transition-all duration-200 border-b-2 -mb-px',
+          'flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-all duration-200 border-b-2 -mb-px',
           isActive
             ? 'border-sage text-sage-dark'
             : 'border-transparent text-slate hover:text-sage-dark hover:border-sage-light',
@@ -47,10 +75,10 @@ export function Tabs({
         ),
     },
     pills: {
-      container: 'flex gap-1 p-1 bg-sage-light/30 rounded-lg',
+      container: 'flex gap-1 overflow-x-auto rounded-lg bg-sage-light/30 p-1',
       tab: (isActive: boolean, isDisabled: boolean) =>
         cn(
-          'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
+          'flex-shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
           isActive
             ? 'bg-white text-navy shadow-sm'
             : 'text-slate hover:text-navy',
@@ -58,10 +86,10 @@ export function Tabs({
         ),
     },
     buttons: {
-      container: 'flex gap-2',
+      container: 'flex gap-2 overflow-x-auto',
       tab: (isActive: boolean, isDisabled: boolean) =>
         cn(
-          'px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 border',
+          'flex-shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 border',
           isActive
             ? 'bg-sage-dark text-white border-sage-dark'
             : 'bg-white text-charcoal border-sage-light/50 hover:border-sage',
@@ -74,16 +102,19 @@ export function Tabs({
 
   return (
     <div className={className}>
-      <div className={currentVariant.container} role="tablist">
-        {tabs.map((tab) => (
+      <div className={currentVariant.container} role="tablist" aria-label="Tab navigation">
+        {tabs.map((tab, index) => (
           <button
             key={tab.id}
+            id={tab.id}
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
             aria-controls={`tabpanel-${tab.id}`}
+            tabIndex={activeTab === tab.id ? 0 : -1}
             disabled={tab.disabled}
             onClick={() => !tab.disabled && handleTabChange(tab.id)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
             className={cn(
               currentVariant.tab(activeTab === tab.id, !!tab.disabled),
               'inline-flex items-center gap-2'

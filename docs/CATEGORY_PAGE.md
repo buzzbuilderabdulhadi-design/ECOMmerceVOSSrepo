@@ -1,4 +1,4 @@
-# VOSS - CATEGORY PAGE SPECIFICATION
+# ZOYA GOODS - CATEGORY PAGE SPECIFICATION
 
 Version: 1.0
 
@@ -6,9 +6,9 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the Category Pages for the VOSS luxury fashion eCommerce platform.
+This document defines the Category Pages for the ZOYA GOODS luxury fashion eCommerce platform.
 
-Each category page should feel unique while maintaining the overall VOSS design language.
+Each category page should feel unique while maintaining the overall ZOYA GOODS design language.
 
 Customers should immediately understand what type of products they are browsing.
 
@@ -436,4 +436,4 @@ Every category page should feel like a professionally curated luxury collection.
 
 Customers should enjoy exploring categories and easily discover products that match their style.
 
-The experience should remain fast, elegant, responsive, and consistent with the VOSS brand.
+The experience should remain fast, elegant, responsive, and consistent with the ZOYA GOODS brand.

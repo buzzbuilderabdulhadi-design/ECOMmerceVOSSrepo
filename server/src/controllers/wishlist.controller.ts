@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/db';
 import { sendSuccess, sendCreated, sendMessage } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
+import { isValidObjectId } from '../utils/objectId';
 
 export const getWishlist = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -20,8 +21,10 @@ export const getWishlist = async (req: Request, res: Response, next: NextFunctio
 export const addToWishlist = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { productId, variantId } = req.body;
-    const existing = await prisma.wishlistItem.findUnique({
-      where: { userId_productId_variantId: { userId: req.user!.userId, productId, variantId: variantId || '' } },
+    if (!isValidObjectId(productId)) throw ApiError.badRequest('Invalid product ID');
+    if (variantId != null && !isValidObjectId(variantId)) throw ApiError.badRequest('Invalid variant ID');
+    const existing = await prisma.wishlistItem.findFirst({
+      where: { userId: req.user!.userId, productId, variantId: variantId || null },
     });
     if (existing) throw ApiError.conflict('Item already in wishlist');
     const item = await prisma.wishlistItem.create({ data: { userId: req.user!.userId, productId, variantId: variantId || null } });
@@ -31,7 +34,9 @@ export const addToWishlist = async (req: Request, res: Response, next: NextFunct
 
 export const removeFromWishlist = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.wishlistItem.delete({ where: { id: req.params.id as string } });
+    const id = req.params.id as string;
+    if (!isValidObjectId(id)) throw ApiError.badRequest('Invalid wishlist item ID');
+    await prisma.wishlistItem.delete({ where: { id } });
     sendMessage(res, 'Removed from wishlist');
   } catch (error) { next(error); }
 };

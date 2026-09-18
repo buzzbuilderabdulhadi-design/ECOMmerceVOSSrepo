@@ -21,7 +21,7 @@ export default function PrivacyPage() {
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-navy sm:text-4xl">Privacy Policy</h1>
           </div>
         </section>
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-voss">
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-zoya">
           <p>Last updated: January 2024</p>
           <h2>Information We Collect</h2>
           <p>We collect information you provide directly to us, including name, email address, phone number, shipping address, and payment information when you make a purchase or create an account.</p>
@@ -30,11 +30,11 @@ export default function PrivacyPage() {
           <h2>Data Protection</h2>
           <p>We implement industry-standard security measures to protect your personal information. All payment transactions are encrypted using SSL technology.</p>
           <h2>Your Rights</h2>
-          <p>You have the right to access, update, or delete your personal information at any time. Contact us at privacy@voss.com for assistance.</p>
+          <p>You have the right to access, update, or delete your personal information at any time. Contact us at privacy@zoyagoods.com for assistance.</p>
           <h2>Cookies</h2>
           <p>We use cookies to enhance your browsing experience and analyze site traffic. You can control cookie preferences in your browser settings.</p>
           <h2>Contact</h2>
-          <p>For privacy-related inquiries, please contact us at privacy@voss.com.</p>
+          <p>For privacy-related inquiries, please contact us at privacy@zoyagoods.com.</p>
         </div>
         <Footer />
       </main>

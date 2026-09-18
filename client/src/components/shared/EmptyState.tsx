@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
@@ -91,11 +90,9 @@ export function EmptyState({
       {(actionLabel && (actionHref || onAction)) && (
         <div className="mt-6">
           {actionHref ? (
-            <Link href={actionHref}>
-              <Button variant="walnut" size="lg">
-                {actionLabel}
-              </Button>
-            </Link>
+            <Button href={actionHref} variant="walnut" size="lg">
+              {actionLabel}
+            </Button>
           ) : (
             <Button variant="walnut" size="lg" onClick={onAction}>
               {actionLabel}

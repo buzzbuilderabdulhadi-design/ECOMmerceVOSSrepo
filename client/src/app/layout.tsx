@@ -1,9 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { AppProvider } from "@/context/AppProvider";
 import { CustomCursor } from "@/components/animations/CustomCursor";
 import { LoadingScreen } from "@/components/shared/LoadingScreen";
+import {
+  DEFAULT_DESCRIPTION,
+  DEFAULT_OG_IMAGE,
+  DEFAULT_TITLE,
+  SITE_NAME,
+  SITE_URL,
+  organizationJsonLd,
+  websiteJsonLd,
+} from "@/lib/seo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,29 +34,60 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "VOSS — Luxury Fashion E-Commerce",
-  description:
-    "Discover curated luxury fashion at VOSS. Shop premium clothing, accessories, and more with an unparalleled shopping experience.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: DEFAULT_TITLE,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  category: "shopping",
   keywords: [
     "luxury fashion",
-    "ecommerce",
-    "clothing",
-    "accessories",
-    "premium fashion",
+    "designer clothing",
+    "leather jackets",
+    "premium accessories",
+    "luxury bags",
+    "designer shoes",
+    "ZOYA GOODS",
   ],
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
   openGraph: {
-    title: "VOSS — Luxury Fashion E-Commerce",
-    description:
-      "Discover curated luxury fashion at VOSS. Shop premium clothing, accessories, and more.",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
     type: "website",
-    siteName: "VOSS",
+    siteName: SITE_NAME,
+    url: SITE_URL,
+    locale: "en_US",
+    images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "VOSS — Luxury Fashion E-Commerce",
-    description:
-      "Discover curated luxury fashion at VOSS. Shop premium clothing, accessories, and more.",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#112C47",
 };
 
 export default function RootLayout({
@@ -61,6 +101,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-gradient-luxury">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
+        />
         <AppProvider>
           <CustomCursor />
           <LoadingScreen />

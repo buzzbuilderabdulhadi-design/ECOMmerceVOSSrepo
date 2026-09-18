@@ -1,4 +1,4 @@
-# VOSS - FRONTEND ARCHITECTURE
+# ZOYA GOODS - FRONTEND ARCHITECTURE
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the frontend architecture for the VOSS MERN eCommerce platform.
+This document defines the frontend architecture for the ZOYA GOODS MERN eCommerce platform.
 
 The frontend should be modular, responsive, reusable, maintainable, and optimized for performance.
 

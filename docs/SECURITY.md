@@ -1,4 +1,4 @@
-# VOSS - SECURITY SPECIFICATION
+# ZOYA GOODS - SECURITY SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the security requirements for the VOSS MERN eCommerce platform.
+This document defines the security requirements for the ZOYA GOODS MERN eCommerce platform.
 
 Every feature must be designed with security in mind.
 
@@ -448,6 +448,6 @@ Never disable security middleware in production.
 
 # FINAL GOAL
 
-The VOSS platform should follow modern web security best practices and protect users, administrators, and business data against common threats.
+The ZOYA GOODS platform should follow modern web security best practices and protect users, administrators, and business data against common threats.
 
 Every feature should be secure by design, not added as an afterthought.

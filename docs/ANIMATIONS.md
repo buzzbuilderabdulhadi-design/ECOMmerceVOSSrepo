@@ -1,4 +1,4 @@
-# VOSS - ANIMATIONS & MICRO INTERACTIONS
+# ZOYA GOODS - ANIMATIONS & MICRO INTERACTIONS
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines every animation, transition, interaction, and motion guideline for the VOSS luxury fashion eCommerce platform.
+This document defines every animation, transition, interaction, and motion guideline for the ZOYA GOODS luxury fashion eCommerce platform.
 
 Animations should enhance the user experience, communicate state changes, and reinforce the premium brand identity.
 
@@ -678,7 +678,7 @@ Anything that hurts usability.
 
 # FINAL GOAL
 
-Every animation should make the VOSS website feel like a luxury international fashion brand.
+Every animation should make the ZOYA GOODS website feel like a luxury international fashion brand.
 
 The experience should be smooth, elegant, responsive, modern, and memorable while remaining fast and accessible.
 

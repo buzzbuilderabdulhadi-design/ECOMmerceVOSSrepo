@@ -3,6 +3,13 @@ import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { sendSuccess, sendCreated, sendPaginated, sendMessage } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
+import { cacheInvalidate } from '../utils/cache';
+
+// Invalidate cached public catalog reads after any product/category/variant write.
+const invalidateCatalog = () => {
+  cacheInvalidate('products:');
+  cacheInvalidate('categories:');
+};
 
 const isForeignKeyError = (error: unknown): boolean => {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -132,6 +139,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
   try {
     const product = await prisma.product.create({ data: req.body });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_PRODUCT', entity: 'Product', entityId: product.id } });
+    invalidateCatalog();
     sendCreated(res, product, 'Product created successfully');
   } catch (error) { next(error); }
 };
@@ -141,6 +149,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     const id = req.params.id as string;
     const product = await prisma.product.update({ where: { id }, data: req.body });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_PRODUCT', entity: 'Product', entityId: product.id } });
+    invalidateCatalog();
     sendSuccess(res, product, 'Product updated successfully');
   } catch (error) { next(error); }
 };
@@ -156,6 +165,7 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
     if (orderItemCount > 0) {
       await prisma.product.update({ where: { id }, data: { isActive: false } });
       await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT', entity: 'Product', entityId: id, metadata: { softDelete: true, reason: 'has order history' } } });
+      invalidateCatalog();
       sendMessage(res, 'Product deactivated (it has order history and cannot be permanently deleted)');
       return;
     }
@@ -163,6 +173,7 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
     await prisma.productVariant.deleteMany({ where: { productId: id } });
     await prisma.product.delete({ where: { id } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT', entity: 'Product', entityId: id } });
+    invalidateCatalog();
     sendMessage(res, 'Product deleted successfully');
   } catch (error) { next(error); }
 };
@@ -172,6 +183,7 @@ export const bulkDeleteProducts = async (req: Request, res: Response, next: Next
     const { ids } = req.body;
     await prisma.product.deleteMany({ where: { id: { in: ids } } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'BULK_DELETE_PRODUCTS', entity: 'Product', metadata: { count: ids.length } } });
+    invalidateCatalog();
     sendMessage(res, `${ids.length} products deleted successfully`);
   } catch (error) { next(error); }
 };
@@ -181,6 +193,7 @@ export const bulkUpdateProducts = async (req: Request, res: Response, next: Next
     const { ids, data } = req.body;
     await prisma.product.updateMany({ where: { id: { in: ids } }, data });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'BULK_UPDATE_PRODUCTS', entity: 'Product', metadata: { count: ids.length, update: data } } });
+    invalidateCatalog();
     sendMessage(res, `${ids.length} products updated successfully`);
   } catch (error) { next(error); }
 };
@@ -201,6 +214,7 @@ export const duplicateProduct = async (req: Request, res: Response, next: NextFu
       } as any,
     });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DUPLICATE_PRODUCT', entity: 'Product', entityId: duplicate.id } });
+    invalidateCatalog();
     sendCreated(res, duplicate, 'Product duplicated successfully');
   } catch (error) { next(error); }
 };
@@ -212,6 +226,7 @@ export const createProductVariant = async (req: Request, res: Response, next: Ne
     if (!product) throw ApiError.notFound('Product not found');
     const variant = await prisma.productVariant.create({ data: { ...req.body, productId } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: variant.id, metadata: { productId } } });
+    invalidateCatalog();
     sendCreated(res, variant, 'Variant created');
   } catch (error) { next(error); }
 };
@@ -221,6 +236,7 @@ export const updateProductVariant = async (req: Request, res: Response, next: Ne
     const id = req.params.id as string;
     const variant = await prisma.productVariant.update({ where: { id }, data: req.body });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: variant.id } });
+    invalidateCatalog();
     sendSuccess(res, variant, 'Variant updated');
   } catch (error) { next(error); }
 };
@@ -235,6 +251,7 @@ export const deleteProductVariant = async (req: Request, res: Response, next: Ne
       throw error;
     }
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: id } });
+    invalidateCatalog();
     sendMessage(res, 'Variant deleted');
   } catch (error) { next(error); }
 };
@@ -259,6 +276,7 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
   try {
     const category = await prisma.category.create({ data: req.body });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_CATEGORY', entity: 'Category', entityId: category.id } });
+    invalidateCatalog();
     sendCreated(res, category, 'Category created successfully');
   } catch (error) { next(error); }
 };
@@ -268,6 +286,7 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
     const id = req.params.id as string;
     const category = await prisma.category.update({ where: { id }, data: req.body });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_CATEGORY', entity: 'Category', entityId: category.id } });
+    invalidateCatalog();
     sendSuccess(res, category, 'Category updated successfully');
   } catch (error) { next(error); }
 };
@@ -284,6 +303,7 @@ export const deleteCategory = async (req: Request, res: Response, next: NextFunc
     }
     await prisma.category.delete({ where: { id } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_CATEGORY', entity: 'Category', entityId: id } });
+    invalidateCatalog();
     sendMessage(res, 'Category deleted successfully');
   } catch (error) { next(error); }
 };
@@ -389,6 +409,7 @@ export const deleteCustomer = async (req: Request, res: Response, next: NextFunc
       throw error;
     }
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_CUSTOMER', entity: 'Customer', entityId: id } });
+    cacheInvalidate(`auth:user:${id}`);
     sendMessage(res, 'Customer deleted');
   } catch (error) { next(error); }
 };

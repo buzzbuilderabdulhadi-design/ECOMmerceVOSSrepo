@@ -1,4 +1,4 @@
-# VOSS - DESIGN SYSTEM
+# ZOYA GOODS - DESIGN SYSTEM
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the complete visual identity of VOSS.
+This document defines the complete visual identity of ZOYA GOODS.
 
 Every page, component, animation, and interaction must follow this design system.
 
@@ -20,7 +20,7 @@ Consistency is mandatory.
 
 Brand Name:
 
-VOSS
+ZOYA GOODS
 
 Industry:
 
@@ -96,7 +96,7 @@ Every pixel should have purpose.
 
 # COLOR PALETTE
 
-ONLY use the official VOSS color palette.
+ONLY use the official ZOYA GOODS color palette.
 
 Primary Dark
 
@@ -174,7 +174,7 @@ Premium Elements
 
 # LOGO
 
-Use the provided VOSS logo.
+Use the provided ZOYA GOODS logo.
 
 The logo should be replaceable from the Admin Panel in the future.
 
@@ -600,7 +600,7 @@ Consistency is more important than creativity.
 
 # FINAL GOAL
 
-The final VOSS website should feel comparable in quality to premium international fashion brands.
+The final ZOYA GOODS website should feel comparable in quality to premium international fashion brands.
 
 Visitors should immediately recognize:
 

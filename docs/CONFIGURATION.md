@@ -1,4 +1,4 @@
-# VOSS - PROJECT CONFIGURATION
+# ZOYA GOODS - PROJECT CONFIGURATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the configuration standards for the VOSS MERN eCommerce platform.
+This document defines the configuration standards for the ZOYA GOODS MERN eCommerce platform.
 
 Every configuration should be secure, scalable, production-ready, and easy to maintain.
 
@@ -466,4 +466,4 @@ No console errors.
 
 The project configuration should be clean, secure, scalable, and production-ready.
 
-A new developer should be able to clone the repository, install dependencies, configure the environment variables, and run the entire VOSS platform with minimal setup.
+A new developer should be able to clone the repository, install dependencies, configure the environment variables, and run the entire ZOYA GOODS platform with minimal setup.

@@ -2,6 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import config from '../config';
 import prisma from '../config/db';
+import { cacheGet, cacheSet } from '../utils/cache';
+
+// Cache "user still exists" for a short window to avoid a DB round-trip on
+// every authenticated request. Deletion takes effect within this TTL.
+const AUTH_CACHE_TTL_MS = 30_000;
 
 // ============================================================
 // Authentication Middleware
@@ -47,18 +52,22 @@ export const authenticate = async (
 
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
-    // Verify user still exists
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-select: { id: true, role: true },
-    });
-
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        error: 'User not found. Token is invalid.',
+    // Verify user still exists (short-TTL cached to avoid a DB hit per request)
+    const cacheKey = `auth:user:${decoded.userId}`;
+    if (cacheGet<boolean>(cacheKey) === undefined) {
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { id: true },
       });
-      return;
+
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          error: 'User not found. Token is invalid.',
+        });
+        return;
+      }
+      cacheSet(cacheKey, true, AUTH_CACHE_TTL_MS);
     }
 
     req.user = decoded;

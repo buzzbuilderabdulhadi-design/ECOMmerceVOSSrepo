@@ -1,4 +1,4 @@
-# VOSS - SHOPPING CART SPECIFICATION
+# ZOYA GOODS - SHOPPING CART SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-The Shopping Cart is one of the highest priority features of the VOSS eCommerce platform.
+The Shopping Cart is one of the highest priority features of the ZOYA GOODS eCommerce platform.
 
 It should not simply display products.
 
@@ -546,7 +546,7 @@ Express Checkout
 
 # FINAL GOAL
 
-The VOSS Shopping Cart should be one of the best parts of the website.
+The ZOYA GOODS Shopping Cart should be one of the best parts of the website.
 
 It should feel luxurious, responsive, intuitive, and trustworthy.
 

@@ -1,4 +1,4 @@
-# VOSS - ADMIN PANEL SPECIFICATION
+# ZOYA GOODS - ADMIN PANEL SPECIFICATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-The Admin Panel is the central control system for the VOSS eCommerce platform.
+The Admin Panel is the central control system for the ZOYA GOODS eCommerce platform.
 
 It should provide complete control over the website while remaining simple, modern, responsive, and easy to use.
 
@@ -714,6 +714,6 @@ Backup & Restore
 
 # FINAL GOAL
 
-The Admin Panel should provide complete control over the VOSS platform while remaining clean, intuitive, secure, and easy to use.
+The Admin Panel should provide complete control over the ZOYA GOODS platform while remaining clean, intuitive, secure, and easy to use.
 
 It should allow a single administrator to manage the entire business efficiently without modifying the source code.

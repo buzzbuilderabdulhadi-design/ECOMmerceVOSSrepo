@@ -12,6 +12,9 @@ model User {
   name          String
   email         String   @unique
   passwordHash  String
+  resetToken    String?
+  resetTokenExpiry DateTime?
+  refreshTokenHash String?
   role          String   @default("CUSTOMER")
   avatar        String?
   phone         String?

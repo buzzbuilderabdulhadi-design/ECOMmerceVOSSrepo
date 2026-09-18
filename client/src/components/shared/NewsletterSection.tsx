@@ -15,7 +15,7 @@ interface NewsletterSectionProps {
 }
 
 export function NewsletterSection({
-  title = 'Join the VOSS Community',
+  title = 'Join the ZOYA GOODS Community',
   description = 'Subscribe to receive exclusive offers, early access to new collections, and luxury style inspiration.',
   className,
   variant = 'default',
@@ -30,7 +30,7 @@ export function NewsletterSection({
           'pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 select-none font-display text-[9rem] font-light leading-none sm:text-[16rem]',
           isDark ? 'text-cream/[0.05]' : 'text-navy/[0.04]'
         )}>
-          VOSS
+          ZOYA GOODS
         </span>
       </Parallax>
 

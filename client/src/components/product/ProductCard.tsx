@@ -62,7 +62,7 @@ export function ProductCard({
     brand,
   } = product;
 
-  const hasDiscount = salePrice !== undefined && salePrice < regularPrice;
+  const hasDiscount = typeof salePrice === 'number' && salePrice < regularPrice;
   const hoverImage = images?.find((img) => img !== image) || images?.[0] || image;
 
   const motionProps = {
@@ -91,14 +91,14 @@ export function ProductCard({
             </Link>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="font-display text-lg text-navy">
-                ${salePrice !== undefined ? salePrice.toFixed(2) : regularPrice.toFixed(2)}
+${(salePrice ?? regularPrice).toFixed(2)}
               </span>
               {hasDiscount && (
                 <span className="text-xs text-slate line-through">${regularPrice.toFixed(2)}</span>
               )}
             </div>
           </div>
-          {rating !== undefined && (
+          {typeof rating === 'number' && (
             <div className="flex items-center gap-2 text-xs text-slate">
               <span className="text-walnut">★★★★★</span>
               <span>{rating.toFixed(1)}</span>
@@ -142,7 +142,7 @@ export function ProductCard({
             {name}
           </Link>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-display text-navy">${salePrice !== undefined ? salePrice.toFixed(2) : regularPrice.toFixed(2)}</span>
+            <span className="font-display text-navy">${(salePrice ?? regularPrice).toFixed(2)}</span>
             {hasDiscount && <span className="text-xs text-slate line-through">${regularPrice.toFixed(2)}</span>}
           </div>
         </div>
@@ -269,7 +269,7 @@ export function ProductCard({
         </div>
         <div className="flex flex-col items-end">
           <span className="font-display text-xl text-navy">
-            ${salePrice !== undefined ? salePrice.toFixed(2) : regularPrice.toFixed(2)}
+            ${(salePrice ?? regularPrice).toFixed(2)}
           </span>
           {hasDiscount && (
             <span className="text-xs text-slate line-through">${regularPrice.toFixed(2)}</span>

@@ -62,14 +62,14 @@ export function QuantitySelector({
   }, [currentValue, min, handleChange]);
 
   const sizeClasses = {
-    sm: 'h-8 text-sm',
-    md: 'h-10 text-base',
+    sm: 'h-9 text-sm',
+    md: 'h-11 text-base',
     lg: 'h-12 text-lg',
   };
 
   const buttonSizeClasses = {
-    sm: 'w-8',
-    md: 'w-10',
+    sm: 'w-9',
+    md: 'w-11',
     lg: 'w-12',
   };
 

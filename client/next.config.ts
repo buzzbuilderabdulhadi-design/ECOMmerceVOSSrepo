@@ -1,6 +1,15 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // This client folder is a standalone app (not a monorepo workspace), but
+  // Next.js detects the extra lockfile at the repo root and infers the wrong
+  // workspace root. Pin it explicitly so module resolution and Turbopack's
+  // cache scoping use this directory.
+  turbopack: {
+    root: __dirname,
+  },
+
   // Image configuration
   images: {
     remotePatterns: [

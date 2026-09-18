@@ -77,7 +77,7 @@ export function Pagination({
   const pages = getPageNumbers();
 
   return (
-    <nav aria-label="Pagination" className={cn('flex items-center justify-center gap-1', className)}>
+    <nav aria-label="Pagination" className={cn('flex flex-wrap items-center justify-center gap-1', className)}>
       {showFirstLast && (
         <button
           type="button"

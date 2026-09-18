@@ -78,12 +78,14 @@ export function Accordion({
               id={`accordion-content-${item.id}`}
               role="region"
               className={cn(
-                'overflow-hidden transition-all duration-200',
-                isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                'grid transition-all duration-200',
+                isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
               )}
             >
-              <div className="border-t border-sage-light/20 px-4 py-3 text-sm text-slate">
-                {item.content}
+              <div className="overflow-hidden">
+                <div className="border-t border-sage-light/20 px-4 py-3 text-sm text-slate">
+                  {item.content}
+                </div>
               </div>
             </div>
           </div>

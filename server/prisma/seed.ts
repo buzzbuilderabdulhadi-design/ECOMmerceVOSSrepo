@@ -33,7 +33,7 @@ async function main() {
   if (!adminEmail || !adminPassword) {
     console.error('❌ ADMIN_EMAIL and ADMIN_PASSWORD environment variables are required for seeding the admin account.');
     console.error('   Set them before running: npx prisma db seed');
-    console.error('   Example: ADMIN_EMAIL=admin@voss.com ADMIN_PASSWORD=your_secure_password npx prisma db seed');
+    console.error('   Example: ADMIN_EMAIL=admin@zoyagoods.com ADMIN_PASSWORD=your_secure_password npx prisma db seed');
     process.exit(1);
   }
 
@@ -41,7 +41,7 @@ async function main() {
   const userHash = await bcrypt.hash('user123', 12);
 
   const admin = await prisma.user.create({
-    data: { name: 'Admin VOSS', email: adminEmail.toLowerCase(), passwordHash, role: 'ADMIN', emailVerified: true },
+    data: { name: 'Admin ZOYA GOODS', email: adminEmail.toLowerCase(), passwordHash, role: 'ADMIN', emailVerified: true },
   });
 
   const customer = await prisma.user.create({
@@ -49,19 +49,19 @@ async function main() {
   });
 
   const categories = await Promise.all([
-    prisma.category.create({ data: { name: 'Clothing & Accessories', slug: 'clothing-accessories', description: 'Luxury apparel and accessories', displayOrder: 1, isFeatured: true, seoTitle: 'Luxury Clothing & Accessories | VOSS' } }),
-    prisma.category.create({ data: { name: 'Handbags', slug: 'handbags', description: 'Exquisite handbags and clutches', displayOrder: 2, isFeatured: true, seoTitle: 'Designer Handbags | VOSS' } }),
-    prisma.category.create({ data: { name: 'Footwear', slug: 'footwear', description: 'Premium footwear collection', displayOrder: 3, isFeatured: true, seoTitle: 'Luxury Shoes & Footwear | VOSS' } }),
-    prisma.category.create({ data: { name: 'Jewelry', slug: 'jewelry', description: 'Fine jewelry and accessories', displayOrder: 4, isFeatured: true, seoTitle: 'Fine Jewelry Collection | VOSS' } }),
-    prisma.category.create({ data: { name: 'Watches', slug: 'watches', description: 'Luxury timepieces', displayOrder: 5, isFeatured: true, seoTitle: 'Luxury Watches | VOSS' } }),
-    prisma.category.create({ data: { name: 'Beauty & Fragrance', slug: 'beauty-fragrance', description: 'Premium beauty and fragrance', displayOrder: 6, isFeatured: false, seoTitle: 'Beauty & Fragrance | VOSS' } }),
+    prisma.category.create({ data: { name: 'Clothing & Accessories', slug: 'clothing-accessories', description: 'Luxury apparel and accessories', displayOrder: 1, isFeatured: true, seoTitle: 'Luxury Clothing & Accessories | ZOYA GOODS' } }),
+    prisma.category.create({ data: { name: 'Handbags', slug: 'handbags', description: 'Exquisite handbags and clutches', displayOrder: 2, isFeatured: true, seoTitle: 'Designer Handbags | ZOYA GOODS' } }),
+    prisma.category.create({ data: { name: 'Footwear', slug: 'footwear', description: 'Premium footwear collection', displayOrder: 3, isFeatured: true, seoTitle: 'Luxury Shoes & Footwear | ZOYA GOODS' } }),
+    prisma.category.create({ data: { name: 'Jewelry', slug: 'jewelry', description: 'Fine jewelry and accessories', displayOrder: 4, isFeatured: true, seoTitle: 'Fine Jewelry Collection | ZOYA GOODS' } }),
+    prisma.category.create({ data: { name: 'Watches', slug: 'watches', description: 'Luxury timepieces', displayOrder: 5, isFeatured: true, seoTitle: 'Luxury Watches | ZOYA GOODS' } }),
+    prisma.category.create({ data: { name: 'Beauty & Fragrance', slug: 'beauty-fragrance', description: 'Premium beauty and fragrance', displayOrder: 6, isFeatured: false, seoTitle: 'Beauty & Fragrance | ZOYA GOODS' } }),
   ]);
 
   const [clothing, handbags, footwear, jewelry, watches, beauty] = categories;
 
   const subcategories = await Promise.all([
-    prisma.category.create({ data: { name: 'Dresses', slug: 'dresses', parentId: clothing.id, displayOrder: 1, isFeatured: true, seoTitle: 'Designer Dresses | VOSS' } }),
-    prisma.category.create({ data: { name: 'Suits & Blazers', slug: 'suits-blazers', parentId: clothing.id, displayOrder: 2, isFeatured: true, seoTitle: 'Suits & Blazers | VOSS' } }),
+    prisma.category.create({ data: { name: 'Dresses', slug: 'dresses', parentId: clothing.id, displayOrder: 1, isFeatured: true, seoTitle: 'Designer Dresses | ZOYA GOODS' } }),
+    prisma.category.create({ data: { name: 'Suits & Blazers', slug: 'suits-blazers', parentId: clothing.id, displayOrder: 2, isFeatured: true, seoTitle: 'Suits & Blazers | ZOYA GOODS' } }),
     prisma.category.create({ data: { name: 'Tops & Shirts', slug: 'tops-shirts', parentId: clothing.id, displayOrder: 3 } }),
     prisma.category.create({ data: { name: 'Bags', slug: 'bags', parentId: handbags.id, displayOrder: 1, isFeatured: true } }),
     prisma.category.create({ data: { name: 'Heels', slug: 'heels', parentId: footwear.id, displayOrder: 1, isFeatured: true } }),
@@ -127,27 +127,27 @@ async function main() {
 
   await Promise.all([
     prisma.coupon.create({ data: { code: 'WELCOME20', type: 'PERCENTAGE', value: 20, minOrderAmount: 200, maxDiscount: 500, maxUses: 100, isActive: true, expiresAt: new Date('2026-12-31') } }),
-    prisma.coupon.create({ data: { code: 'VOSS50', type: 'FIXED', value: 50, minOrderAmount: 500, maxUses: 50, isActive: true, expiresAt: new Date('2026-09-30') } }),
+    prisma.coupon.create({ data: { code: 'ZOYA50', type: 'FIXED', value: 50, minOrderAmount: 500, maxUses: 50, isActive: true, expiresAt: new Date('2026-09-30') } }),
     prisma.coupon.create({ data: { code: 'FREESHIP', type: 'PERCENTAGE', value: 100, minOrderAmount: 150, maxDiscount: 15, maxUses: 200, isActive: true, expiresAt: new Date('2026-08-31') } }),
     prisma.coupon.create({ data: { code: 'VIP300', type: 'FIXED', value: 300, minOrderAmount: 1500, maxUses: 20, isActive: true, expiresAt: new Date('2026-12-31') } }),
   ]);
 
   await Promise.all([
-    prisma.siteSetting.create({ data: { key: 'site_name', value: 'VOSS' } }),
+    prisma.siteSetting.create({ data: { key: 'site_name', value: 'ZOYA GOODS' } }),
     prisma.siteSetting.create({ data: { key: 'site_description', value: 'Luxury Fashion E-Commerce' } }),
     prisma.siteSetting.create({ data: { key: 'currency', value: 'USD' } }),
     prisma.siteSetting.create({ data: { key: 'free_shipping_threshold', value: 150 } }),
     prisma.siteSetting.create({ data: { key: 'default_shipping_cost', value: 15 } }),
     prisma.siteSetting.create({ data: { key: 'tax_rate', value: 0.08 } }),
-    prisma.siteSetting.create({ data: { key: 'contact_email', value: 'hello@voss.com' } }),
-    prisma.siteSetting.create({ data: { key: 'social_instagram', value: 'https://instagram.com/voss' } }),
-    prisma.siteSetting.create({ data: { key: 'social_pinterest', value: 'https://pinterest.com/voss' } }),
+    prisma.siteSetting.create({ data: { key: 'contact_email', value: 'hello@zoyagoods.com' } }),
+    prisma.siteSetting.create({ data: { key: 'social_instagram', value: 'https://instagram.com/zoyagoods' } }),
+    prisma.siteSetting.create({ data: { key: 'social_pinterest', value: 'https://pinterest.com/zoyagoods' } }),
   ]);
 
   await Promise.all([
-    prisma.seoEntry.create({ data: { page: 'home', metaTitle: 'VOSS — Luxury Fashion & Accessories', metaDescription: 'Discover the finest luxury fashion at VOSS. Explore our curated collections of designer clothing, handbags, accessories, and more.', keywords: 'luxury fashion, designer clothing, voss' } }),
-    prisma.seoEntry.create({ data: { page: 'products', metaTitle: 'Shop All Products | VOSS', metaDescription: 'Browse our complete collection of luxury products.', keywords: 'luxury products, shop, voss' } }),
-    prisma.seoEntry.create({ data: { page: 'categories', metaTitle: 'Categories | VOSS' } }),
+    prisma.seoEntry.create({ data: { page: 'home', metaTitle: 'ZOYA GOODS — Luxury Fashion & Accessories', metaDescription: 'Discover the finest luxury fashion at ZOYA GOODS. Explore our curated collections of designer clothing, handbags, accessories, and more.', keywords: 'luxury fashion, designer clothing, zoya goods' } }),
+    prisma.seoEntry.create({ data: { page: 'products', metaTitle: 'Shop All Products | ZOYA GOODS', metaDescription: 'Browse our complete collection of luxury products.', keywords: 'luxury products, shop, zoya goods' } }),
+    prisma.seoEntry.create({ data: { page: 'categories', metaTitle: 'Categories | ZOYA GOODS' } }),
   ]);
 
   await Promise.all([

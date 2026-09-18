@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { PageTransition } from '@/components/animations/PageTransition';
 import { FadeIn } from '@/components/animations/FadeIn';
 import { FiLock, FiCheckCircle, FiEye, FiEyeOff } from 'react-icons/fi';
+import axiosInstance, { getErrorMessage } from '@/services/axios';
 
 // ============================================================
 // Reset Password Page
@@ -43,10 +44,10 @@ export default function ResetPasswordPage() {
     if (!validate()) return;
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await axiosInstance.post('/auth/reset-password', { token, newPassword: password });
       setIsSubmitted(true);
-    } catch {
-      setErrors({ password: 'Failed to reset password. The link may have expired.' });
+    } catch (err) {
+      setErrors({ password: getErrorMessage(err) || 'Failed to reset password. The link may have expired.' });
     } finally {
       setIsLoading(false);
     }

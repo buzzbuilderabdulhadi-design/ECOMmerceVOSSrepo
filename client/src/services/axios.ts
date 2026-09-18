@@ -70,6 +70,17 @@ axiosInstance.interceptors.response.use(
 
     // If 401 and not already retrying
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // A 401 on a request that never sent an access token is simply an
+      // unauthenticated request (e.g. the wishlist fetch for a guest).
+      // Do NOT attempt a token refresh or force-navigate to /login here —
+      // that redirect caused an endless /login reload loop because global
+      // providers (wishlist) hit protected endpoints on every page load.
+      // Let the caller handle the rejection instead.
+      const sentToken = originalRequest.headers?.Authorization;
+      if (!sentToken) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -113,6 +124,7 @@ axiosInstance.interceptors.response.use(
         localStorage.removeItem('voss_token');
         localStorage.removeItem('voss_refresh_token');
         localStorage.removeItem('voss_user');
+        document.cookie = 'voss_access_token=; path=/; max-age=0';
 
         // Redirect to login if in browser
         if (typeof window !== 'undefined') {

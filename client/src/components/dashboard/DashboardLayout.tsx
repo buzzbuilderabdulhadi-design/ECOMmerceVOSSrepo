@@ -3,11 +3,13 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AppProvider';
 import {
   FiPackage,
   FiHeart,
@@ -15,6 +17,7 @@ import {
   FiUser,
   FiSettings,
   FiLogOut,
+  FiMoreHorizontal,
 } from 'react-icons/fi';
 
 const sidebarLinks = [
@@ -26,6 +29,14 @@ const sidebarLinks = [
   { label: 'Settings', href: '/dashboard/settings', icon: FiSettings },
 ];
 
+const mobilePrimaryLinks = sidebarLinks.filter((link) =>
+  ['/dashboard', '/dashboard/orders', '/wishlist', '/dashboard/profile'].includes(link.href)
+);
+
+const mobileMenuLinks = sidebarLinks.filter((link) =>
+  ['/dashboard/addresses', '/dashboard/settings'].includes(link.href)
+);
+
 interface DashboardLayoutProps {
   title: string;
   subtitle?: string;
@@ -34,10 +45,18 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ title, subtitle, children }: DashboardLayoutProps) {
   const pathname = usePathname();
+  const { logout } = useAuth();
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
     return pathname.startsWith(href);
+  };
+
+  const handleLogout = () => {
+    logout();
+    window.location.href = '/';
   };
 
   return (
@@ -71,6 +90,7 @@ export function DashboardLayout({ title, subtitle, children }: DashboardLayoutPr
                 })}
                 <button
                   type="button"
+                  onClick={handleLogout}
                   className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-walnut transition-colors hover:bg-walnut/5"
                 >
                   <FiLogOut className="h-5 w-5" />
@@ -80,7 +100,7 @@ export function DashboardLayout({ title, subtitle, children }: DashboardLayoutPr
             </aside>
 
             {/* Main content */}
-            <div className="space-y-8">
+            <div className="space-y-8 pb-[76px] lg:pb-0">
               <ScrollReveal>
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.3em] text-sage-dark">Account</p>
@@ -97,7 +117,7 @@ export function DashboardLayout({ title, subtitle, children }: DashboardLayoutPr
         {/* Mobile bottom nav */}
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-sage-light/30 bg-white lg:hidden">
           <div className="flex justify-around py-3">
-            {sidebarLinks.slice(0, 5).map((link) => {
+            {mobilePrimaryLinks.map((link) => {
               const Icon = link.icon;
               const active = isActive(link.href);
               return (
@@ -114,7 +134,54 @@ export function DashboardLayout({ title, subtitle, children }: DashboardLayoutPr
                 </Link>
               );
             })}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              aria-expanded={isMobileMenuOpen}
+              aria-haspopup="menu"
+              className={cn(
+                'flex flex-col items-center gap-1',
+                isMobileMenuOpen ? 'text-sage-dark' : 'text-slate'
+              )}
+            >
+              <FiMoreHorizontal className="h-5 w-5" />
+              <span className="text-[10px]">More</span>
+            </button>
           </div>
+          {isMobileMenuOpen && (
+            <div className="border-t border-sage-light/30 bg-white">
+              <nav className="grid grid-cols-2 gap-1 px-4 py-3" aria-label="More dashboard options">
+                {mobileMenuLinks.map((link) => {
+                  const Icon = link.icon;
+                  const active = isActive(link.href);
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={cn(
+                        'flex items-center gap-2 rounded-lg px-3 py-3 text-sm font-medium transition-colors',
+                        active
+                          ? 'bg-sage-light/40 text-sage-dark'
+                          : 'text-slate hover:bg-sage-light/30 hover:text-sage-dark'
+                      )}
+                    >
+                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      <span className="truncate">{link.label}</span>
+                    </Link>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 text-sm font-medium text-walnut transition-colors hover:bg-walnut/5"
+                >
+                  <FiLogOut className="h-5 w-5 flex-shrink-0" />
+                  Sign Out
+                </button>
+              </nav>
+            </div>
+          )}
         </div>
 
         <Footer />

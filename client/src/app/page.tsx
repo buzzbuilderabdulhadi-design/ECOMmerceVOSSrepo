@@ -1,17 +1,20 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { HeroSection } from '@/components/shared/HeroSection';
 import { FeaturedCategories } from '@/components/shared/FeaturedCategories';
 import { FeaturedProducts } from '@/components/shared/FeaturedProducts';
-import { WhyChooseVOSS } from '@/components/shared/WhyChooseVOSS';
+import { WhyChooseZoya } from '@/components/shared/WhyChooseZoya';
 import { NewsletterSection } from '@/components/shared/NewsletterSection';
-import { fetchFeaturedProducts } from '@/services/products';
 import { allProducts } from '@/data/products';
+import { pageMetadata } from '@/lib/seo';
+import type { Metadata } from 'next';
+import type { ProductCardData } from '@/components/product/ProductCard';
 
-function mapProduct(p: any): any {
+export const metadata: Metadata = pageMetadata({ path: '/' });
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+function mapProduct(p: any): ProductCardData {
   const firstImage = p.images?.[0];
   return {
     id: p.id,
@@ -20,7 +23,7 @@ function mapProduct(p: any): any {
     image: typeof firstImage === 'string' ? firstImage : firstImage?.url || '',
     images: p.images?.map((i: any) => typeof i === 'string' ? i : i.url) || [],
     regularPrice: p.regularPrice,
-    salePrice: p.salePrice,
+    salePrice: p.salePrice ?? undefined,
     discountPercent: p.discountPercent,
     isNew: p.isNew,
     isBestSeller: p.isBestSeller,
@@ -30,54 +33,68 @@ function mapProduct(p: any): any {
   };
 }
 
-const fallbackProducts = allProducts.slice(0, 8).map(mapProduct);
+const fallbackProducts: ProductCardData[] = allProducts.slice(0, 8).map(mapProduct);
 
-export default function HomePage() {
-  const [products, setProducts] = useState<any[] | null>(null);
+async function getFeaturedProducts(): Promise<ProductCardData[]> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    try {
+      const res = await fetch(`${API_BASE_URL}/products/featured`, {
+        cache: 'force-cache',
+        next: { revalidate: 60 },
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`Featured products fetch failed: ${res.status}`);
+      const json: any = await res.json();
+      const items: any[] = json?.data;
+      if (!Array.isArray(items)) throw new Error('Featured products response is not an array');
+      if (items.length === 0) return fallbackProducts;
+      return items.map(mapProduct);
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    return fallbackProducts;
+  }
+}
 
-  useEffect(() => {
-    fetchFeaturedProducts()
-      .then((data) => setProducts(data.map(mapProduct)))
-      .catch(() => setProducts(fallbackProducts));
-  }, []);
-
-  const displayProducts = products || fallbackProducts;
+export default async function HomePage() {
+  const products = await getFeaturedProducts();
 
   return (
-    <>
-      <main className="flex min-h-screen flex-col">
-        <Navbar />
+    <main className="flex min-h-screen flex-col">
+      <Navbar />
 
-        <HeroSection
-          title="Luxury Redefined"
-          subtitle="Premium Leather & Suede Collection"
-          description="Discover our curated collection of handcrafted jackets, designed for those who appreciate the finer things in life."
-          primaryCta={{ label: 'Shop Now', href: '/shop' }}
-          secondaryCta={{ label: 'Explore Collection', href: '/category/new-arrivals' }}
-          imageSrc="https://images.unsplash.com/photo-1551028719-00167b16eac5?w=900&q=85"
-          imageAlt="VOSS Luxury Collection"
-          showcaseImages={[
-            'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=85',
-            'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=600&q=85',
-          ]}
-          height="large"
-        />
+      <HeroSection
+        title="Luxury Redefined"
+        subtitle="Premium Leather & Suede Collection"
+        description="Discover our curated collection of handcrafted jackets, designed for those who appreciate the finer things in life."
+        primaryCta={{ label: 'Shop Now', href: '/shop' }}
+        secondaryCta={{ label: 'Explore Collection', href: '/category/new-arrivals' }}
+        imageSrc="https://images.unsplash.com/photo-1551028719-00167b16eac5?w=900&q=85"
+        imageAlt="ZOYA GOODS Luxury Collection"
+        showcaseImages={[
+          'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=85',
+          'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=600&q=85',
+        ]}
+        height="large"
+      />
 
-        <FeaturedCategories />
+      <FeaturedCategories />
 
-        <FeaturedProducts
-          products={displayProducts}
-          title="The Featured Edit"
-          description="Handpicked selections from our latest collection, crafted with exceptional attention to detail."
-          viewAllHref="/shop"
-        />
+      <FeaturedProducts
+        products={products}
+        title="The Featured Edit"
+        description="Handpicked selections from our latest collection, crafted with exceptional attention to detail."
+        viewAllHref="/shop"
+      />
 
-        <WhyChooseVOSS />
+      <WhyChooseZoya />
 
-        <NewsletterSection variant="dark" />
+      <NewsletterSection variant="dark" />
 
-        <Footer />
-      </main>
-    </>
+      <Footer />
+    </main>
   );
 }

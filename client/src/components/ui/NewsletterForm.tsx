@@ -57,6 +57,7 @@ export function NewsletterForm({
   if (status === 'success') {
     return (
       <div
+        role="status"
         className={cn(
           'flex items-center gap-3 py-2',
           variant === 'banner' && 'justify-center',
@@ -78,6 +79,7 @@ export function NewsletterForm({
       <div className={variant === 'banner' ? 'flex flex-col gap-3 sm:flex-row' : 'flex gap-3'}>
         <div className="relative flex-1">
           <input
+            id="newsletter-email"
             type="email"
             value={email}
             onChange={(e) => {
@@ -86,13 +88,15 @@ export function NewsletterForm({
             }}
             placeholder={placeholder}
             disabled={status === 'loading'}
+            aria-invalid={status === 'error'}
+            aria-describedby={status === 'error' ? 'newsletter-error' : undefined}
             className={cn(
               'w-full py-3 text-sm transition-all duration-200',
-              'focus:outline-none',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-sage',
               status === 'error' && 'border-red-400',
               'disabled:cursor-not-allowed disabled:opacity-60',
               isDark
-                ? 'input-luxe border-cream/25 text-ivory placeholder-ivory/70 focus:border-gold'
+                ? 'input-luxe border-cream/25 text-ivory placeholder-ivory/70 focus:border-gold focus-visible:ring-gold/60'
                 : 'input-luxe'
             )}
             aria-label="Email address"
@@ -111,7 +115,7 @@ export function NewsletterForm({
         </Button>
       </div>
       {status === 'error' && (
-        <p className={cn('text-xs', isDark ? 'text-red-300' : 'text-red-500')} role="alert">
+        <p id="newsletter-error" className={cn('text-xs', isDark ? 'text-red-300' : 'text-red-600')} role="alert">
           {errorMessage}
         </p>
       )}

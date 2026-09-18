@@ -21,7 +21,7 @@ export default function ShippingPage() {
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-navy sm:text-4xl">Shipping Policy</h1>
           </div>
         </section>
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-voss">
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-zoya">
           <h2>Shipping Methods</h2>
           <p>We offer standard and express shipping worldwide. All orders are processed within 1-2 business days.</p>
           <h2>Free Shipping</h2>
@@ -33,7 +33,7 @@ export default function ShippingPage() {
           <h2>International Shipping</h2>
           <p>Customs duties and taxes may apply to international orders. These charges are the responsibility of the customer.</p>
           <h2>Contact</h2>
-          <p>For shipping inquiries, please contact us at shipping@voss.com.</p>
+          <p>For shipping inquiries, please contact us at shipping@zoyagoods.com.</p>
         </div>
         <Footer />
       </main>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, InputHTMLAttributes, useState } from 'react';
+import React, { forwardRef, InputHTMLAttributes, useState, useId } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -28,13 +28,15 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     ref
   ) => {
     const [showPassword, setShowPassword] = useState(false);
+    const generatedId = useId();
     const isPassword = type === 'password';
     const inputType = isPassword && showPassword ? 'text' : type;
+    const inputId = props.id || `${props.name || 'input'}-${generatedId}`;
 
     return (
       <div className={cn('w-full', containerClassName)}>
         {label && (
-          <label className="mb-1.5 block font-display text-base font-medium text-navy">
+          <label htmlFor={inputId} className="mb-1.5 block font-display text-base font-medium text-navy">
             {label}
             {props.required && <span className="ml-1 text-red-500">*</span>}
           </label>
@@ -42,10 +44,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         <div className="relative">
           <input
             ref={ref}
+            id={inputId}
             type={inputType}
             className={cn(
-              'block w-full border-b bg-transparent px-0 py-2.5 text-sm text-navy placeholder-slate/60 transition-colors duration-200',
-              'border-sage-light/60 focus:border-gold focus:outline-none',
+              'block w-full border-b bg-transparent px-0 py-2.5 text-base text-navy placeholder-slate/60 transition-colors duration-200',
+              'border-sage-light/60 focus:border-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:ring-offset-1',
               'disabled:cursor-not-allowed disabled:bg-cream disabled:text-slate',
               error && 'border-red-500 focus:border-red-500',
               leftIcon && 'pl-8',
@@ -53,7 +56,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               className
             )}
             aria-invalid={error ? 'true' : 'false'}
-            aria-describedby={error ? `${props.name}-error` : helperText ? `${props.name}-helper` : undefined}
+            aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
             {...props}
           />
           {leftIcon && (
@@ -65,8 +68,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 flex items-center text-slate hover:text-navy"
-              tabIndex={-1}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-sage"
+              tabIndex={0}
             >
               {showPassword ? (
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -87,12 +91,12 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
         </div>
         {error && (
-          <p id={`${props.name}-error`} className="mt-1.5 text-xs text-red-500" role="alert">
+          <p id={`${inputId}-error`} className="mt-1.5 text-xs text-red-500" role="alert">
             {error}
           </p>
         )}
         {helperText && !error && (
-          <p id={`${props.name}-helper`} className="mt-1.5 text-xs text-slate">
+          <p id={`${inputId}-helper`} className="mt-1.5 text-xs text-slate">
             {helperText}
           </p>
         )}

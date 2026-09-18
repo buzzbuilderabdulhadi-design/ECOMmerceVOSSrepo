@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
@@ -11,6 +11,9 @@ import { Input } from '@/components/ui/Input';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { TextReveal } from '@/components/animations/TextReveal';
 import { useCart } from '@/context/CartContext';
+import { createAddress } from '@/services/addresses';
+import { createOrder } from '@/services/orders';
+import { getErrorMessage } from '@/services/axios';
 import { cn } from '@/lib/utils';
 
 type Step = 'shipping' | 'payment' | 'review';
@@ -18,9 +21,37 @@ type Step = 'shipping' | 'payment' | 'review';
 const SHIPPING_COST = 15;
 const TAX_RATE = 0.08;
 
+interface ShippingForm {
+  fullName: string;
+  phone: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+}
+
+const initialShipping: ShippingForm = {
+  fullName: '',
+  phone: '',
+  line1: '',
+  line2: '',
+  city: '',
+  state: '',
+  zip: '',
+  country: '',
+};
+
 export default function CheckoutPage() {
+  const router = useRouter();
   const { cart, subtotal } = useCart();
   const [step, setStep] = useState<Step>('shipping');
+  const [shippingForm, setShippingForm] = useState<ShippingForm>(initialShipping);
+  const [shippingErrors, setShippingErrors] = useState<Partial<Record<keyof ShippingForm, string>>>({});
+  const [isPlacing, setIsPlacing] = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const [completedOrder, setCompletedOrder] = useState<string | null>(null);
 
   const steps: { id: Step; label: string }[] = [
     { id: 'shipping', label: 'Shipping' },
@@ -33,6 +64,58 @@ export default function CheckoutPage() {
   const shipping = subtotal - discount >= 200 ? 0 : SHIPPING_COST;
   const tax = Math.max(0, subtotal - discount) * TAX_RATE;
   const total = Math.max(0, subtotal - discount + shipping + tax);
+
+  const updateShipping = (field: keyof ShippingForm, value: string) => {
+    setShippingForm((prev) => ({ ...prev, [field]: value }));
+    setShippingErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
+  const validateShipping = (): boolean => {
+    const errs: Partial<Record<keyof ShippingForm, string>> = {};
+    if (!shippingForm.fullName.trim()) errs.fullName = 'Full name is required';
+    if (!shippingForm.phone.trim()) errs.phone = 'Phone is required';
+    if (!shippingForm.line1.trim()) errs.line1 = 'Address is required';
+    if (!shippingForm.city.trim()) errs.city = 'City is required';
+    if (!shippingForm.state.trim()) errs.state = 'State is required';
+    if (!/^\d{4,10}$/.test(shippingForm.zip.trim())) errs.zip = 'Enter a valid ZIP code';
+    if (!shippingForm.country.trim()) errs.country = 'Country is required';
+    setShippingErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const goToPayment = () => {
+    setOrderError('');
+    if (validateShipping()) setStep('payment');
+  };
+
+  const handlePlaceOrder = async () => {
+    setOrderError('');
+    setIsPlacing(true);
+    try {
+      const address = await createAddress({
+        label: 'Shipping',
+        fullName: shippingForm.fullName,
+        phone: shippingForm.phone,
+        line1: shippingForm.line1,
+        line2: shippingForm.line2 || undefined,
+        city: shippingForm.city,
+        state: shippingForm.state,
+        zip: shippingForm.zip,
+        country: shippingForm.country,
+        isDefault: true,
+      });
+      const order = await createOrder({
+        shippingAddressId: address.id,
+        couponCode: cart?.couponCode,
+        paymentMethod: 'card',
+      });
+      setCompletedOrder(order.orderNumber);
+    } catch (error) {
+      setOrderError(getErrorMessage(error));
+    } finally {
+      setIsPlacing(false);
+    }
+  };
 
   return (
     <PageTransition>
@@ -101,31 +184,115 @@ export default function CheckoutPage() {
           </div>
 
           <ScrollReveal>
+            {completedOrder ? (
+              <div className="hairline rounded-2xl bg-white/70 p-6 text-center backdrop-blur-sm sm:p-10">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sage-light/40">
+                  <svg className="h-8 w-8 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h2 className="font-display text-3xl font-light text-navy">Thank You</h2>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
+                  Your order <span className="font-medium text-navy">#{completedOrder}</span> has been placed successfully.
+                  A confirmation has been sent to your email.
+                </p>
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                  <Button href="/dashboard/orders" variant="primary">View My Orders</Button>
+                  <Button href="/shop" variant="ghost">Continue Shopping</Button>
+                </div>
+              </div>
+            ) : cart?.items?.length === 0 ? (
+              <div className="hairline rounded-2xl bg-white/70 p-6 text-center backdrop-blur-sm sm:p-10">
+                <h2 className="font-display text-3xl font-light text-navy">Your cart is empty</h2>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
+                  Add some pieces to your cart before heading to checkout.
+                </p>
+                <div className="mt-8">
+                  <Button href="/shop" variant="primary">Explore the Collection</Button>
+                </div>
+              </div>
+            ) : (
+              <>
             {step === 'shipping' && (
               <div className="hairline rounded-2xl bg-white/70 p-6 backdrop-blur-sm sm:p-10">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-sage-dark">Step 01 — Delivery Details</p>
                 <h2 className="mt-2 font-display text-3xl font-light text-navy">Shipping Address</h2>
                 <div className="mt-7 grid gap-5 sm:grid-cols-2">
-                  <Input label="First Name" placeholder="John" />
-                  <Input label="Last Name" placeholder="Doe" />
+                  <Input
+                    label="Full Name"
+                    placeholder="John Doe"
+                    required
+                    value={shippingForm.fullName}
+                    onChange={(e) => updateShipping('fullName', e.target.value)}
+                    error={shippingErrors.fullName}
+                  />
+                  <Input
+                    label="Phone"
+                    placeholder="+1 555 000 0000"
+                    required
+                    value={shippingForm.phone}
+                    onChange={(e) => updateShipping('phone', e.target.value)}
+                    error={shippingErrors.phone}
+                  />
                   <div className="sm:col-span-2">
-                    <Input label="Address" placeholder="123 Luxury Lane" />
+                    <Input
+                      label="Address"
+                      placeholder="123 Luxury Lane"
+                      required
+                      value={shippingForm.line1}
+                      onChange={(e) => updateShipping('line1', e.target.value)}
+                      error={shippingErrors.line1}
+                    />
                   </div>
-                  <Input label="City" placeholder="New York" />
-                  <Input label="State" placeholder="NY" />
-                  <Input label="ZIP Code" placeholder="10001" />
-                  <Input label="Country" placeholder="United States" />
+                  <div className="sm:col-span-2">
+                    <Input
+                      label="Apt / Suite (optional)"
+                      placeholder="Apt 4B"
+                      value={shippingForm.line2}
+                      onChange={(e) => updateShipping('line2', e.target.value)}
+                    />
+                  </div>
+                  <Input
+                    label="City"
+                    placeholder="New York"
+                    required
+                    value={shippingForm.city}
+                    onChange={(e) => updateShipping('city', e.target.value)}
+                    error={shippingErrors.city}
+                  />
+                  <Input
+                    label="State"
+                    placeholder="NY"
+                    required
+                    value={shippingForm.state}
+                    onChange={(e) => updateShipping('state', e.target.value)}
+                    error={shippingErrors.state}
+                  />
+                  <Input
+                    label="ZIP Code"
+                    placeholder="10001"
+                    required
+                    value={shippingForm.zip}
+                    onChange={(e) => updateShipping('zip', e.target.value)}
+                    error={shippingErrors.zip}
+                  />
+                  <Input
+                    label="Country"
+                    placeholder="United States"
+                    required
+                    value={shippingForm.country}
+                    onChange={(e) => updateShipping('country', e.target.value)}
+                    error={shippingErrors.country}
+                  />
                 </div>
                 <div className="mt-10 flex flex-wrap items-center justify-between gap-4">
-                  <Link href="/cart">
-                    <Button variant="ghost">
+                  <Button href="/cart" variant="ghost">
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
                       </svg>
                       Back to Cart
                     </Button>
-                  </Link>
-                  <Button variant="primary" onClick={() => setStep('payment')}>
+                  <Button variant="primary" onClick={goToPayment}>
                     Continue to Payment
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -187,15 +354,17 @@ export default function CheckoutPage() {
                       <h3 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-sage-dark">
                         <span className="h-px w-6 bg-sage" /> Shipping Address
                       </h3>
-                      <p className="mt-2 font-display text-lg text-navy">John Doe</p>
-                      <p className="text-sm leading-relaxed text-slate">123 Luxury Lane, New York, NY 10001</p>
+                      <p className="mt-2 font-display text-lg text-navy">{shippingForm.fullName}</p>
+                      <p className="text-sm leading-relaxed text-slate">
+                        {shippingForm.line1}{shippingForm.line2 ? `, ${shippingForm.line2}` : ''}, {shippingForm.city}, {shippingForm.state} {shippingForm.zip}, {shippingForm.country}
+                      </p>
                     </div>
                     <div>
                       <h3 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-sage-dark">
                         <span className="h-px w-6 bg-sage" /> Payment Method
                       </h3>
-                      <p className="mt-2 font-display text-lg text-navy">Visa</p>
-                      <p className="text-sm text-slate">ending in 3456</p>
+                      <p className="mt-2 font-display text-lg text-navy">Card</p>
+                      <p className="text-sm text-slate">Charged on order placement</p>
                     </div>
                   </div>
 
@@ -229,18 +398,25 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                 </div>
+                {orderError && (
+                  <div className="mt-6 rounded-xl border border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
+                    {orderError}
+                  </div>
+                )}
                 <div className="mt-10 flex flex-wrap items-center justify-between gap-4">
-                  <Button variant="ghost" onClick={() => setStep('payment')}>
+                  <Button variant="ghost" onClick={() => setStep('payment')} disabled={isPlacing}>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
                     </svg>
                     Back to Payment
                   </Button>
-                  <Button variant="primary" size="lg">
+                  <Button variant="primary" size="lg" isLoading={isPlacing} onClick={handlePlaceOrder}>
                     Place Order
                   </Button>
                 </div>
               </div>
+            )}
+              </>
             )}
           </ScrollReveal>
         </div>

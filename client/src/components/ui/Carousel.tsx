@@ -26,7 +26,10 @@ export function Carousel({
 }: CarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
   const goTo = useCallback(
     (index: number) => {
@@ -59,20 +62,53 @@ export function Carousel({
   }, [currentIndex, items.length, infinite, goTo]);
 
   useEffect(() => {
-    if (autoPlay) {
-      intervalRef.current = setInterval(goNext, autoPlayInterval);
+    if (!autoPlay) return;
+    if (
+      isPaused ||
+      (typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    ) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
     }
+    intervalRef.current = setInterval(goNext, autoPlayInterval);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [autoPlay, autoPlayInterval, goNext]);
+  }, [autoPlay, autoPlayInterval, goNext, isPaused]);
 
   if (items.length === 0) return null;
 
   return (
-    <div className={cn('relative overflow-hidden', className)}>
+    <div
+      className={cn('relative overflow-hidden', className)}
+      role="group"
+      aria-roledescription="carousel"
+      aria-label="Product carousel"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={() => setIsPaused(false)}
+      onTouchStart={(e) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+        setIsPaused(true);
+      }}
+      onTouchEnd={(e) => {
+        if (touchStartX.current === null || touchStartY.current === null) return;
+        const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+        const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          if (deltaX < 0) goNext();
+          else goPrev();
+        }
+        touchStartX.current = null;
+        touchStartY.current = null;
+        setIsPaused(false);
+      }}
+    >
       <div
         className="flex transition-transform duration-300 ease-in-out"
         style={{ transform: `translateX(-${currentIndex * 100}%)` }}
@@ -93,7 +129,7 @@ export function Carousel({
             type="button"
             onClick={goPrev}
             disabled={!infinite && currentIndex === 0}
-            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow-md backdrop-blur-sm transition-all duration-200 hover:bg-white hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+            className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 shadow-md backdrop-blur-sm transition-all duration-200 hover:bg-white hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sage"
             aria-label="Previous slide"
           >
             <svg className="h-5 w-5 text-charcoal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -104,7 +140,7 @@ export function Carousel({
             type="button"
             onClick={goNext}
             disabled={!infinite && currentIndex === items.length - 1}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow-md backdrop-blur-sm transition-all duration-200 hover:bg-white hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+            className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 shadow-md backdrop-blur-sm transition-all duration-200 hover:bg-white hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sage"
             aria-label="Next slide"
           >
             <svg className="h-5 w-5 text-charcoal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -121,13 +157,14 @@ export function Carousel({
               key={index}
               type="button"
               onClick={() => goTo(index)}
+              aria-label={`Go to slide ${index + 1}`}
+              aria-current={index === currentIndex ? 'true' : undefined}
               className={cn(
-                'h-2 rounded-full transition-all duration-300',
+                "relative h-2 rounded-full transition-all duration-300 after:absolute after:-inset-3 after:content-[''] focus:outline-none focus-visible:ring-2 focus-visible:ring-sage",
                 index === currentIndex
                   ? 'w-6 bg-navy'
                   : 'w-2 bg-sage-light/60 hover:bg-slate/40'
               )}
-              aria-label={`Go to slide ${index + 1}`}
             />
           ))}
         </div>

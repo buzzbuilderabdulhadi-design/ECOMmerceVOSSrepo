@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -19,12 +19,11 @@ import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { TextReveal } from '@/components/animations/TextReveal';
 import { Magnetic } from '@/components/animations/Magnetic';
 import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
-import { fetchProduct, fetchRelatedProducts } from '@/services/products';
+import { fetchProduct } from '@/services/products';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { allProducts } from '@/data/products';
 import toast from 'react-hot-toast';
+import { Modal } from '@/components/ui/Modal';
 
 interface DetailProduct {
   id: string; name: string; slug: string; sku: string;
@@ -60,8 +59,8 @@ function mapToDetail(p: any, reviews?: any[]): DetailProduct | null {
   };
 }
 
-function fallbackDetail(slug: string): DetailProduct | null {
-  const p = allProducts.find((x: any) => x.slug === slug);
+function fallbackDetail(slug: string, products: any[]): DetailProduct | null {
+  const p = products.find((x: any) => x.slug === slug);
   if (!p) return null;
   return {
     id: p.id, name: p.name, slug: p.slug, sku: p.sku,
@@ -80,6 +79,7 @@ function fallbackDetail(slug: string): DetailProduct | null {
 export default function ProductDetailsPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const router = useRouter();
   const { addItem } = useCart();
   const { items: wishlistItems, isInWishlist, addItem: addWishlist, removeItem: removeWishlist } = useWishlist();
 
@@ -92,6 +92,7 @@ export default function ProductDetailsPage() {
   const [selectedColor, setSelectedColor] = useState<{ name: string; hex: string }>({ name: '', hex: '' });
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
+  const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
@@ -107,8 +108,9 @@ export default function ProductDetailsPage() {
           setSelectedSize(mapped.sizes[1] || mapped.sizes[0] || '');
         }
       })
-      .catch(() => {
-        const fb = fallbackDetail(slug);
+      .catch(async () => {
+        const { allProducts } = await import('@/data/products');
+        const fb = fallbackDetail(slug, allProducts);
         if (fb) {
           setDetailProduct(fb);
           setSelectedColor(fb.colors[0] || { name: '', hex: '' });
@@ -120,14 +122,16 @@ export default function ProductDetailsPage() {
       .finally(() => setIsLoading(false));
   }, [slug]);
 
-  const handleAddToCart = () => {
-    if (!detailProduct) return;
-    const matchingVariant = variants.find(
+  const matchingVariant =
+    variants.find(
       (v: any) =>
         v.color === selectedColor.name &&
         v.size === selectedSize &&
         v.isActive !== false
-    );
+    ) || null;
+
+  const handleAddToCart = async () => {
+    if (!detailProduct) return;
     const variantId = matchingVariant?.id;
     const productForCart = {
       id: detailProduct.id,
@@ -138,20 +142,43 @@ export default function ProductDetailsPage() {
       images: detailProduct.images,
       stock: detailProduct.stock,
     } as any;
-    addItem(productForCart, quantity, variantId);
-    toast.success('Added to cart');
+    const ok = await addItem(productForCart, quantity, variantId);
+    if (ok) toast.success('Added to cart');
+    else toast.error('Could not add this item to your cart.');
   };
 
-  const handleWishlistToggle = () => {
+  const handleBuyNow = async () => {
+    if (!detailProduct) return;
+    const variantId = matchingVariant?.id;
+    const productForCart = {
+      id: detailProduct.id,
+      name: detailProduct.name,
+      slug: detailProduct.slug,
+      regularPrice: detailProduct.regularPrice,
+      salePrice: detailProduct.salePrice,
+      images: detailProduct.images,
+      stock: detailProduct.stock,
+    } as any;
+    const ok = await addItem(productForCart, quantity, variantId);
+    if (ok) router.push('/checkout');
+    else toast.error('Could not add this item to your cart.');
+  };
+
+  const handleWishlistToggle = async () => {
     if (!detailProduct) return;
     const productId = detailProduct.id;
-    if (isInWishlist(productId)) {
-      const item = wishlistItems.find((i) => i.productId === productId);
-      if (item) removeWishlist(item.id);
-      toast.success('Removed from wishlist');
+    const variantId = matchingVariant?.id;
+    if (isInWishlist(productId, variantId)) {
+      const item = wishlistItems.find(
+        (i) => i.productId === productId && (variantId ? i.variantId === variantId : true)
+      );
+      const ok = item ? await removeWishlist(item.id) : true;
+      if (ok) toast.success('Removed from wishlist');
+      else toast.error('Could not update your wishlist.');
     } else {
-      addWishlist({ id: productId, name: detailProduct.name, slug: detailProduct.slug, regularPrice: detailProduct.regularPrice, salePrice: detailProduct.salePrice, images: detailProduct.images, stock: detailProduct.stock } as any);
-      toast.success('Added to wishlist');
+      const ok = await addWishlist({ id: productId, name: detailProduct.name, slug: detailProduct.slug, regularPrice: detailProduct.regularPrice, salePrice: detailProduct.salePrice, images: detailProduct.images, stock: detailProduct.stock, variantId } as any);
+      if (ok) toast.success('Added to wishlist');
+      else toast.error('Could not update your wishlist.');
     }
   };
 
@@ -183,8 +210,10 @@ export default function ProductDetailsPage() {
     );
   }
 
-  const hasDiscount = detailProduct.salePrice !== undefined;
-  const savings = hasDiscount ? detailProduct.regularPrice - detailProduct.salePrice! : 0;
+  const hasDiscount = typeof detailProduct.salePrice === 'number' && detailProduct.salePrice < detailProduct.regularPrice;
+  const savings = hasDiscount && typeof detailProduct.salePrice === 'number'
+    ? detailProduct.regularPrice - detailProduct.salePrice
+    : 0;
 
   return (
     <PageTransition>
@@ -232,7 +261,9 @@ export default function ProductDetailsPage() {
                     {hasDiscount && (
                       <>
                         <span className="text-lg text-slate line-through">${detailProduct.regularPrice.toFixed(2)}</span>
-                        <Badge variant="sale" size="sm">-{detailProduct.discountPercent}%</Badge>
+                        {detailProduct.discountPercent != null && (
+                          <Badge variant="sale" size="sm">-{detailProduct.discountPercent}%</Badge>
+                        )}
                       </>
                     )}
                   </div>
@@ -271,7 +302,7 @@ export default function ProductDetailsPage() {
                   <div className="mt-7">
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-medium uppercase tracking-[0.25em] text-navy">Size</label>
-                      <button type="button" className="link-underline text-xs text-walnut transition-colors hover:text-walnut-light">Size Guide</button>
+                      <button type="button" onClick={() => setIsSizeGuideOpen(true)} className="link-underline text-xs text-walnut transition-colors hover:text-walnut-light">Size Guide</button>
                     </div>
                     <div className="mt-3">
                       <SizeSelector
@@ -300,7 +331,7 @@ export default function ProductDetailsPage() {
                       </Button>
                     </Magnetic>
                     <Magnetic className="flex-1">
-                      <Button variant="gold" size="lg" fullWidth>
+                      <Button variant="gold" size="lg" fullWidth onClick={handleBuyNow}>
                         Buy Now
                       </Button>
                     </Magnetic>
@@ -313,10 +344,10 @@ export default function ProductDetailsPage() {
                     className="text-walnut hover:text-walnut-light"
                     onClick={handleWishlistToggle}
                   >
-                    <svg className="mr-2 h-4 w-4" fill={isInWishlist(detailProduct.id) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="mr-2 h-4 w-4" fill={isInWishlist(detailProduct.id, matchingVariant?.id) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
-                    {isInWishlist(detailProduct.id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                    {isInWishlist(detailProduct.id, matchingVariant?.id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
                   </Button>
                 </div>
 
@@ -388,6 +419,43 @@ export default function ProductDetailsPage() {
 
         <Footer />
       </main>
+
+      <Modal
+        isOpen={isSizeGuideOpen}
+        onClose={() => setIsSizeGuideOpen(false)}
+        title="Size Guide"
+        size="md"
+      >
+        {detailProduct?.sizes.length ? (
+          <div className="space-y-4">
+            <p className="text-sm text-slate">
+              Measurements are in inches. For a relaxed fit, size up.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-sage-light/40 text-left">
+                    <th className="py-2 pr-4 font-medium text-navy">Size</th>
+                    <th className="py-2 pr-4 font-medium text-navy">Chest</th>
+                    <th className="py-2 font-medium text-navy">Length</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailProduct.sizes.map((size, idx) => (
+                    <tr key={size} className="border-b border-sage-light/20">
+                      <td className="py-2 pr-4 text-navy">{size}</td>
+                      <td className="py-2 pr-4 text-slate">{38 + idx * 2}</td>
+                      <td className="py-2 text-slate">{26 + idx * 1}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate">Size information is not available for this product.</p>
+        )}
+      </Modal>
     </PageTransition>
   );
 }

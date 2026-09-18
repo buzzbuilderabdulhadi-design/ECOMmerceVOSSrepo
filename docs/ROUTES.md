@@ -1,4 +1,4 @@
-# VOSS - ROUTES DOCUMENTATION
+# ZOYA GOODS - ROUTES DOCUMENTATION
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines every frontend and backend route used in the VOSS MERN eCommerce platform.
+This document defines every frontend and backend route used in the ZOYA GOODS MERN eCommerce platform.
 
 The routing system must be clean, scalable, secure, and easy to maintain.
 
@@ -556,7 +556,7 @@ Unauthorized users should be redirected to Login or Access Denied pages.
 
 500 Internal Server Error
 
-Custom error pages should match the VOSS design system.
+Custom error pages should match the ZOYA GOODS design system.
 
 ---
 
@@ -580,6 +580,6 @@ Keep URLs clean and SEO-friendly.
 
 # FINAL GOAL
 
-The routing system should be clean, scalable, secure, and easy to extend as the VOSS platform grows.
+The routing system should be clean, scalable, secure, and easy to extend as the ZOYA GOODS platform grows.
 
 Every route should have a clear purpose, proper protection, and consistent naming.

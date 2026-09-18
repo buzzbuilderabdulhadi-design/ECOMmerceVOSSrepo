@@ -1,4 +1,4 @@
-import { productImages } from '@/data/products';
+import { productImages } from '@/data/productImages';
 
 export interface NavSubcategory {
   label: string;

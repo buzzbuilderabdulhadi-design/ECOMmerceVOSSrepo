@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +16,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const imageRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef<number | null>(null);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!imageRef.current || !isZoomed) return;
@@ -34,10 +35,36 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
   }, [images.length]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowLeft') handlePrev();
-    if (e.key === 'ArrowRight') handleNext();
-    if (e.key === 'Escape') { setIsZoomed(false); setIsFullscreen(false); }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      handlePrev();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      handleNext();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsFullscreen(true);
+    } else if (e.key === 'Escape') {
+      setIsZoomed(false);
+      setIsFullscreen(false);
+    }
   }, [handlePrev, handleNext]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+      else if (e.key === 'ArrowLeft') handlePrev();
+      else if (e.key === 'ArrowRight') handleNext();
+    };
+    document.addEventListener('keydown', onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen, handlePrev, handleNext]);
 
   if (!images || images.length === 0) {
     return (
@@ -52,15 +79,19 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
   const selectedImage = images[selectedIndex];
 
   return (
-    <div className={cn('space-y-3', className)} onKeyDown={handleKeyDown} tabIndex={0}>
+    <div className={cn('space-y-3', className)}>
       {/* Main Image */}
       <div
         ref={imageRef}
+        role="button"
+        tabIndex={0}
+        aria-label={`${alt} image ${selectedIndex + 1} of ${images.length}. Press Enter to open fullscreen.`}
         className={cn(
-          'relative aspect-square overflow-hidden rounded-2xl bg-cream',
+          'relative aspect-square overflow-hidden rounded-2xl bg-cream focus:outline-none focus-visible:ring-2 focus-visible:ring-gold',
           isZoomed && 'cursor-zoom-out',
           !isZoomed && 'cursor-zoom-in'
         )}
+        onKeyDown={handleKeyDown}
         onMouseEnter={() => setIsZoomed(true)}
         onMouseLeave={() => setIsZoomed(false)}
         onMouseMove={handleMouseMove}
@@ -84,7 +115,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow-md backdrop-blur-sm transition-all hover:bg-white"
+              className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 shadow-md backdrop-blur-sm transition-all hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
               aria-label="Previous image"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -94,7 +125,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleNext(); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow-md backdrop-blur-sm transition-all hover:bg-white"
+              className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 shadow-md backdrop-blur-sm transition-all hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
               aria-label="Next image"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -111,19 +142,24 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
 
       {/* Thumbnails */}
       {images.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div
+          role="group"
+          aria-label="Product image thumbnails"
+          className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1"
+        >
           {images.map((image, index) => (
             <button
               key={index}
               type="button"
               onClick={() => setSelectedIndex(index)}
+              aria-label={`View image ${index + 1}`}
+              aria-pressed={index === selectedIndex}
               className={cn(
-                'relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all duration-200',
+                'relative h-20 w-20 flex-shrink-0 snap-start overflow-hidden rounded-lg border-2 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold',
                 index === selectedIndex
                   ? 'border-gold ring-1 ring-gold'
                   : 'border-sage-light/30 hover:border-navy/50'
               )}
-              aria-label={`View image ${index + 1}`}
             >
               <Image
                 src={image}
@@ -141,12 +177,25 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
       {isFullscreen && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${alt} image viewer`}
           onClick={() => setIsFullscreen(false)}
+          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+          onTouchEnd={(e) => {
+            if (touchStartX.current === null) return;
+            const delta = e.changedTouches[0].clientX - touchStartX.current;
+            if (Math.abs(delta) > 50) {
+              if (delta < 0) handleNext();
+              else handlePrev();
+            }
+            touchStartX.current = null;
+          }}
         >
           <button
             type="button"
             onClick={() => setIsFullscreen(false)}
-            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+            className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
             aria-label="Close fullscreen"
           >
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -167,7 +216,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition-colors hover:bg-white/20"
+                className="absolute left-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 aria-label="Previous image"
               >
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -177,13 +226,16 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition-colors hover:bg-white/20"
+                className="absolute right-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 aria-label="Next image"
               >
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm font-medium text-white">
+                {selectedIndex + 1}/{images.length}
+              </div>
             </>
           )}
         </div>

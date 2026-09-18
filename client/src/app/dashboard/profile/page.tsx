@@ -12,7 +12,7 @@ export default function ProfilePage() {
         </div>
         <h2 className="mt-6 font-display text-3xl font-light text-navy">Refining your profile</h2>
         <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate">
-          Profile management is being refined to match the VOSS standard. It will be available shortly.
+          Profile management is being refined to match the ZOYA GOODS standard. It will be available shortly.
         </p>
       </div>
     </DashboardLayout>

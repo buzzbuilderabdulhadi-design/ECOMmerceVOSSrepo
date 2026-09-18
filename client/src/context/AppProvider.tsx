@@ -1,6 +1,7 @@
 'use client';
 
 import React, { ReactNode } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { AuthProvider } from './AuthContext';
 import { CartProvider } from './CartContext';
 import { WishlistProvider } from './WishlistContext';
@@ -15,11 +16,13 @@ interface AppProviderProps {
 
 export function AppProvider({ children }: AppProviderProps) {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <WishlistProvider>{children}</WishlistProvider>
-      </CartProvider>
-    </AuthProvider>
+    <MotionConfig reducedMotion="user">
+      <AuthProvider>
+        <CartProvider>
+          <WishlistProvider>{children}</WishlistProvider>
+        </CartProvider>
+      </AuthProvider>
+    </MotionConfig>
   );
 }
 

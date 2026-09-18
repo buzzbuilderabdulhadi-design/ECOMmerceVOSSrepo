@@ -1,4 +1,4 @@
-# VOSS - COMPONENT LIBRARY
+# ZOYA GOODS - COMPONENT LIBRARY
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines every reusable UI component for the VOSS MERN eCommerce platform.
+This document defines every reusable UI component for the ZOYA GOODS MERN eCommerce platform.
 
 The AI must create reusable components first before building pages.
 
@@ -614,7 +614,7 @@ common/
 
 # FINAL GOAL
 
-The VOSS component library should serve as the foundation of the entire application.
+The ZOYA GOODS component library should serve as the foundation of the entire application.
 
 Every page must be built using reusable components instead of custom one-off implementations.
 

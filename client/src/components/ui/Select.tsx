@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface SelectOption {
@@ -38,8 +38,12 @@ export function Select({
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const listboxRef = useRef<HTMLUListElement>(null);
+  const triggerId = useId();
+  const listboxId = useId();
 
   const selectedOption = options.find((opt) => opt.value === value);
 
@@ -49,6 +53,8 @@ export function Select({
       )
     : options;
 
+  const selectedIndex = filteredOptions.findIndex((opt) => opt.value === value);
+
   const handleToggle = useCallback(() => {
     if (!disabled) {
       setIsOpen((prev) => !prev);
@@ -57,6 +63,20 @@ export function Select({
       }
     }
   }, [disabled, isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const initialIndex =
+        selectedIndex >= 0 ? selectedIndex : filteredOptions.findIndex((opt) => !opt.disabled);
+      setActiveIndex(initialIndex);
+      if (searchable && searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+      requestAnimationFrame(() => {
+        listboxRef.current?.querySelector<HTMLElement>(`[data-index="${initialIndex}"]`)?.scrollIntoView?.({ block: 'nearest' });
+      });
+    }
+  }, [isOpen, searchable, selectedIndex, filteredOptions]);
 
   const handleSelect = useCallback(
     (optionValue: string) => {
@@ -76,11 +96,96 @@ export function Select({
     [onChange]
   );
 
-  useEffect(() => {
-    if (isOpen && searchable && searchInputRef.current) {
-      searchInputRef.current.focus();
+  const moveActive = useCallback(
+    (direction: 1 | -1) => {
+      const enabledCount = filteredOptions.filter((opt) => !opt.disabled).length;
+      if (enabledCount === 0) return;
+      let next = activeIndex;
+      for (let i = 0; i < filteredOptions.length; i++) {
+        next = (next + direction + filteredOptions.length) % filteredOptions.length;
+        if (!filteredOptions[next].disabled) break;
+      }
+      setActiveIndex(next);
+      listboxRef.current
+        ?.querySelector<HTMLElement>(`[data-index="${next}"]`)
+        ?.scrollIntoView?.({ block: 'nearest' });
+    },
+    [activeIndex, filteredOptions]
+  );
+
+  const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
+    if (disabled) return;
+    switch (e.key) {
+      case 'ArrowDown':
+      case 'ArrowUp': {
+        e.preventDefault();
+        if (!isOpen) {
+          setIsOpen(true);
+          return;
+        }
+        moveActive(e.key === 'ArrowDown' ? 1 : -1);
+        break;
+      }
+      case 'Home': {
+        if (!isOpen) return;
+        e.preventDefault();
+        const first = filteredOptions.findIndex((opt) => !opt.disabled);
+        if (first >= 0) {
+          setActiveIndex(first);
+          listboxRef.current?.querySelector<HTMLElement>(`[data-index="${first}"]`)?.scrollIntoView?.({ block: 'nearest' });
+        }
+        break;
+      }
+      case 'End': {
+        if (!isOpen) return;
+        e.preventDefault();
+        const last = filteredOptions.map((opt) => !opt.disabled).lastIndexOf(true);
+        if (last >= 0) {
+          setActiveIndex(last);
+          listboxRef.current?.querySelector<HTMLElement>(`[data-index="${last}"]`)?.scrollIntoView?.({ block: 'nearest' });
+        }
+        break;
+      }
+      case 'Enter':
+      case ' ': {
+        if (!isOpen) break;
+        e.preventDefault();
+        const option = filteredOptions[activeIndex];
+        if (option && !option.disabled) handleSelect(option.value);
+        break;
+      }
+      case 'Escape': {
+        if (!isOpen) break;
+        e.preventDefault();
+        setIsOpen(false);
+        setSearchQuery('');
+        break;
+      }
+      default:
+        break;
     }
-  }, [isOpen, searchable]);
+  };
+
+  const handleListboxKeyDown = (e: React.KeyboardEvent) => {
+    if (searchable) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveActive(e.key === 'ArrowDown' ? 1 : -1);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const option = filteredOptions[activeIndex];
+        if (option && !option.disabled) handleSelect(option.value);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        const first = filteredOptions.findIndex((opt) => !opt.disabled);
+        if (first >= 0) setActiveIndex(first);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        const last = filteredOptions.map((opt) => !opt.disabled).lastIndexOf(true);
+        if (last >= 0) setActiveIndex(last);
+      }
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -112,12 +217,13 @@ export function Select({
   return (
     <div className={cn('relative', className)} ref={containerRef}>
       {label && (
-        <label className="mb-1.5 block text-sm font-medium text-navy">
+        <label htmlFor={triggerId} className="mb-1.5 block text-sm font-medium text-navy">
           {label}
           {required && <span className="ml-1 text-red-500">*</span>}
         </label>
       )}
       <button
+        id={triggerId}
         type="button"
         onClick={handleToggle}
         disabled={disabled}
@@ -134,39 +240,24 @@ export function Select({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-invalid={!!error}
+        aria-controls={isOpen ? listboxId : undefined}
+        aria-activedescendant={
+          isOpen && activeIndex >= 0
+            ? `option-${listboxId}-${filteredOptions[activeIndex]?.value}`
+            : undefined
+        }
+        onKeyDown={handleTriggerKeyDown}
       >
-          <span
-            className={cn(
-              'truncate',
-              !selectedOption && 'text-slate',
-              selectedOption && 'text-navy'
-            )}
-          >
+        <span
+          className={cn(
+            'truncate',
+            !selectedOption && 'text-slate',
+            selectedOption && 'text-navy'
+          )}
+        >
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <span className="ml-2 flex items-center gap-1">
-          {clearable && selectedOption && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="rounded-full p-0.5 text-slate hover:text-navy focus:outline-none"
-              aria-label="Clear selection"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          )}
           <svg
             className={cn(
               'h-4 w-4 text-slate transition-transform duration-200',
@@ -185,41 +276,79 @@ export function Select({
           </svg>
         </span>
       </button>
+      {clearable && selectedOption && !disabled && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="absolute right-9 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate hover:bg-cream hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-sage/40"
+          aria-label="Clear selection"
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      )}
       {isOpen && (
         <div className="absolute z-50 mt-1 w-full rounded-lg border border-sage-light/30 bg-white shadow-lg animate-in fade-in slide-in-from-top-1 duration-200">
           {searchable && (
             <div className="border-b border-sage-light/20 p-2">
+              <label htmlFor={`${triggerId}-search`} className="sr-only">
+                Search options
+              </label>
               <input
+                id={`${triggerId}-search`}
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setActiveIndex(-1);
+                }}
+                onKeyDown={handleListboxKeyDown}
                 placeholder="Search..."
                 className="w-full rounded-md border border-sage-light/30 px-3 py-1.5 text-sm focus:border-navy/50 focus:outline-none"
               />
             </div>
           )}
           <ul
+            id={listboxId}
+            ref={listboxRef}
             role="listbox"
+            aria-label={label || 'Options'}
             className="max-h-60 overflow-auto py-1"
-            aria-label="Options"
           >
             {filteredOptions.length === 0 ? (
               <li className="px-3 py-2 text-sm text-slate">
                 No options found
               </li>
             ) : (
-              filteredOptions.map((option) => (
+              filteredOptions.map((option, index) => (
                 <li
                   key={option.value}
+                  id={`option-${listboxId}-${option.value}`}
                   role="option"
                   aria-selected={value === option.value}
+                  aria-disabled={option.disabled || undefined}
+                  data-index={index}
                   onClick={() => !option.disabled && handleSelect(option.value)}
+                  onMouseMove={() => !option.disabled && setActiveIndex(index)}
                   className={cn(
                     'cursor-pointer px-3 py-2 text-sm transition-colors duration-150',
                     value === option.value
                       ? 'bg-sage-light/40 font-medium text-navy'
                       : 'text-charcoal hover:bg-cream',
+                    index === activeIndex && 'bg-cream',
+                    value === option.value && index === activeIndex && 'bg-sage-light/60',
                     option.disabled && 'cursor-not-allowed text-slate/50'
                   )}
                 >

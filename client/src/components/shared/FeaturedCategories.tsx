@@ -28,7 +28,7 @@ const defaultCategories: CategoryItem[] = [
   { name: 'Bomber Jackets', slug: 'bomber-jackets', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=900&q=85', productCount: 18 },
   { name: 'Suede Jackets', slug: 'suede-jackets', image: 'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=900&q=85', productCount: 12 },
   { name: 'Denim Jackets', slug: 'denim-jackets', image: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=900&q=85', productCount: 15 },
-  { name: 'Puffer Jackets', slug: 'puffer-jackets', image: 'https://images.unsplash.com/photo-1544923246-77307dd270b4?w=900&q=85', productCount: 20 },
+  { name: 'Puffer Jackets', slug: 'puffer-jackets', image: 'https://images.unsplash.com/photo-1539533113208-f6df8cc8b543?w=900&q=85', productCount: 20 },
   { name: 'Winter Parkas', slug: 'winter-parkas', image: 'https://images.unsplash.com/photo-1539533113208-f6df8cc8b543?w=900&q=85', productCount: 10 },
 ];
 
@@ -76,7 +76,7 @@ export function FeaturedCategories({
           </ScrollReveal>
         </div>
 
-        <div className="mt-14 grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-6 lg:auto-rows-[220px] xl:auto-rows-[260px]">
+        <div className="mt-14 grid grid-cols-2 auto-rows-[200px] gap-4 sm:auto-rows-[220px] md:gap-6 lg:grid-cols-6 lg:auto-rows-[220px] xl:auto-rows-[260px]">
           {categories.map((category, index) => (
             <motion.div
               key={category.slug}
@@ -84,7 +84,7 @@ export function FeaturedCategories({
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-60px' }}
               transition={{ duration: 0.7, delay: (index % 3) * 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-              className={cn(spanClasses[index % spanClasses.length], index === 0 && 'h-[440px] lg:h-auto')}
+              className={cn(spanClasses[index % spanClasses.length])}
             >
               <Link
                 href={`/category/${category.slug}`}

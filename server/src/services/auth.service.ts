@@ -34,6 +34,12 @@ export const verifyRefreshToken = (token: string): TokenPayload => {
   return jwt.verify(token, config.jwt.refreshSecret) as TokenPayload;
 };
 
+// Refresh tokens are opaque to the DB (we only persist a hash) so a database
+// leak never exposes a usable token. Rotation invalidates the previous token:
+// presenting a stale token clears the session (reuse/theft detection).
+const hashToken = (token: string): string =>
+  crypto.createHash('sha256').update(token).digest('hex');
+
 export const generateResetToken = (): string => {
   return crypto.randomBytes(32).toString('hex');
 };
@@ -56,6 +62,10 @@ export const registerUser = async (data: { name: string; email: string; password
   });
   const accessToken = generateAccessToken({ userId: user.id, role: user.role });
   const refreshToken = generateRefreshToken({ userId: user.id, role: user.role });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { refreshTokenHash: hashToken(refreshToken) },
+  });
   return { user, accessToken, refreshToken };
 };
 
@@ -66,17 +76,66 @@ export const loginUser = async (email: string, password: string) => {
   if (!isValid) throw ApiError.unauthorized('Invalid email or password');
   const accessToken = generateAccessToken({ userId: user.id, role: user.role });
   const refreshToken = generateRefreshToken({ userId: user.id, role: user.role });
-  const { passwordHash: _, ...userWithoutPassword } = user;
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { refreshTokenHash: hashToken(refreshToken) },
+  });
+  const { passwordHash: _, refreshTokenHash: __, ...userWithoutPassword } = user;
   return { user: userWithoutPassword, accessToken, refreshToken };
 };
 
 export const refreshUserToken = async (token: string) => {
   const decoded = verifyRefreshToken(token);
-  const user = await prisma.user.findUnique({ where: { id: decoded.userId }, select: { id: true, role: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.userId },
+    select: { id: true, role: true, refreshTokenHash: true },
+  });
   if (!user) throw ApiError.unauthorized('User not found');
+
+  // If a session hash is recorded it must match the presented token. A
+  // mismatch means this token was rotated already (or revoked) — treat it as
+  // compromise and clear the stored session.
+  if (user.refreshTokenHash && user.refreshTokenHash !== hashToken(token)) {
+    await prisma.user
+      .update({ where: { id: user.id }, data: { refreshTokenHash: null } })
+      .catch(() => {});
+    throw ApiError.unauthorized('Refresh token is no longer valid');
+  }
+
   const accessToken = generateAccessToken({ userId: user.id, role: user.role });
   const refreshToken = generateRefreshToken({ userId: user.id, role: user.role });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { refreshTokenHash: hashToken(refreshToken) },
+  });
   return { accessToken, refreshToken };
+};
+
+export const requestPasswordReset = async (email: string) => {
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  if (!user) {
+    // Do not reveal whether the email exists
+    return;
+  }
+  const resetToken = generateResetToken();
+  const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { resetToken, resetTokenExpiry },
+  });
+  return { email: user.email, resetToken };
+};
+
+export const resetPassword = async (token: string, newPassword: string) => {
+  const user = await prisma.user.findFirst({
+    where: { resetToken: token, resetTokenExpiry: { gt: new Date() } },
+  });
+  if (!user) throw ApiError.badRequest('Invalid or expired password reset link');
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash, resetToken: null, resetTokenExpiry: null, refreshTokenHash: null },
+  });
 };
 
 export const changePassword = async (userId: string, currentPassword: string, newPassword: string) => {
@@ -85,5 +144,5 @@ export const changePassword = async (userId: string, currentPassword: string, ne
   const isValid = await comparePassword(currentPassword, user.passwordHash);
   if (!isValid) throw ApiError.badRequest('Current password is incorrect');
   const passwordHash = await hashPassword(newPassword);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash, refreshTokenHash: null } });
 };

@@ -6,7 +6,7 @@ export const fetchAddresses = async (): Promise<Address[]> => {
   return response.data.data;
 };
 
-export const createAddress = async (data: Omit<Address, 'id'>): Promise<Address> => {
+export const createAddress = async (data: Omit<Address, 'id' | 'userId'>): Promise<Address> => {
   const response = await axiosInstance.post('/addresses', data);
   return response.data.data;
 };

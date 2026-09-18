@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
       >
         <div className="rounded-2xl border border-sage-light/20 bg-white/95 backdrop-blur-sm p-8 shadow-2xl">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-display font-bold tracking-wider text-navy">VOSS</h1>
+            <h1 className="text-2xl font-display font-bold tracking-wider text-navy">ZOYA GOODS</h1>
             <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-walnut font-medium">Administration</p>
           </div>
 
@@ -52,7 +52,7 @@ export default function AdminLoginPage() {
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="admin@voss.com"
+                placeholder="admin@zoyagoods.com"
                 required
                 className="w-full rounded-lg border border-sage-light/40 bg-white px-4 py-2.5 text-sm text-navy placeholder-slate/50 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20"
               />

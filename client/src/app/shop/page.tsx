@@ -12,7 +12,6 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { fetchProducts } from '@/services/products';
-import { allProducts } from '@/data/products';
 
 const sortOptions = [
   { label: 'Newest', value: 'newest' },
@@ -21,13 +20,6 @@ const sortOptions = [
   { label: 'Best Rated', value: 'rating' },
 ];
 
-const fallbackCards = allProducts.map((p: any) => ({
-  id: p.id, name: p.name, slug: p.slug, image: p.image, images: p.images,
-  regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
-  isNew: p.isNew, isBestSeller: p.isBestSeller, stock: p.stock, brand: p.brand, category: p.subcategory,
-  colors: p.colors,
-}));
-
 function sortFallback(products: any[], sortBy: string) {
   const sorted = [...products];
   switch (sortBy) {
@@ -35,6 +27,15 @@ function sortFallback(products: any[], sortBy: string) {
     case 'price_desc': return sorted.sort((a, b) => (b.salePrice ?? b.regularPrice) - (a.salePrice ?? a.regularPrice));
     default: return sorted;
   }
+}
+
+function mapFallbackCards(products: any[]) {
+  return products.map((p: any) => ({
+    id: p.id, name: p.name, slug: p.slug, image: p.image, images: p.images,
+    regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
+    isNew: p.isNew, isBestSeller: p.isBestSeller, stock: p.stock, brand: p.brand, category: p.subcategory,
+    colors: p.colors,
+  }));
 }
 
 function mapProduct(p: any): ProductCardData {
@@ -72,6 +73,8 @@ export default function ShopPage() {
       setIsApi(true);
     } catch {
       setIsApi(false);
+      const { allProducts } = await import('@/data/products');
+      const fallbackCards = mapFallbackCards(allProducts);
       const sorted = sortFallback(fallbackCards, sort);
       const start = (page - 1) * perPage;
       setProducts(sorted.slice(start, start + perPage));

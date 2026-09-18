@@ -511,53 +511,53 @@ h1, h2, h3, .font-display {
 }
 
 /* On-brand prose for policy pages */
-.prose-voss {
+.prose-zoya {
   font-size: 0.9375rem;
   line-height: 1.8;
   color: #5F6368;
 }
-.prose-voss > p:first-child {
+.prose-zoya > p:first-child {
   color: #8B5E3C;
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.prose-voss h2 {
+.prose-zoya h2 {
   margin-top: 2.5rem;
   margin-bottom: 0.875rem;
   color: #16324F;
 }
-.prose-voss h3 {
+.prose-zoya h3 {
   margin-top: 2rem;
   margin-bottom: 0.75rem;
   color: #16324F;
 }
-.prose-voss p {
+.prose-zoya p {
   margin-bottom: 1.25rem;
 }
-.prose-voss ul,
-.prose-voss ol {
+.prose-zoya ul,
+.prose-zoya ol {
   margin: 0 0 1.25rem;
   padding-left: 1.5rem;
   list-style: disc;
 }
-.prose-voss ol {
+.prose-zoya ol {
   list-style: decimal;
 }
-.prose-voss li {
+.prose-zoya li {
   margin-bottom: 0.5rem;
 }
-.prose-voss a {
+.prose-zoya a {
   color: #6B7D5E;
   text-decoration: underline;
   text-underline-offset: 3px;
   transition: color 0.2s ease;
 }
-.prose-voss a:hover {
+.prose-zoya a:hover {
   color: #16324F;
 }
-.prose-voss strong {
+.prose-zoya strong {
   color: #2E2E2E;
   font-weight: 600;
 }

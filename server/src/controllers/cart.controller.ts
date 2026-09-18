@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/db';
 import { sendSuccess, sendMessage } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
+import { isValidObjectId } from '../utils/objectId';
 
 const cartInclude = {
   items: {
@@ -56,6 +57,7 @@ async function ensureCart(req: Request) {
 }
 
 async function verifyOwnership(itemId: string, req: Request) {
+  if (!isValidObjectId(itemId)) throw ApiError.badRequest('Invalid cart item ID');
   const item = await prisma.cartItem.findUnique({
     where: { id: itemId },
     include: { cart: true },
@@ -84,6 +86,9 @@ export const addToCart = async (req: Request, res: Response, next: NextFunction)
   try {
     const { productId, variantId, quantity } = req.body;
     const qty = quantity || 1;
+
+    if (!isValidObjectId(productId)) throw ApiError.badRequest('Invalid product ID');
+    if (variantId != null && !isValidObjectId(variantId)) throw ApiError.badRequest('Invalid variant ID');
 
     const product = await prisma.product.findUnique({ where: { id: productId, isActive: true } });
     if (!product) throw ApiError.notFound('Product not found');

@@ -1,4 +1,4 @@
-# VOSS - PROJECT RULES
+# ZOYA GOODS - PROJECT RULES
 
 Version: 1.0
 
@@ -6,7 +6,7 @@ Version: 1.0
 
 # PURPOSE
 
-This document defines the mandatory development rules for the VOSS MERN eCommerce platform.
+This document defines the mandatory development rules for the ZOYA GOODS MERN eCommerce platform.
 
 These rules are NON-NEGOTIABLE.
 
@@ -464,4 +464,4 @@ Whenever multiple valid implementations exist, always choose the solution that i
 
 Never choose the easiest solution if it compromises quality.
 
-Build VOSS as if it were a premium international fashion brand used by thousands of customers every day.
+Build ZOYA GOODS as if it were a premium international fashion brand used by thousands of customers every day.

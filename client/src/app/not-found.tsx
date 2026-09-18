@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -35,11 +34,9 @@ export default function NotFoundPage() {
             Sorry, we couldn&apos;t find the page you&apos;re looking for.
           </p>
           <div className="mt-8">
-            <Link href="/">
-              <Button variant="primary" size="lg">
-                Return Home
-              </Button>
-            </Link>
+            <Button href="/" variant="primary" size="lg">
+              Return Home
+            </Button>
           </div>
         </motion.div>
       </div>

@@ -50,7 +50,7 @@ export default function LoginPage() {
               <div className="text-center">
                 <h1 className="text-3xl font-bold tracking-tight text-walnut">Welcome back</h1>
                 <p className="mt-2 text-sm text-slate">
-                  Sign in to your VOSS account to continue shopping.
+                  Sign in to your ZOYA GOODS account to continue shopping.
                 </p>
               </div>
 

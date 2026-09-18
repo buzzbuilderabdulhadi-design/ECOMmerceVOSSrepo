@@ -21,7 +21,7 @@ export default function ReturnsPage() {
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-navy sm:text-4xl">Returns & Refunds</h1>
           </div>
         </section>
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-voss">
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-zoya">
           <h2>Return Policy</h2>
           <p>We accept returns within 30 days of delivery. Items must be unworn, unwashed, and in original condition with all tags attached.</p>
           <h2>How to Return</h2>
@@ -33,7 +33,7 @@ export default function ReturnsPage() {
           <h2>Non-Returnable Items</h2>
           <p>Sale items, personalized products, and gift cards are not eligible for return unless defective.</p>
           <h2>Contact</h2>
-          <p>For return inquiries, please contact us at returns@voss.com.</p>
+          <p>For return inquiries, please contact us at returns@zoyagoods.com.</p>
         </div>
         <Footer />
       </main>
