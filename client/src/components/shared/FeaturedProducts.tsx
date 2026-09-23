@@ -7,6 +7,10 @@ import { ProductCard, type ProductCardData } from '@/components/product/ProductC
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { TextReveal } from '@/components/animations/TextReveal';
 import { Magnetic } from '@/components/animations/Magnetic';
+import { useWishlist } from '@/context/WishlistContext';
+import { useAuth } from '@/context/AuthContext';
+import type { Product } from '@/types';
+import toast from 'react-hot-toast';
 
 interface FeaturedProductsProps {
   products: ProductCardData[];
@@ -29,6 +33,44 @@ export function FeaturedProducts({
   wishlistedIds,
 }: FeaturedProductsProps) {
   const railRef = useRef<HTMLDivElement>(null);
+  const { items: wishlistItems, addItem: addWishlist, removeItem: removeWishlist } = useWishlist();
+  const { isAuthenticated } = useAuth();
+
+  // When no external handler is wired (e.g. the homepage rail), the section
+  // manages its own wishlist hearts so every browse surface has an entry point.
+  const handleWishlistToggle = async (productId: string) => {
+    if (onWishlistToggle) { onWishlistToggle(productId); return; }
+    if (!isAuthenticated) {
+      toast.error('Please sign in to save items to your wishlist.');
+      return;
+    }
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    const existing = wishlistItems.find((w) => w.productId === productId);
+    if (existing) {
+      const ok = await removeWishlist(existing.id);
+      if (!ok) toast.error('Could not update your wishlist.');
+    } else {
+      const ok = await addWishlist(
+        {
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+          regularPrice: product.regularPrice,
+          salePrice: product.salePrice,
+          images: product.images ?? [product.image],
+          stock: product.stock ?? 0,
+        } as Product,
+        product.defaultVariantId
+      );
+      if (!ok) toast.error('Could not update your wishlist.');
+    }
+  };
+
+  const isWishlistedFor = (id: string) =>
+    onWishlistToggle
+      ? wishlistedIds?.has(id) ?? false
+      : isAuthenticated && wishlistItems.some((w) => w.productId === id);
 
   if (!products || products.length === 0) return null;
 
@@ -118,8 +160,8 @@ export function FeaturedProducts({
               <ProductCard
                 product={product}
                 variant="default"
-                onWishlistToggle={onWishlistToggle}
-                isWishlisted={wishlistedIds?.has(product.id) ?? false}
+                onWishlistToggle={handleWishlistToggle}
+                isWishlisted={isWishlistedFor(product.id)}
                 index={index}
               />
             </div>

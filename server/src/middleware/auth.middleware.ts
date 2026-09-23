@@ -52,12 +52,17 @@ export const authenticate = async (
 
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
-    // Verify user still exists (short-TTL cached to avoid a DB hit per request)
+    // Verify the user still exists and, critically, that the CURRENT database
+    // role matches — admin authorization must never trust the (possibly stale)
+    // login-time role embedded in the JWT. Re-checked against the DB with a
+    // short-TTL cache so role changes/revocation take effect promptly while
+    // avoiding a DB round-trip on every request.
     const cacheKey = `auth:user:${decoded.userId}`;
-    if (cacheGet<boolean>(cacheKey) === undefined) {
+    let cached = cacheGet<{ id: string; role: string }>(cacheKey);
+    if (cached === undefined) {
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        select: { id: true },
+        select: { id: true, role: true },
       });
 
       if (!user) {
@@ -67,10 +72,11 @@ export const authenticate = async (
         });
         return;
       }
-      cacheSet(cacheKey, true, AUTH_CACHE_TTL_MS);
+      cached = { id: user.id, role: user.role };
+      cacheSet(cacheKey, cached, AUTH_CACHE_TTL_MS);
     }
 
-    req.user = decoded;
+    req.user = { ...decoded, role: cached.role };
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {

@@ -3,27 +3,33 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import adminApi from '@/services/admin';
 import { Skeleton } from '@/components/ui/Skeleton';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/services/axios';
 import { AdminReview } from '@/types/admin';
+import { useDebounce } from '@/hooks/useDebounce';
 
 export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 400);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchReviews = useCallback(async (page = 1) => {
     setLoading(true);
     try {
       const params: Record<string, string> = { page: String(page), limit: '20' };
       if (status) params.status = status;
+      if (debouncedSearch) params.search = debouncedSearch;
       const res = await adminApi.getReviews(params);
       setReviews(res.data || []); setPagination(res.pagination || { page, limit: 20, total: 0, totalPages: 0 });
     } catch (err) { toast.error(getErrorMessage(err) || 'Failed to load reviews'); } finally { setLoading(false); }
-  }, [status]);
+  }, [status, debouncedSearch]);
 
   useEffect(() => { fetchReviews(1); }, [fetchReviews]);
 
@@ -36,7 +42,7 @@ export default function AdminReviewsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    try { await adminApi.deleteReview(id); setReviews(r => r.filter(x => x.id !== id)); } catch (err) { toast.error(getErrorMessage(err) || 'Failed to delete review'); }
+    try { await adminApi.deleteReview(id); setReviews(r => r.filter(x => x.id !== id)); setDeleteId(null); } catch (err) { toast.error(getErrorMessage(err) || 'Failed to delete review'); }
   };
 
   return (
@@ -46,11 +52,16 @@ export default function AdminReviewsPage() {
         <p className="text-sm text-slate mt-1">{pagination.total} reviews</p>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         {[{ v: '', l: 'All' }, { v: 'pending', l: 'Pending' }, { v: 'approved', l: 'Approved' }].map(({ v, l }) => (
           <button key={v} onClick={() => setStatus(v)}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${status === v ? 'bg-navy text-ivory' : 'border border-sage-light/40 text-slate hover:bg-sage-light/20'}`}>{l}</button>
         ))}
+        <div className="relative flex-1 sm:max-w-md">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by text, product, or customer..." className="w-full rounded-lg border border-sage-light/40 bg-white pl-10 pr-4 py-2 text-sm text-navy placeholder-slate/50 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
+        </div>
       </div>
 
       <div className="rounded-xl border border-sage-light/30 bg-white overflow-hidden">
@@ -91,7 +102,7 @@ export default function AdminReviewsPage() {
                       <button onClick={() => handleApprove(review.id, false)} className="rounded-lg border border-sage-light/40 px-2.5 py-1.5 text-[10px] font-medium text-slate hover:bg-sage-light/20">Reject</button>
                     )}
                     <button onClick={() => { setReplyTo(review.id); setReplyText(review.adminReply || ''); }} className="rounded-lg border border-sage-light/40 px-2.5 py-1.5 text-[10px] font-medium text-slate hover:bg-sage-light/20">Reply</button>
-                    <button onClick={() => handleDelete(review.id)} className="rounded-lg border border-red-200 px-2.5 py-1.5 text-[10px] font-medium text-red-600 hover:bg-red-50">Delete</button>
+                    <button onClick={() => setDeleteId(review.id)} className="rounded-lg border border-red-200 px-2.5 py-1.5 text-[10px] font-medium text-red-600 hover:bg-red-50">Delete</button>
                   </div>
                 </div>
 
@@ -117,6 +128,16 @@ export default function AdminReviewsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        title="Delete Review"
+        message="Are you sure you want to delete this review? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => deleteId && handleDelete(deleteId)}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }

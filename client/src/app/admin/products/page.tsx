@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'next/navigation';
 import adminApi from '@/services/admin';
 import { formatPrice } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/Skeleton';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/services/axios';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface Product {
   id: string; name: string; slug: string; sku: string; regularPrice: number; salePrice?: number;
@@ -18,35 +19,62 @@ interface Product {
 }
 
 export default function AdminProductsPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [status, setStatus] = useState(searchParams.get('status') || '');
+  const debouncedSearch = useDebounce(search, 400);
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [toggling, setToggling] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
 
-  const fetchProducts = useCallback(async (page = 1) => {
+  const fetchProducts = useCallback(async (page = 1, searchOverride?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const params: Record<string, string> = { page: String(page), limit: '20' };
-      if (search) params.search = search;
+      const q = searchOverride !== undefined ? searchOverride : debouncedSearch;
+      if (q) params.search = q;
       if (status) params.status = status;
       const res = await adminApi.getProducts(params);
       setProducts(res.data || []);
       setPagination(res.pagination || { page, limit: 20, total: 0, totalPages: 0 });
-    } catch (err) { toast.error(getErrorMessage(err) || 'Failed to load products'); } finally { setLoading(false); }
-  }, [search, status]);
+    } catch (err) { setError(getErrorMessage(err) || 'Failed to load products'); } finally { setLoading(false); }
+  }, [debouncedSearch, status]);
 
   useEffect(() => { fetchProducts(1); }, [fetchProducts]);
 
   const handleDelete = async (id: string) => {
     setDeleting(id);
-    try { await adminApi.deleteProduct(id); setProducts(p => p.filter(x => x.id !== id)); setShowDeleteModal(null); } catch (err) { toast.error(getErrorMessage(err) || 'Failed to delete product'); } finally { setDeleting(null); }
+    try {
+      const res = await adminApi.deleteProduct(id);
+      setShowDeleteModal(null);
+      if (res?.message && /deactivated/i.test(res.message)) {
+        setProducts(p => p.map(x => x.id === id ? { ...x, isActive: false } : x));
+        toast.success(res.message);
+      } else {
+        setProducts(p => p.filter(x => x.id !== id));
+        setPagination(p => {
+          const total = Math.max(0, p.total - 1);
+          return { ...p, total, totalPages: Math.max(1, Math.ceil(total / p.limit)) };
+        });
+        toast.success(res?.message || 'Product deleted');
+      }
+    } catch (err) { toast.error(getErrorMessage(err) || 'Failed to delete product'); } finally { setDeleting(null); }
+  };
+
+  const handleToggleActive = async (id: string, isActive: boolean) => {
+    setToggling(id);
+    try {
+      await adminApi.updateProduct(id, { isActive: !isActive });
+      setProducts(p => p.map(x => x.id === id ? { ...x, isActive: !isActive } : x));
+      toast.success(!isActive ? 'Product activated' : 'Product deactivated');
+    } catch (err) { toast.error(getErrorMessage(err) || 'Failed to update product'); } finally { setToggling(null); }
   };
 
   const handleBulkDelete = async () => {
@@ -79,7 +107,7 @@ export default function AdminProductsPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchProducts(1)}
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchProducts(1, search)}
             placeholder="Search products..." className="w-full rounded-lg border border-sage-light/40 bg-white pl-10 pr-4 py-2.5 text-sm text-navy placeholder-slate/50 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
         </div>
         <select value={status} onChange={e => setStatus(e.target.value)}
@@ -105,6 +133,14 @@ export default function AdminProductsPage() {
       <div className="rounded-xl border border-sage-light/30 bg-white overflow-hidden">
         {loading ? (
           <div className="p-5 space-y-3">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>
+        ) : error ? (
+          <div className="px-5 py-16 text-center">
+            <p className="text-sm text-slate">{error}</p>
+            <button onClick={() => fetchProducts(pagination.page)}
+              className="mt-4 rounded-full border border-sage-light/40 px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-navy hover:bg-sage-light/10 transition-colors">
+              Retry
+            </button>
+          </div>
         ) : products.length === 0 ? (
           <div className="px-5 py-16 text-center">
             <svg className="mx-auto h-12 w-12 text-sage-light/60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
@@ -169,9 +205,10 @@ export default function AdminProductsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Link href={`/admin/products/${product.id}`} className="rounded p-1 text-slate hover:bg-sage-light/20 hover:text-navy"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></Link>
-                        <button onClick={() => handleDuplicate(product.id)} className="rounded p-1 text-slate hover:bg-sage-light/20 hover:text-navy"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg></button>
-                        <button onClick={() => setShowDeleteModal(product.id)} className="rounded p-1 text-slate hover:bg-red-50 hover:text-red-600"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                        <Link href={`/admin/products/${product.id}`} aria-label={`Edit ${product.name}`} className="rounded p-1 text-slate hover:bg-sage-light/20 hover:text-navy"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></Link>
+                        <button onClick={() => handleToggleActive(product.id, product.isActive)} disabled={toggling === product.id} aria-label={product.isActive ? `Deactivate ${product.name}` : `Activate ${product.name}`} className="rounded p-1 text-slate hover:bg-sage-light/20 hover:text-navy disabled:opacity-40">{toggling === product.id ? (<svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0l3-3m-3 3l-3-3m6 6H6" /></svg>) : product.isActive ? (<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>) : (<svg className="h-4 w-4 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>)}</button>
+                        <button onClick={() => handleDuplicate(product.id)} aria-label={`Duplicate ${product.name}`} className="rounded p-1 text-slate hover:bg-sage-light/20 hover:text-navy"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg></button>
+                        <button onClick={() => setShowDeleteModal(product.id)} aria-label={`Delete ${product.name}`} className="rounded p-1 text-slate hover:bg-red-50 hover:text-red-600"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                       </div>
                     </td>
                   </tr>
@@ -195,44 +232,26 @@ export default function AdminProductsPage() {
         )}
       </div>
 
-      {/* Delete modal */}
-      <AnimatePresence>
-        {showDeleteModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteModal(null)} />
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-              <h3 className="text-lg font-semibold text-navy">Delete Product</h3>
-              <p className="mt-2 text-sm text-slate">Are you sure you want to delete this product? This action cannot be undone.</p>
-              <div className="mt-6 flex justify-end gap-3">
-                <button onClick={() => setShowDeleteModal(null)} className="rounded-lg border border-sage-light/40 px-4 py-2 text-sm font-medium text-navy hover:bg-sage-light/10">Cancel</button>
-                <button onClick={() => showDeleteModal && handleDelete(showDeleteModal)} disabled={!!deleting}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-                  {deleting ? 'Deleting...' : 'Delete'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ConfirmDialog
+        open={!!showDeleteModal}
+        title="Delete Product"
+        message="Are you sure you want to delete this product? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        loading={!!deleting}
+        onConfirm={() => showDeleteModal && handleDelete(showDeleteModal)}
+        onCancel={() => setShowDeleteModal(null)}
+      />
 
-      {/* Bulk delete modal */}
-      <AnimatePresence>
-        {showBulkDelete && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowBulkDelete(false)} />
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-              <h3 className="text-lg font-semibold text-navy">Delete {selected.length} Products</h3>
-              <p className="mt-2 text-sm text-slate">Are you sure? This action cannot be undone.</p>
-              <div className="mt-6 flex justify-end gap-3">
-                <button onClick={() => setShowBulkDelete(false)} className="rounded-lg border border-sage-light/40 px-4 py-2 text-sm font-medium text-navy hover:bg-sage-light/10">Cancel</button>
-                <button onClick={handleBulkDelete} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Delete All</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ConfirmDialog
+        open={showBulkDelete}
+        title={`Delete ${selected.length} Products`}
+        message="Are you sure? This action cannot be undone."
+        confirmLabel="Delete All"
+        destructive
+        onConfirm={handleBulkDelete}
+        onCancel={() => setShowBulkDelete(false)}
+      />
     </div>
   );
 }

@@ -26,7 +26,7 @@ model User {
   reviews       Review[]
   wishlist      WishlistItem[]
   orders        Order[]
-  cart          Cart?
+  carts         Cart[]
   questions     ProductQuestion[]
   notifications Notification[]
   activityLogs  ActivityLog[]
@@ -140,7 +140,12 @@ model ProductVariant {
 
 model Cart {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String?  @unique @db.ObjectId
+  // NOTE: must NOT be @unique with MongoDB. A nullable unique field treats
+  // null as a value, so all guest (session-only) carts would collide on
+  // null `userId` after the first one — only one guest cart could exist
+  // in the whole DB. Uniqueness is enforced in-application (findFirst +
+  // create-with-check) in the cart controller instead.
+  userId         String?  @db.ObjectId
   sessionId      String?
   couponCode     String?
   discountAmount Float?
@@ -150,6 +155,7 @@ model Cart {
   user  User?     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   items CartItem[]
 
+  @@index([userId])
   @@index([sessionId])
 }
 
@@ -185,6 +191,14 @@ model Order {
   notes             String?
   internalNotes     String?
   couponCode        String?
+  idempotencyKey    String?   @unique
+  stripePaymentIntentId String? @unique
+  stripeClientSecret    String?
+  paypalOrderId         String? @unique
+  paypalCaptureId       String?
+  paymentReference      String?
+  paymentVerifiedBy     String?  @db.ObjectId
+  paymentVerifiedAt     DateTime?
   trackingNumber    String?
   estimatedDelivery DateTime?
   createdAt         DateTime @default(now())
@@ -193,9 +207,27 @@ model Order {
   user            User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   shippingAddress Address?     @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   items           OrderItem[]
+  paymentEvents   PaymentEvent[]
 
   @@index([userId])
   @@index([status])
+  @@index([paymentStatus])
+}
+
+/// A processed provider payment/webhook event. The (provider, eventId) pair is
+/// unique so a duplicated delivery can never be processed twice.
+model PaymentEvent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  provider  String
+  eventId   String
+  orderId   String?  @db.ObjectId
+  payload   Json?
+  processedAt DateTime @default(now())
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([provider, eventId])
+  @@index([orderId])
 }
 
 model OrderItem {

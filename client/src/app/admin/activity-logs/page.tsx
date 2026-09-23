@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import adminApi from '@/services/admin';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 
 interface ActivityLog {
@@ -21,6 +22,7 @@ export default function AdminActivityLogsPage() {
   const [total, setTotal] = useState(0);
   const [actionFilter, setActionFilter] = useState('');
   const [entityFilter, setEntityFilter] = useState('');
+  const [showClear, setShowClear] = useState(false);
   const limit = 20;
 
   const loadLogs = useCallback(async () => {
@@ -44,12 +46,12 @@ export default function AdminActivityLogsPage() {
   }, [loadLogs]);
 
   const handleClear = async () => {
-    if (!confirm('Clear all activity logs? This cannot be undone.')) return;
     try {
       await adminApi.clearActivityLogs();
       toast.success('Activity logs cleared');
       setLogs([]);
       setTotal(0);
+      setShowClear(false);
     } catch {
       toast.error('Failed to clear logs');
     }
@@ -65,7 +67,7 @@ export default function AdminActivityLogsPage() {
           <h1 className="text-2xl font-display font-semibold text-navy">Activity Logs</h1>
           <p className="text-sm text-slate mt-1">{total} total entries</p>
         </div>
-        <button onClick={handleClear}
+        <button onClick={() => setShowClear(true)}
           className="rounded-full border border-red-200 px-5 py-2.5 text-xs font-medium uppercase tracking-[0.14em] text-red-600 hover:bg-red-50 transition-colors">
           Clear All
         </button>
@@ -163,6 +165,16 @@ export default function AdminActivityLogsPage() {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showClear}
+        title="Clear Activity Logs"
+        message="Are you sure you want to clear all activity logs? This cannot be undone."
+        confirmLabel="Clear All Logs"
+        destructive
+        onConfirm={handleClear}
+        onCancel={() => setShowClear(false)}
+      />
     </div>
   );
 }

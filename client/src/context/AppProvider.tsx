@@ -4,6 +4,7 @@ import React, { ReactNode } from 'react';
 import { MotionConfig } from 'framer-motion';
 import { AuthProvider } from './AuthContext';
 import { CartProvider } from './CartContext';
+import { CartDrawerProvider } from './CartDrawerContext';
 import { WishlistProvider } from './WishlistContext';
 
 // ============================================================
@@ -19,7 +20,9 @@ export function AppProvider({ children }: AppProviderProps) {
     <MotionConfig reducedMotion="user">
       <AuthProvider>
         <CartProvider>
-          <WishlistProvider>{children}</WishlistProvider>
+          <CartDrawerProvider>
+            <WishlistProvider>{children}</WishlistProvider>
+          </CartDrawerProvider>
         </CartProvider>
       </AuthProvider>
     </MotionConfig>
@@ -28,5 +31,6 @@ export function AppProvider({ children }: AppProviderProps) {
 
 export { useAuth } from './AuthContext';
 export { useCart } from './CartContext';
+export { useCartDrawer } from './CartDrawerContext';
 export { useWishlist } from './WishlistContext';
 

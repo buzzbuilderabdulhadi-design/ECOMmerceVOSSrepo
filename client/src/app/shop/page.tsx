@@ -12,6 +12,12 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { fetchProducts } from '@/services/products';
+import { variantsToColors } from '@/lib/utils';
+import { useWishlist } from '@/context/WishlistContext';
+import { useAuth } from '@/context/AuthContext';
+import type { Product } from '@/types';
+import type { ProductData } from '@/data/products';
+import toast from 'react-hot-toast';
 
 const sortOptions = [
   { label: 'Newest', value: 'newest' },
@@ -20,7 +26,7 @@ const sortOptions = [
   { label: 'Best Rated', value: 'rating' },
 ];
 
-function sortFallback(products: any[], sortBy: string) {
+function sortFallback(products: ProductCardData[], sortBy: string) {
   const sorted = [...products];
   switch (sortBy) {
     case 'price_asc': return sorted.sort((a, b) => (a.salePrice ?? a.regularPrice) - (b.salePrice ?? b.regularPrice));
@@ -29,8 +35,8 @@ function sortFallback(products: any[], sortBy: string) {
   }
 }
 
-function mapFallbackCards(products: any[]) {
-  return products.map((p: any) => ({
+function mapFallbackCards(products: ProductData[]): ProductCardData[] {
+  return products.map((p) => ({
     id: p.id, name: p.name, slug: p.slug, image: p.image, images: p.images,
     regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
     isNew: p.isNew, isBestSeller: p.isBestSeller, stock: p.stock, brand: p.brand, category: p.subcategory,
@@ -38,16 +44,17 @@ function mapFallbackCards(products: any[]) {
   }));
 }
 
-function mapProduct(p: any): ProductCardData {
+function mapProduct(p: Product): ProductCardData {
   const firstImage = p.images?.[0];
   return {
     id: p.id, name: p.name, slug: p.slug,
     image: typeof firstImage === 'string' ? firstImage : firstImage?.url || '',
-    images: p.images?.map((i: any) => typeof i === 'string' ? i : i.url) || [],
+    images: p.images?.map((i) => (typeof i === 'string' ? i : i.url)) || [],
     regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
     isNew: p.isNew, isBestSeller: p.isBestSeller, stock: p.stock, brand: p.brand,
     category: p.category?.name,
-    colors: p.variants?.map((v: any) => ({ name: v.color, hex: v.colorHex })).filter((v: any) => v.hex),
+    colors: variantsToColors(p.variants),
+    defaultVariantId: p.variants?.find((v) => v.isActive)?.id,
   };
 }
 
@@ -62,15 +69,47 @@ export default function ShopPage() {
   const [isApi, setIsApi] = useState(true);
   const perPage = 9;
 
+  const { items: wishlistItems, addItem: addWishlist, removeItem: removeWishlist } = useWishlist();
+  const { isAuthenticated } = useAuth();
+
+  const handleWishlistToggle = async (productId: string) => {
+    if (!isAuthenticated) {
+      toast.error('Please sign in to save items to your wishlist.');
+      return;
+    }
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    const existing = wishlistItems.find((w) => w.productId === productId);
+    if (existing) {
+      const ok = await removeWishlist(existing.id);
+      if (!ok) toast.error('Could not update your wishlist.');
+    } else {
+      const ok = await addWishlist(
+        {
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+          regularPrice: product.regularPrice,
+          salePrice: product.salePrice,
+          images: product.images ?? [product.image],
+          stock: product.stock ?? 0,
+        } as Product,
+        product.defaultVariantId
+      );
+      if (!ok) toast.error('Could not update your wishlist.');
+    }
+  };
+
+  const isWishlistedFor = (id: string) => isAuthenticated && wishlistItems.some((w) => w.productId === id);
+
   const load = useCallback(async (page: number, sort: string) => {
-    setIsLoading(true);
-    setError(null);
     try {
       const res = await fetchProducts({ sort, page: String(page), limit: String(perPage) });
       setProducts(res.data.map(mapProduct));
       setTotalPages(res.pagination.totalPages);
       setTotal(res.pagination.total);
       setIsApi(true);
+      setError(null);
     } catch {
       setIsApi(false);
       const { allProducts } = await import('@/data/products');
@@ -80,14 +119,15 @@ export default function ShopPage() {
       setProducts(sorted.slice(start, start + perPage));
       setTotalPages(Math.ceil(sorted.length / perPage));
       setTotal(sorted.length);
+      setError(null);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(currentPage, sortBy); }, [currentPage, sortBy, load]);
+  useEffect(() => { void Promise.resolve().then(() => load(currentPage, sortBy)); }, [currentPage, sortBy, load]);
 
-  const handleSort = (value: string) => { setSortBy(value); setCurrentPage(1); };
+  const handleSort = (value: string) => { setIsLoading(true); setSortBy(value); setCurrentPage(1); };
 
   if (error) {
     return (
@@ -172,7 +212,12 @@ export default function ShopPage() {
               <div className="grid grid-cols-1 gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3">
                 {products.map((product, index) => (
                   <ScrollReveal key={product.id} delay={(index % 3) * 0.08}>
-                    <ProductCard product={product} index={index} />
+                    <ProductCard
+                      product={product}
+                      index={index}
+                      onWishlistToggle={handleWishlistToggle}
+                      isWishlisted={isWishlistedFor(product.id)}
+                    />
                   </ScrollReveal>
                 ))}
               </div>
@@ -182,7 +227,7 @@ export default function ShopPage() {
                   <button
                     type="button"
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => p - 1)}
+                    onClick={() => { setIsLoading(true); setCurrentPage((p) => p - 1); }}
                     className="flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 text-navy transition-all hover:border-sage-dark hover:bg-sage-dark hover:text-white active:scale-90 disabled:pointer-events-none disabled:opacity-30"
                     aria-label="Previous page"
                   >
@@ -194,7 +239,7 @@ export default function ShopPage() {
                     <button
                       key={i}
                       type="button"
-                      onClick={() => setCurrentPage(i + 1)}
+                      onClick={() => { setIsLoading(true); setCurrentPage(i + 1); }}
                       className={currentPage === i + 1
                         ? 'flex h-11 w-11 items-center justify-center rounded-full bg-navy font-display text-lg text-cream'
                         : 'flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 font-display text-lg text-navy transition-all hover:border-sage hover:bg-sage/15 active:scale-90'}
@@ -205,7 +250,7 @@ export default function ShopPage() {
                   <button
                     type="button"
                     disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => p + 1)}
+                    onClick={() => { setIsLoading(true); setCurrentPage((p) => p + 1); }}
                     className="flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 text-navy transition-all hover:border-sage-dark hover:bg-sage-dark hover:text-white active:scale-90 disabled:pointer-events-none disabled:opacity-30"
                     aria-label="Next page"
                   >

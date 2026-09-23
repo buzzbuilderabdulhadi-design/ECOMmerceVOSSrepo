@@ -63,3 +63,32 @@ export function isEmail(email: string): boolean {
 export function isPhone(phone: string): boolean {
   return /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\./0-9]*$/.test(phone);
 }
+
+export interface ProductColorItem {
+  name: string;
+  hex: string;
+}
+
+// Collapses a product's variant list down to one swatch per distinct color.
+// Variants are stored per (color, size), so the same color appears once per
+// size; without this, a 6-size Black jacket would yield six identical "Black"
+// swatches and duplicate React keys. Variant rows themselves are preserved —
+// only the display swatch list is deduplicated. Entries without a hex value
+// are dropped because they cannot be rendered as a swatch.
+export function variantsToColors(
+  variants?: Array<{ color?: string; colorHex?: string }>
+): ProductColorItem[] {
+  if (!Array.isArray(variants)) return [];
+  const seen = new Set<string>();
+  const colors: ProductColorItem[] = [];
+  for (const variant of variants) {
+    const name = variant.color?.trim();
+    const hex = variant.colorHex?.trim();
+    if (!name || !hex) continue;
+    const key = `${name.toLowerCase()}|${hex.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    colors.push({ name, hex });
+  }
+  return colors;
+}

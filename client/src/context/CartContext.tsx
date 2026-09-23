@@ -6,10 +6,11 @@ import React, {
   useReducer,
   useCallback,
   useEffect,
+  useState,
   ReactNode,
 } from 'react';
 import type { Cart, CartItem, Product } from '@/types';
-import axiosInstance, { getErrorMessage } from '@/services/axios';
+import axiosInstance, { getErrorMessage, getClientSessionId, removeClientSessionId } from '@/services/axios';
 import { useAuth } from '@/context/AuthContext';
 
 // ============================================================
@@ -34,11 +35,13 @@ interface CartContextType {
   error: string | null;
   itemCount: number;
   subtotal: number;
+  pendingIds: string[];
+  isItemPending: (itemId: string) => boolean;
   addItem: (
     product: Product,
     quantity: number,
     variantId?: string
-  ) => Promise<boolean>;
+  ) => Promise<string | null>;
   updateQuantity: (itemId: string, quantity: number) => Promise<boolean>;
   removeItem: (itemId: string) => Promise<boolean>;
   clearCart: () => Promise<boolean>;
@@ -151,7 +154,21 @@ const cartReducer = (
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, initialState);
+  const [pendingIds, setPendingIds] = useState<string[]>([]);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  const markPending = useCallback((itemId: string) => {
+    setPendingIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));
+  }, []);
+
+  const clearPending = useCallback((itemId: string) => {
+    setPendingIds((prev) => prev.filter((id) => id !== itemId));
+  }, []);
+
+  const isItemPending = useCallback(
+    (itemId: string) => pendingIds.includes(itemId),
+    [pendingIds]
+  );
 
   const refreshCart = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -167,15 +184,33 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (authLoading) return;
     if (isAuthenticated) {
-      refreshCart();
+      // After login, fold the guest cart into the account cart, then load the
+      // authoritative user cart. Removing the stored session id keeps future
+      // guest carts separate from the merged account cart.
+      (async () => {
+        try {
+          if (getClientSessionId()) {
+            await axiosInstance.post('/cart/merge');
+            removeClientSessionId();
+          }
+        } catch {
+          // Merge is best-effort; the authoritative cart load below is what
+          // drives the UI either way.
+        }
+        refreshCart();
+      })();
     } else {
       dispatch({ type: 'SET_GUEST_EMPTY' });
+      // Guests store their cart under the anonymous session id; load it so a
+      // page refresh keeps showing the items picked while browsing.
+      refreshCart();
     }
-  }, [isAuthenticated, refreshCart]);
+  }, [authLoading, isAuthenticated, refreshCart]);
 
   const addItem = useCallback(
-    async (product: Product, quantity: number, variantId?: string) => {
+    async (product: Product, quantity: number, variantId?: string): Promise<string | null> => {
       dispatch({ type: 'SET_LOADING', payload: true });
       try {
         const response = await axiosInstance.post('/cart/items', {
@@ -184,13 +219,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
           quantity,
         });
         dispatch({ type: 'SET_CART', payload: response.data.data });
-        return true;
+        return null;
       } catch (error) {
+        const message = getErrorMessage(error);
         dispatch({
           type: 'SET_ERROR',
-          payload: getErrorMessage(error),
+          payload: message,
         });
-        return false;
+        return message;
       }
     },
     []
@@ -198,28 +234,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const updateQuantity = useCallback(
     async (itemId: string, quantity: number) => {
+      markPending(itemId);
       dispatch({ type: 'UPDATE_QUANTITY', payload: { id: itemId, quantity } });
       try {
-        await axiosInstance.put(`/cart/items/${itemId}`, { quantity });
+        const response = await axiosInstance.put(`/cart/items/${itemId}`, { quantity });
+        // The response is the authoritative server cart (quantity clamps,
+        // recomputed coupon discount) — reconcile local state with it.
+        dispatch({ type: 'SET_CART', payload: response.data.data });
         return true;
       } catch (error) {
-        // Revert on failure
         refreshCart();
         dispatch({
           type: 'SET_ERROR',
           payload: getErrorMessage(error),
         });
         return false;
+      } finally {
+        clearPending(itemId);
       }
     },
-    [refreshCart]
+    [refreshCart, markPending, clearPending]
   );
 
   const removeItem = useCallback(
     async (itemId: string) => {
+      markPending(itemId);
       dispatch({ type: 'REMOVE_ITEM', payload: itemId });
       try {
-        await axiosInstance.delete(`/cart/items/${itemId}`);
+        const response = await axiosInstance.delete(`/cart/items/${itemId}`);
+        dispatch({ type: 'SET_CART', payload: response.data.data });
         return true;
       } catch (error) {
         refreshCart();
@@ -228,15 +271,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
           payload: getErrorMessage(error),
         });
         return false;
+      } finally {
+        clearPending(itemId);
       }
     },
-    [refreshCart]
+    [refreshCart, markPending, clearPending]
   );
 
   const clearCart = useCallback(async () => {
-    dispatch({ type: 'CLEAR_CART' });
+    dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      await axiosInstance.delete('/cart');
+      const response = await axiosInstance.delete('/cart');
+      dispatch({ type: 'SET_CART', payload: response.data.data });
       return true;
     } catch (error) {
       dispatch({
@@ -250,14 +296,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const applyCoupon = useCallback(async (code: string) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
+      // The server responds with the full, authoritative cart — replace local
+      // state with it so coupon code + discount always match the backend.
       const response = await axiosInstance.post('/cart/coupon', { code });
-      dispatch({
-        type: 'APPLY_COUPON',
-        payload: {
-          code,
-          discount: response.data.data.discount,
-        },
-      });
+      dispatch({ type: 'SET_CART', payload: response.data.data });
       return true;
     } catch (error) {
       dispatch({
@@ -269,9 +311,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeCoupon = useCallback(async () => {
-    dispatch({ type: 'REMOVE_COUPON' });
+    dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      await axiosInstance.delete('/cart/coupon');
+      const response = await axiosInstance.delete('/cart/coupon');
+      dispatch({ type: 'SET_CART', payload: response.data.data });
       return true;
     } catch (error) {
       dispatch({
@@ -307,6 +350,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         error: state.error,
         itemCount,
         subtotal,
+        pendingIds,
+        isItemPending,
         addItem,
         updateQuantity,
         removeItem,

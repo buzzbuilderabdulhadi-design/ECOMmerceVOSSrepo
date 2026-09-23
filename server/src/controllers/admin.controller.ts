@@ -4,6 +4,19 @@ import prisma from '../config/db';
 import { sendSuccess, sendCreated, sendPaginated, sendMessage } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
 import { cacheInvalidate } from '../utils/cache';
+import { parsePagination } from '../utils/pagination';
+import { slugify, uniqueSlug } from '../utils/slugify';
+import { assertObjectId, isValidObjectId } from '../utils/objectId';
+import {
+  isManualPaymentMethod,
+  ORDER_STATUS,
+  PAYMENT_STATUS,
+  canTransitionOrder,
+  isOrderCancellable,
+  OrderStatusValue,
+  PaymentStatusValue,
+} from '../constants/order';
+import { setOrderPaid, setOrderPaymentFailed } from '../services/payment/payment-state.service';
 
 // Invalidate cached public catalog reads after any product/category/variant write.
 const invalidateCatalog = () => {
@@ -18,20 +31,60 @@ const isForeignKeyError = (error: unknown): boolean => {
   return false;
 };
 
+/** Map a Prisma unique-constraint violation into a targeted conflict error. */
+const uniqueViolation = (error: unknown, fallback: string): ApiError => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    const target = Array.isArray(error.meta?.target) ? error.meta.target : [];
+    const hint: Record<string, string> = {
+      sku: 'A product with this SKU already exists.',
+      slug: 'A record with this slug already exists.',
+      code: 'A coupon with this code already exists.',
+      email: 'A user with this email already exists.',
+      page: 'An SEO entry for this page already exists.',
+    };
+    for (const t of target) {
+      if (hint[t as string]) return ApiError.conflict(hint[t as string]);
+    }
+    return ApiError.conflict(fallback);
+  }
+  return ApiError.internal(fallback);
+};
+
 export const getDashboard = async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const [totalProducts, totalOrders, totalCustomers, totalRevenue, pendingOrders, lowStockProducts, recentOrders, recentCustomers, recentReviews] = await Promise.all([
+    const [totalProducts, activeProducts, totalOrders, totalCustomers, totalRevenue, pendingOrders, paidOrders, awaitingVerificationOrders, cancelledOrders, lowStockProducts, recentOrders, recentCustomers, recentReviews] = await Promise.all([
+      prisma.product.count(),
       prisma.product.count({ where: { isActive: true } }),
       prisma.order.count(),
       prisma.user.count({ where: { role: 'CUSTOMER' } }),
-      prisma.order.aggregate({ _sum: { total: true }, where: { paymentStatus: 'PAID' } }),
-      prisma.order.count({ where: { status: 'PENDING' } }),
+      prisma.order.aggregate({ _sum: { total: true }, where: { paymentStatus: PAYMENT_STATUS.PAID } }),
+      prisma.order.count({ where: { status: ORDER_STATUS.PENDING } }),
+      prisma.order.count({ where: { paymentStatus: PAYMENT_STATUS.PAID } }),
+      prisma.order.count({ where: { paymentStatus: PAYMENT_STATUS.AWAITING_VERIFICATION } }),
+      prisma.order.count({ where: { status: ORDER_STATUS.CANCELLED } }),
       prisma.product.count({ where: { stock: { lte: 5 } } }),
       prisma.order.findMany({ take: 5, orderBy: { createdAt: 'desc' }, include: { user: { select: { name: true, email: true } } } }),
       prisma.user.findMany({ take: 5, orderBy: { createdAt: 'desc' }, select: { id: true, name: true, email: true, avatar: true, createdAt: true } }),
       prisma.review.findMany({ take: 5, orderBy: { createdAt: 'desc' }, include: { user: { select: { name: true } }, product: { select: { name: true } } } }),
     ]);
-    sendSuccess(res, { stats: { totalProducts, totalOrders, totalCustomers, totalRevenue: totalRevenue._sum.total || 0, pendingOrders, lowStockProducts }, recentOrders, recentCustomers, recentReviews });
+    sendSuccess(res, {
+      stats: {
+        totalProducts,
+        activeProducts,
+        inactiveProducts: totalProducts - activeProducts,
+        totalOrders,
+        totalCustomers,
+        totalRevenue: totalRevenue._sum.total || 0,
+        pendingOrders,
+        paidOrders,
+        awaitingVerificationOrders,
+        cancelledOrders,
+        lowStockProducts,
+      },
+      recentOrders,
+      recentCustomers,
+      recentReviews,
+    });
   } catch (error) { next(error); }
 };
 
@@ -104,40 +157,83 @@ export const getCustomerAnalytics = async (_req: Request, res: Response, next: N
 
 export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit, skip } = parsePagination(req.query);
     const search = req.query.search as string;
     const categoryId = req.query.categoryId as string;
     const status = req.query.status as string;
     const sort = req.query.sort as string || 'createdAt';
     const order = req.query.order as string || 'desc';
     const where: any = {};
-    if (search) where.name = { contains: search, mode: 'insensitive' };
-    if (categoryId) where.categoryId = categoryId;
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (categoryId) {
+      assertObjectId(categoryId, 'category id');
+      where.categoryId = categoryId;
+    }
     if (status === 'active') where.isActive = true;
     if (status === 'inactive') where.isActive = false;
     if (status === 'lowStock') where.stock = { lte: 5 };
     if (status === 'outOfStock') where.stock = 0;
+    const ALLOWED_SORTS = ['createdAt', 'updatedAt', 'name', 'regularPrice', 'stock', 'discountPercent'];
+    const sortKey = ALLOWED_SORTS.includes(sort) ? sort : 'createdAt';
+    const sortOrder = order === 'asc' ? 'asc' : 'desc';
     const [products, total] = await Promise.all([
-      prisma.product.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { [sort]: order }, include: { category: { select: { id: true, name: true, slug: true } }, _count: { select: { reviews: true, orderItems: true } } } }),
+      prisma.product.findMany({ where, skip, take: limit, orderBy: { [sortKey]: sortOrder }, include: { category: { select: { id: true, name: true, slug: true } }, _count: { select: { reviews: true, orderItems: true } } } }),
       prisma.product.count({ where }),
     ]);
     sendPaginated(res, products, { page, limit, total });
   } catch (error) { next(error); }
 };
 
+/** Verify the referenced category exists and, if a subcategory is set, that it belongs to that category. */
+async function assertCategoryAssignments(categoryId?: string | null, subcategoryId?: string | null) {
+  if (categoryId) {
+    const category = await prisma.category.findUnique({ where: { id: categoryId }, select: { id: true } });
+    if (!category) throw ApiError.badRequest('Invalid category');
+  }
+  if (subcategoryId) {
+    const sub = await prisma.category.findUnique({ where: { id: subcategoryId }, select: { id: true, parentId: true } });
+    if (!sub) throw ApiError.badRequest('Invalid subcategory');
+    if (categoryId && sub.parentId !== categoryId) {
+      throw ApiError.badRequest('Subcategory does not belong to the selected category');
+    }
+  }
+}
+
 export const getProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const product = await prisma.product.findUnique({ where: { id }, include: { category: true, variants: true, reviews: { include: { user: { select: { name: true, avatar: true } } } } } });
+    const product = await prisma.product.findUnique({ where: { id }, include: { category: { select: { id: true, name: true, slug: true } }, variants: true, reviews: { include: { user: { select: { name: true, avatar: true } } } } } });
     if (!product) throw ApiError.notFound('Product not found');
-    sendSuccess(res, product);
+    let subcategory = null;
+    if (product.subcategoryId) {
+      subcategory = await prisma.category.findUnique({ where: { id: product.subcategoryId }, select: { id: true, name: true, slug: true } }).catch(() => null);
+    }
+    sendSuccess(res, { ...product, subcategory });
   } catch (error) { next(error); }
 };
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const product = await prisma.product.create({ data: req.body });
+    const body = req.body;
+    const { categoryId, subcategoryId, slug, ...rest } = body;
+    await assertCategoryAssignments(categoryId, subcategoryId);
+
+    let productSlug = slug || slugify(body.name);
+    productSlug = await uniqueSlug(productSlug, async (s) => {
+      const existing = await prisma.product.findUnique({ where: { slug: s }, select: { id: true } });
+      return existing !== null;
+    });
+
+    const product = await prisma.product.create({
+      data: { ...rest, categoryId, subcategoryId: subcategoryId ?? null, slug: productSlug },
+    }).catch((error) => {
+      throw uniqueViolation(error, 'A product with these details already exists.');
+    });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_PRODUCT', entity: 'Product', entityId: product.id } });
     invalidateCatalog();
     sendCreated(res, product, 'Product created successfully');
@@ -147,7 +243,32 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const product = await prisma.product.update({ where: { id }, data: req.body });
+    const { categoryId, subcategoryId, slug, sku, ...rest } = req.body;
+    if (categoryId !== undefined || subcategoryId !== undefined) {
+      const current = await prisma.product.findUnique({ where: { id }, select: { categoryId: true, subcategoryId: true } });
+      if (!current) throw ApiError.notFound('Product not found');
+      await assertCategoryAssignments(
+        categoryId !== undefined ? categoryId : current.categoryId,
+        subcategoryId !== undefined ? subcategoryId : current.subcategoryId
+      );
+    }
+
+    const data: any = { ...rest };
+    if (categoryId !== undefined) data.categoryId = categoryId;
+    if (subcategoryId !== undefined) data.subcategoryId = subcategoryId ?? null;
+    if (slug !== undefined && slug !== '') data.slug = await uniqueSlug(`${slug}`, async (s) => {
+      const existing = await prisma.product.findUnique({ where: { slug: s }, select: { id: true } });
+      return existing !== null && existing.id !== id;
+    });
+    if (sku !== undefined && sku !== null && sku !== '') data.sku = sku;
+
+    const product = await prisma.product.update({ where: { id }, data })
+      .catch((error) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+          throw ApiError.notFound('Product not found');
+        }
+        throw uniqueViolation(error, 'A product with these details already exists.');
+      });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_PRODUCT', entity: 'Product', entityId: product.id } });
     invalidateCatalog();
     sendSuccess(res, product, 'Product updated successfully');
@@ -169,8 +290,13 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
       sendMessage(res, 'Product deactivated (it has order history and cannot be permanently deleted)');
       return;
     }
+    // Hard delete only when nothing depends on it. MongoDB enforces no
+    // referential actions, so remove dependent documents explicitly first.
     await prisma.review.deleteMany({ where: { productId: id } });
     await prisma.productVariant.deleteMany({ where: { productId: id } });
+    await prisma.wishlistItem.deleteMany({ where: { productId: id } });
+    await prisma.cartItem.deleteMany({ where: { productId: id } });
+    await prisma.productQuestion.deleteMany({ where: { productId: id } });
     await prisma.product.delete({ where: { id } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT', entity: 'Product', entityId: id } });
     invalidateCatalog();
@@ -181,18 +307,46 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
 export const bulkDeleteProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { ids } = req.body;
-    await prisma.product.deleteMany({ where: { id: { in: ids } } });
-    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'BULK_DELETE_PRODUCTS', entity: 'Product', metadata: { count: ids.length } } });
+    let hardDeleted = 0;
+    let deactivated = 0;
+    for (const id of ids as string[]) {
+      const orderItemCount = await prisma.orderItem.count({ where: { productId: id } });
+      if (orderItemCount > 0) {
+        await prisma.product.update({ where: { id }, data: { isActive: false } });
+        deactivated++;
+      } else {
+        await prisma.review.deleteMany({ where: { productId: id } });
+        await prisma.productVariant.deleteMany({ where: { productId: id } });
+        await prisma.wishlistItem.deleteMany({ where: { productId: id } });
+        await prisma.cartItem.deleteMany({ where: { productId: id } });
+        await prisma.productQuestion.deleteMany({ where: { productId: id } });
+        await prisma.product.delete({ where: { id } });
+        hardDeleted++;
+      }
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'BULK_DELETE_PRODUCTS', entity: 'Product', metadata: { count: ids.length, hardDeleted, deactivated } } });
     invalidateCatalog();
-    sendMessage(res, `${ids.length} products deleted successfully`);
+    sendMessage(res, `${ids.length} products processed (${hardDeleted} deleted, ${deactivated} deactivated due to order history)`);
   } catch (error) { next(error); }
 };
 
 export const bulkUpdateProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { ids, data } = req.body;
-    await prisma.product.updateMany({ where: { id: { in: ids } }, data });
-    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'BULK_UPDATE_PRODUCTS', entity: 'Product', metadata: { count: ids.length, update: data } } });
+    const update: any = {};
+    const allowed: Record<string, (v: any) => unknown> = {
+      regularPrice: (v) => v, salePrice: (v) => v, discountPercent: (v) => v, stock: (v) => v,
+      isActive: (v) => v, isBestSeller: (v) => v, isNew: (v) => v, isFeatured: (v) => v,
+      isLimitedEdition: (v) => v, lowStockThreshold: (v) => v,
+    };
+    for (const key of Object.keys(data)) {
+      if (allowed[key]) update[key] = data[key];
+    }
+    if (Object.keys(update).length === 0) {
+      throw ApiError.badRequest('No valid bulk update fields provided.');
+    }
+    await prisma.product.updateMany({ where: { id: { in: ids } }, data: update });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'BULK_UPDATE_PRODUCTS', entity: 'Product', metadata: { count: ids.length, update } } });
     invalidateCatalog();
     sendMessage(res, `${ids.length} products updated successfully`);
   } catch (error) { next(error); }
@@ -203,28 +357,75 @@ export const duplicateProduct = async (req: Request, res: Response, next: NextFu
     const id = req.params.id as string;
     const original = await prisma.product.findUnique({ where: { id }, include: { variants: true } });
     if (!original) throw ApiError.notFound('Product not found');
-    const { createdAt, updatedAt, variants, ...productData } = original;
+    const { createdAt, updatedAt, variants, reviews, orderItems, cartItems, wishlist, questions, id: _ignored, ...productData } = original as any;
+    const newSlug = await uniqueSlug(`${productData.slug}-copy`, async (s) => {
+      const existing = await prisma.product.findUnique({ where: { slug: s }, select: { id: true } });
+      return existing !== null;
+    });
+    const newSku = await uniqueSlug(`${String(productData.sku).slice(0, 90)}-COPY`, async (s) => {
+      const existing = await prisma.product.findUnique({ where: { sku: s }, select: { id: true } });
+      return existing !== null;
+    });
     const duplicate = await prisma.product.create({
       data: {
         ...productData,
         name: `${productData.name} (Copy)`,
-        slug: `${productData.slug}-copy-${Date.now()}`,
-        sku: `${productData.sku}-COPY`,
-        specifications: productData.specifications !== null ? productData.specifications : undefined,
+        slug: newSlug,
+        sku: newSku,
+        specifications: productData.specifications !== null && productData.specifications !== undefined ? productData.specifications : undefined,
       } as any,
     });
+
+    if (variants && variants.length > 0) {
+      for (const v of variants) {
+        const { productId, id: _vId, sku: _vSku, ...variantData } = v as any;
+        let vSku = `${newSku}-${String(variantData.color).slice(0, 12)}-${String(variantData.size).slice(0, 12)}`;
+        vSku = await uniqueSlug(vSku, async (s) => {
+          const existing = await prisma.productVariant.findUnique({ where: { sku: s }, select: { id: true } });
+          return existing !== null;
+        });
+        await prisma.productVariant.create({
+          data: { ...variantData, sku: vSku, productId: duplicate.id },
+        });
+      }
+    }
+
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DUPLICATE_PRODUCT', entity: 'Product', entityId: duplicate.id } });
     invalidateCatalog();
     sendCreated(res, duplicate, 'Product duplicated successfully');
   } catch (error) { next(error); }
 };
 
+const variantUniqueViolation = (error: unknown): ApiError => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    return ApiError.conflict('A variant with this color/size combination or SKU already exists for this product.');
+  }
+  return ApiError.internal('Could not save variant.');
+};
+
+const pickVariantFields = (body: Record<string, unknown>): Record<string, any> => {
+  const allowed = ['color', 'colorHex', 'size', 'stock', 'priceOverride', 'images', 'isActive', 'sku'];
+  return Object.fromEntries(allowed.filter((k) => k in body).map((k) => [k, (body as any)[k]]));
+};
+
 export const createProductVariant = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const productId = req.params.id as string;
-    const product = await prisma.product.findUnique({ where: { id: productId } });
+    const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true, sku: true } });
     if (!product) throw ApiError.notFound('Product not found');
-    const variant = await prisma.productVariant.create({ data: { ...req.body, productId } });
+    const { color, colorHex, size, stock, priceOverride, images, isActive, sku } = req.body as any;
+    let variantSku = sku;
+    if (!variantSku || variantSku.trim() === '') {
+      variantSku = `${product.sku}-${String(color).slice(0, 12)}-${String(size).slice(0, 12)}`;
+    }
+    let finalSku = variantSku as string;
+    const exists = await prisma.productVariant.findFirst({ where: { sku: finalSku }, select: { id: true } });
+    if (exists) {
+      throw ApiError.conflict('A variant with this SKU already exists.');
+    }
+    const variant = await prisma.productVariant.create({ data: { color, colorHex, size, stock, priceOverride, images, isActive, sku: finalSku, productId } }).catch((error) => {
+      throw variantUniqueViolation(error);
+    });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: variant.id, metadata: { productId } } });
     invalidateCatalog();
     sendCreated(res, variant, 'Variant created');
@@ -233,32 +434,61 @@ export const createProductVariant = async (req: Request, res: Response, next: Ne
 
 export const updateProductVariant = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const productId = req.params.productId as string;
     const id = req.params.id as string;
-    const variant = await prisma.productVariant.update({ where: { id }, data: req.body });
-    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: variant.id } });
+    const variant = await prisma.productVariant.findUnique({ where: { id }, select: { id: true, productId: true } });
+    if (!variant) throw ApiError.notFound('Variant not found');
+    if (variant.productId !== productId) {
+      throw ApiError.badRequest('Variant does not belong to this product');
+    }
+    const updated = await prisma.productVariant.update({ where: { id }, data: pickVariantFields(req.body) }).catch((error) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw ApiError.notFound('Variant not found');
+      }
+      throw variantUniqueViolation(error);
+    });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: id, metadata: { productId } } });
     invalidateCatalog();
-    sendSuccess(res, variant, 'Variant updated');
+    sendSuccess(res, updated, 'Variant updated');
   } catch (error) { next(error); }
 };
 
 export const deleteProductVariant = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const productId = req.params.productId as string;
     const id = req.params.id as string;
-    try {
-      await prisma.productVariant.delete({ where: { id } });
-    } catch (error) {
-      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete variant: it has related order items or cart entries');
-      throw error;
+    const variant = await prisma.productVariant.findUnique({ where: { id }, select: { id: true, productId: true } });
+    if (!variant) throw ApiError.notFound('Variant not found');
+    if (variant.productId !== productId) {
+      throw ApiError.badRequest('Variant does not belong to this product');
     }
-    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: id } });
+    const cartUse = await prisma.cartItem.count({ where: { variantId: id } });
+    const orderUse = await prisma.orderItem.count({ where: { variantId: id } });
+    if (orderUse > 0) {
+      throw ApiError.badRequest('Cannot delete variant: it is referenced by past orders');
+    }
+    if (cartUse > 0) {
+      await prisma.cartItem.deleteMany({ where: { variantId: id } });
+    }
+    await prisma.wishlistItem.deleteMany({ where: { variantId: id } });
+    await prisma.productVariant.delete({ where: { id } });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_PRODUCT_VARIANT', entity: 'ProductVariant', entityId: id, metadata: { productId } } });
     invalidateCatalog();
     sendMessage(res, 'Variant deleted');
   } catch (error) { next(error); }
 };
 
-export const getCategories = async (_req: Request, res: Response, next: NextFunction) => {
+export const getCategories = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const categories = await prisma.category.findMany({ orderBy: { displayOrder: 'asc' }, include: { _count: { select: { products: true } }, children: true } });
+    const { search } = req.query;
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    const categories = await prisma.category.findMany({ where, orderBy: { displayOrder: 'asc' }, include: { _count: { select: { products: true } }, children: true } });
     sendSuccess(res, categories);
   } catch (error) { next(error); }
 };
@@ -274,7 +504,21 @@ export const getCategory = async (req: Request, res: Response, next: NextFunctio
 
 export const createCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const category = await prisma.category.create({ data: req.body });
+    const { name, slug, parentId, ...rest } = req.body;
+    if (parentId) {
+      const parent = await prisma.category.findUnique({ where: { id: parentId }, select: { id: true } });
+      if (!parent) throw ApiError.badRequest('Parent category not found');
+    }
+    const categorySlug = await uniqueSlug(slug || name, async (s) => {
+      const existing = await prisma.category.findUnique({ where: { slug: s }, select: { id: true } });
+      return existing !== null;
+    });
+    const category = await prisma.category.create({ data: { name, slug: categorySlug, ...(parentId ? { parentId } : {}), ...rest } }).catch((error) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw ApiError.conflict('A category with this slug already exists.');
+      }
+      throw error;
+    });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_CATEGORY', entity: 'Category', entityId: category.id } });
     invalidateCatalog();
     sendCreated(res, category, 'Category created successfully');
@@ -284,7 +528,35 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
 export const updateCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const category = await prisma.category.update({ where: { id }, data: req.body });
+    const { parentId, slug, ...rest } = req.body;
+
+    if (parentId === id) {
+      throw ApiError.badRequest('A category cannot be its own parent');
+    }
+    const data: any = { ...rest };
+    if (parentId !== undefined) {
+      if (parentId) {
+        const parent = await prisma.category.findUnique({ where: { id: parentId }, select: { id: true } });
+        if (!parent) throw ApiError.badRequest('Parent category not found');
+      }
+      data.parentId = parentId || null;
+    }
+    if (slug !== undefined && slug !== '') {
+      data.slug = await uniqueSlug(slug, async (s) => {
+        const existing = await prisma.category.findUnique({ where: { slug: s }, select: { id: true } });
+        return existing !== null && existing.id !== id;
+      });
+    }
+
+    const category = await prisma.category.update({ where: { id }, data }).catch((error) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw ApiError.notFound('Category not found');
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw ApiError.conflict('A category with this slug already exists.');
+      }
+      throw error;
+    });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_CATEGORY', entity: 'Category', entityId: category.id } });
     invalidateCatalog();
     sendSuccess(res, category, 'Category updated successfully');
@@ -294,12 +566,14 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
 export const deleteCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const [productCount, childCount] = await Promise.all([
+    const [productCount, subcategoryProductCount, childCount] = await Promise.all([
       prisma.product.count({ where: { categoryId: id } }),
+      prisma.product.count({ where: { subcategoryId: id } }),
       prisma.category.count({ where: { parentId: id } }),
     ]);
-    if (productCount > 0 || childCount > 0) {
-      throw ApiError.badRequest(`Cannot delete category: it has ${productCount} products and ${childCount} subcategories. Move or delete them first.`);
+    if (productCount > 0 || subcategoryProductCount > 0 || childCount > 0) {
+      const total = productCount + subcategoryProductCount + childCount;
+      throw ApiError.badRequest(`Cannot delete category: it has ${total} products or subcategories referencing it. Move or delete them first.`);
     }
     await prisma.category.delete({ where: { id } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_CATEGORY', entity: 'Category', entityId: id } });
@@ -310,15 +584,21 @@ export const deleteCategory = async (req: Request, res: Response, next: NextFunc
 
 export const getOrders = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit, skip } = parsePagination(req.query);
     const status = req.query.status as string;
+    const paymentStatus = req.query.paymentStatus as string;
     const search = req.query.search as string;
     const where: any = {};
     if (status) where.status = status;
-    if (search) where.orderNumber = { contains: search, mode: 'insensitive' };
+    if (paymentStatus) where.paymentStatus = paymentStatus;
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: search, mode: 'insensitive' } },
+        { ...(isValidObjectId(search) ? { id: search } : {}) },
+      ];
+    }
     const [orders, total] = await Promise.all([
-      prisma.order.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true, email: true } }, items: true } }),
+      prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true, email: true } }, _count: { select: { items: true } } } }),
       prisma.order.count({ where }),
     ]);
     sendPaginated(res, orders, { page, limit, total });
@@ -328,9 +608,13 @@ export const getOrders = async (req: Request, res: Response, next: NextFunction)
 export const getOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const order = await prisma.order.findUnique({ where: { id }, include: { user: { select: { id: true, name: true, email: true, phone: true, avatar: true } }, shippingAddress: true, items: { include: { product: true, variant: true } } } });
+    const order = await prisma.order.findUnique({ where: { id }, include: { user: { select: { id: true, name: true, email: true, phone: true, avatar: true } }, shippingAddress: true, items: { include: { product: { select: { id: true, name: true, slug: true, images: true } }, variant: true } } } });
     if (!order) throw ApiError.notFound('Order not found');
-    sendSuccess(res, order);
+    let verifiedByUser = null;
+    if (order.paymentVerifiedBy) {
+      verifiedByUser = await prisma.user.findUnique({ where: { id: order.paymentVerifiedBy }, select: { id: true, name: true } }).catch(() => null);
+    }
+    sendSuccess(res, { ...order, verifiedByUser });
   } catch (error) { next(error); }
 };
 
@@ -338,8 +622,29 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
   try {
     const id = req.params.id as string;
     const { status, trackingNumber, notes } = req.body;
-    const order = await prisma.order.update({ where: { id }, data: { ...(status && { status }), ...(trackingNumber && { trackingNumber }), ...(notes && { internalNotes: notes }) } });
-    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_ORDER_STATUS', entity: 'Order', entityId: order.id, metadata: { status } } });
+    const current = await prisma.order.findUnique({ where: { id }, select: { id: true, status: true, paymentStatus: true } });
+    if (!current) throw ApiError.notFound('Order not found');
+
+    if (status) {
+      const from = current.status as OrderStatusValue;
+      const to = status as OrderStatusValue;
+      if (!canTransitionOrder(from, to)) {
+        throw ApiError.badRequest(`Cannot move order from ${from} to ${status}.`);
+      }
+      if (to === ORDER_STATUS.CANCELLED && !isOrderCancellable(current.paymentStatus as PaymentStatusValue)) {
+        throw ApiError.badRequest('This order is already paid. Issue a refund instead of cancelling.');
+      }
+    }
+
+    const order = await prisma.order.update({
+      where: { id },
+      data: {
+        ...(status && { status }),
+        ...(trackingNumber !== undefined && { trackingNumber: trackingNumber || null }),
+        ...(notes !== undefined && { internalNotes: notes }),
+      },
+    });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_ORDER_STATUS', entity: 'Order', entityId: order.id, metadata: { from: current.status, to: status || current.status } } });
     sendSuccess(res, order, 'Order status updated');
   } catch (error) { next(error); }
 };
@@ -347,26 +652,92 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
 export const deleteOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    try {
-      await prisma.order.delete({ where: { id } });
-    } catch (error) {
-      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete order: it has related items');
-      throw error;
+    const order = await prisma.order.findUnique({ where: { id }, select: { id: true, paymentStatus: true } });
+    if (!order) throw ApiError.notFound('Order not found');
+    if (order.paymentStatus === PAYMENT_STATUS.PAID) {
+      throw ApiError.badRequest('Cannot delete a paid order. Refund or archive it instead.');
     }
+    // MongoDB enforces no referential actions: remove dependent docs explicitly.
+    await prisma.orderItem.deleteMany({ where: { orderId: id } });
+    await prisma.paymentEvent.deleteMany({ where: { orderId: id } });
+    await prisma.order.delete({ where: { id } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_ORDER', entity: 'Order', entityId: id } });
     sendMessage(res, 'Order deleted');
   } catch (error) { next(error); }
 };
 
+/**
+ * Admin verification of a manual payment (bank transfer / Payoneer). Only
+ * admins can confirm settlement; the guarded state transitions enforce that
+ * a verified payment is the sole path to PAID for manual orders.
+ */
+export const verifyOrderPayment = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const desired = req.body.status === 'FAILED' ? PAYMENT_STATUS.FAILED : PAYMENT_STATUS.PAID;
+    const adminId = req.user?.userId;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: {
+        id: true, orderNumber: true, paymentStatus: true, paymentMethod: true,
+        paymentReference: true, status: true,
+      },
+    });
+    if (!order) throw ApiError.notFound('Order not found');
+    let isManual = false;
+    try {
+      isManual = isManualPaymentMethod(order.paymentMethod ?? '');
+    } catch {
+      isManual = false;
+    }
+    if (!isManual) {
+      throw ApiError.badRequest('Only manual payment methods (bank transfer / Payoneer) can be verified this way.');
+    }
+
+    if (order.paymentStatus === desired) {
+      sendSuccess(res, order, 'Payment already verified');
+      return;
+    }
+
+    let moved = false;
+    if (desired === PAYMENT_STATUS.PAID) {
+      moved = await setOrderPaid(order.id, { verifiedBy: adminId, verifiedAt: new Date() });
+    } else {
+      moved = await setOrderPaymentFailed(order.id);
+    }
+
+    if (!moved) {
+      throw ApiError.badRequest('This payment cannot be moved to that status.');
+    }
+
+    await prisma.activityLog.create({
+      data: {
+        userId: adminId,
+        action: 'VERIFY_PAYMENT',
+        entity: 'Order',
+        entityId: order.id,
+        metadata: { status: desired, orderNumber: order.orderNumber },
+      },
+    });
+
+    const updated = await prisma.order.findUnique({ where: { id }, select: { id: true, paymentStatus: true, paymentVerifiedBy: true, paymentVerifiedAt: true } });
+    let verifiedByUser = null;
+    if (updated?.paymentVerifiedBy) {
+      verifiedByUser = await prisma.user.findUnique({ where: { id: updated.paymentVerifiedBy }, select: { id: true, name: true } }).catch(() => null);
+    }
+    sendSuccess(res, { ...updated, verifiedByUser }, desired === PAYMENT_STATUS.PAID ? 'Payment verified as paid' : 'Payment marked as failed');
+  } catch (error) { next(error); }
+};
+
 export const getCustomers = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit, skip } = parsePagination(req.query);
     const search = req.query.search as string;
     const where: any = { role: 'CUSTOMER' };
     if (search) { where.OR = [{ name: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }]; }
     const [customers, total] = await Promise.all([
-      prisma.user.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, select: { id: true, name: true, email: true, avatar: true, phone: true, createdAt: true, _count: { select: { orders: true, reviews: true } } } }),
+      prisma.user.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, select: { id: true, name: true, email: true, avatar: true, phone: true, createdAt: true, _count: { select: { orders: true, reviews: true } } } }),
       prisma.user.count({ where }),
     ]);
     sendPaginated(res, customers, { page, limit, total });
@@ -393,7 +764,7 @@ export const updateCustomer = async (req: Request, res: Response, next: NextFunc
   try {
     const id = req.params.id as string;
     const { name, phone, emailVerified } = req.body;
-    const customer = await prisma.user.update({ where: { id }, data: { ...(name && { name }), ...(phone !== undefined && { phone }), ...(emailVerified !== undefined && { emailVerified }) }, select: { id: true, name: true, email: true, phone: true, avatar: true, emailVerified: true } });
+    const customer = await prisma.user.update({ where: { id }, data: { ...(name !== undefined && { name }), ...(phone !== undefined && { phone }), ...(emailVerified !== undefined && { emailVerified }) }, select: { id: true, name: true, email: true, phone: true, avatar: true, emailVerified: true } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_CUSTOMER', entity: 'Customer', entityId: customer.id } });
     sendSuccess(res, customer, 'Customer updated');
   } catch (error) { next(error); }
@@ -402,12 +773,33 @@ export const updateCustomer = async (req: Request, res: Response, next: NextFunc
 export const deleteCustomer = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    try {
-      await prisma.user.delete({ where: { id } });
-    } catch (error) {
-      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete customer: they have related orders, reviews, or wishlist items');
-      throw error;
+    if (id === req.user?.userId) {
+      throw ApiError.badRequest('You cannot delete your own account.');
     }
+    const [orderCount, reviewCount, wishlistCount, cartCount, addressCount, questionCount, notificationCount] = await Promise.all([
+      prisma.order.count({ where: { userId: id } }),
+      prisma.review.count({ where: { userId: id } }),
+      prisma.wishlistItem.count({ where: { userId: id } }),
+      prisma.cart.count({ where: { userId: id } }),
+      prisma.address.count({ where: { userId: id } }),
+      prisma.productQuestion.count({ where: { userId: id } }),
+      prisma.notification.count({ where: { userId: id } }),
+    ]);
+    if (orderCount > 0) {
+      throw ApiError.badRequest('Cannot delete this customer: they have order history. Consider deactivating instead.');
+    }
+    if (questionCount > 0) await prisma.productQuestion.deleteMany({ where: { userId: id } });
+    if (reviewCount > 0) await prisma.review.deleteMany({ where: { userId: id } });
+    if (wishlistCount > 0) await prisma.wishlistItem.deleteMany({ where: { userId: id } });
+    if (cartCount > 0) {
+      const carts = await prisma.cart.findMany({ where: { userId: id }, select: { id: true } });
+      await prisma.cartItem.deleteMany({ where: { cartId: { in: carts.map((c) => c.id) } } });
+      await prisma.cart.deleteMany({ where: { userId: id } });
+    }
+    if (addressCount > 0) await prisma.address.deleteMany({ where: { userId: id } });
+    if (notificationCount > 0) await prisma.notification.deleteMany({ where: { userId: id } });
+    await prisma.activityLog.deleteMany({ where: { userId: id } });
+    await prisma.user.delete({ where: { id } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_CUSTOMER', entity: 'Customer', entityId: id } });
     cacheInvalidate(`auth:user:${id}`);
     sendMessage(res, 'Customer deleted');
@@ -416,14 +808,21 @@ export const deleteCustomer = async (req: Request, res: Response, next: NextFunc
 
 export const getReviews = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit, skip } = parsePagination(req.query);
     const status = req.query.status as string;
+    const search = req.query.search as string;
     const where: any = {};
     if (status === 'pending') where.isApproved = false;
     if (status === 'approved') where.isApproved = true;
+    if (search) {
+      where.OR = [
+        { text: { contains: search, mode: 'insensitive' } },
+        { product: { name: { contains: search, mode: 'insensitive' } } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
     const [reviews, total] = await Promise.all([
-      prisma.review.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true, avatar: true } }, product: { select: { id: true, name: true, slug: true } } } }),
+      prisma.review.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true, avatar: true } }, product: { select: { id: true, name: true, slug: true } } } }),
       prisma.review.count({ where }),
     ]);
     sendPaginated(res, reviews, { page, limit, total });
@@ -456,9 +855,16 @@ export const deleteReview = async (req: Request, res: Response, next: NextFuncti
 
 export const getCoupons = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const [coupons, total] = await Promise.all([prisma.coupon.findMany({ skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }), prisma.coupon.count()]);
+    const { page, limit, skip } = parsePagination(req.query);
+    const search = req.query.search as string;
+    const where: any = {};
+    if (search) {
+      where.code = { contains: search.toUpperCase(), mode: 'insensitive' };
+    }
+    const [coupons, total] = await Promise.all([
+      prisma.coupon.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+      prisma.coupon.count({ where }),
+    ]);
     sendPaginated(res, coupons, { page, limit, total });
   } catch (error) { next(error); }
 };
@@ -472,9 +878,28 @@ export const getCoupon = async (req: Request, res: Response, next: NextFunction)
   } catch (error) { next(error); }
 };
 
+const couponCodeFromBody = (body: any): { code?: string; expiresAt?: Date; rest: any } => {
+  const { code, expiresAt, ...rest } = body;
+  const clean: { code?: string; expiresAt?: Date; rest: any } = { rest };
+  if (typeof code === 'string' && code.trim() !== '') clean.code = code.trim().toUpperCase();
+  if (typeof expiresAt === 'string' && expiresAt.trim() !== '') {
+    const date = new Date(expiresAt);
+    if (Number.isNaN(date.getTime())) throw ApiError.badRequest('Invalid expiry date');
+    clean.expiresAt = date;
+  }
+  return clean;
+};
+
 export const createCoupon = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const coupon = await prisma.coupon.create({ data: req.body });
+    const { code, expiresAt, rest } = couponCodeFromBody(req.body);
+    if (!code) throw ApiError.badRequest('Coupon code is required');
+    const coupon = await prisma.coupon.create({ data: { ...rest, code, ...(expiresAt ? { expiresAt } : {}) } }).catch((error) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw ApiError.conflict('A coupon with this code already exists.');
+      }
+      throw error;
+    });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CREATE_COUPON', entity: 'Coupon', entityId: coupon.id } });
     sendCreated(res, coupon, 'Coupon created');
   } catch (error) { next(error); }
@@ -483,7 +908,16 @@ export const createCoupon = async (req: Request, res: Response, next: NextFuncti
 export const updateCoupon = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const coupon = await prisma.coupon.update({ where: { id }, data: req.body });
+    const { code, expiresAt, rest } = couponCodeFromBody(req.body);
+    const coupon = await prisma.coupon.update({ where: { id }, data: { ...rest, ...(code ? { code } : {}), ...(expiresAt !== undefined && { expiresAt }) } }).catch((error) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw ApiError.notFound('Coupon not found');
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw ApiError.conflict('A coupon with this code already exists.');
+      }
+      throw error;
+    });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_COUPON', entity: 'Coupon', entityId: coupon.id } });
     sendSuccess(res, coupon, 'Coupon updated');
   } catch (error) { next(error); }
@@ -517,24 +951,38 @@ export const uploadMedia = async (req: Request, res: Response, next: NextFunctio
   try {
     let media;
     if (req.file) {
-      const { v2: cloudinary } = require('cloudinary');
+      // Cloudinary is optional at runtime: if credentials are configured we
+      // upload to the CDN, otherwise fall back to serving the file locally.
       const config = require('../config').default;
-      cloudinary.config({ cloud_name: config.cloudinary.name, api_key: config.cloudinary.apiKey, api_secret: config.cloudinary.apiSecret });
-      const folder = (req.body.folder as string) || 'general';
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: `voss/${folder}`,
-        resource_type: 'auto',
-      });
+      let url = `/uploads/${req.file.filename}`;
+      let publicId: string | null = null;
+      let width: number | null = null;
+      let height: number | null = null;
+
+      if (config.cloudinary && config.cloudinary.name && config.cloudinary.apiKey && config.cloudinary.apiSecret) {
+        const { v2: cloudinary } = require('cloudinary');
+        cloudinary.config({ cloud_name: config.cloudinary.name, api_key: config.cloudinary.apiKey, api_secret: config.cloudinary.apiSecret });
+        const folder = (req.body.folder as string) || 'general';
+        const result = await cloudinary.uploader.upload(req.file.path, {
+          folder: `voss/${folder}`,
+          resource_type: 'auto',
+        });
+        url = result.secure_url;
+        publicId = result.public_id;
+        width = result.width ?? null;
+        height = result.height ?? null;
+      }
+
       media = await prisma.media.create({
         data: {
           fileName: req.file.originalname,
-          url: result.secure_url,
-          publicId: result.public_id,
+          url,
+          publicId,
           mimeType: req.file.mimetype,
           size: req.file.size,
-          width: result.width,
-          height: result.height,
-          folder,
+          width,
+          height,
+          folder: (req.body.folder as string) || 'general',
           altText: (req.body.altText as string) || req.file.originalname,
           uploadedBy: req.user?.userId,
         },
@@ -618,13 +1066,19 @@ export const updateSeoEntry = async (req: Request, res: Response, next: NextFunc
 
 export const getNotifications = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const [notifications, total] = await Promise.all([
-      prisma.notification.findMany({ skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+    const { page, limit, skip } = parsePagination(req.query);
+    const [notifications, total, unreadCount] = await Promise.all([
+      prisma.notification.findMany({ skip, take: limit, orderBy: { createdAt: 'desc' } }),
       prisma.notification.count(),
+      prisma.notification.count({ where: { isRead: false } }),
     ]);
-    sendPaginated(res, notifications, { page, limit, total });
+    const totalPages = Math.ceil(total / limit);
+    res.status(200).json({
+      success: true,
+      data: notifications,
+      unreadCount,
+      pagination: { page, limit, total, totalPages, hasNextPage: page < totalPages, hasPrevPage: page > 1 },
+    });
   } catch (error) { next(error); }
 };
 
@@ -644,14 +1098,16 @@ export const markAllNotificationsRead = async (_req: Request, res: Response, nex
 
 export const getActivityLogs = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit, skip } = parsePagination(req.query);
     const where: any = {};
-    if (req.query.userId) where.userId = req.query.userId as string;
+    if (req.query.userId) {
+      if (!isValidObjectId(req.query.userId as string)) throw ApiError.badRequest('Invalid user id format.');
+      where.userId = req.query.userId as string;
+    }
     if (req.query.entity) where.entity = req.query.entity as string;
     if (req.query.action) where.action = req.query.action as string;
     const [logs, total] = await Promise.all([
-      prisma.activityLog.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true } } } }),
+      prisma.activityLog.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true } } } }),
       prisma.activityLog.count({ where }),
     ]);
     sendPaginated(res, logs, { page, limit, total });
@@ -660,8 +1116,9 @@ export const getActivityLogs = async (req: Request, res: Response, next: NextFun
 
 export const clearActivityLogs = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CLEAR_ACTIVITY_LOGS', entity: 'ActivityLog', metadata: { clearedAt: new Date().toISOString() } } });
+    const clearedCount = await prisma.activityLog.count();
     await prisma.activityLog.deleteMany();
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'CLEAR_ACTIVITY_LOGS', entity: 'ActivityLog', metadata: { clearedAt: new Date().toISOString(), clearedCount } } });
     sendMessage(res, 'Activity logs cleared');
   } catch (error) { next(error); }
 };

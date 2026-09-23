@@ -7,21 +7,24 @@ import { WhyChooseZoya } from '@/components/shared/WhyChooseZoya';
 import { NewsletterSection } from '@/components/shared/NewsletterSection';
 import { allProducts } from '@/data/products';
 import { pageMetadata } from '@/lib/seo';
+import { variantsToColors } from '@/lib/utils';
 import type { Metadata } from 'next';
+import type { ApiResponse, Product } from '@/types';
 import type { ProductCardData } from '@/components/product/ProductCard';
+import type { ProductData } from '@/data/products';
 
 export const metadata: Metadata = pageMetadata({ path: '/' });
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-function mapProduct(p: any): ProductCardData {
+function mapApiProduct(p: Product): ProductCardData {
   const firstImage = p.images?.[0];
   return {
     id: p.id,
     name: p.name,
     slug: p.slug,
     image: typeof firstImage === 'string' ? firstImage : firstImage?.url || '',
-    images: p.images?.map((i: any) => typeof i === 'string' ? i : i.url) || [],
+    images: p.images?.map((i) => (typeof i === 'string' ? i : i.url)) || [],
     regularPrice: p.regularPrice,
     salePrice: p.salePrice ?? undefined,
     discountPercent: p.discountPercent,
@@ -29,11 +32,30 @@ function mapProduct(p: any): ProductCardData {
     isBestSeller: p.isBestSeller,
     brand: p.brand,
     category: p.category?.name,
-    colors: p.variants?.map((v: any) => ({ name: v.color, hex: v.colorHex })).filter((v: any) => v.hex),
+    colors: variantsToColors(p.variants),
+    defaultVariantId: p.variants?.find((v) => v.isActive)?.id,
   };
 }
 
-const fallbackProducts: ProductCardData[] = allProducts.slice(0, 8).map(mapProduct);
+function mapFallbackProduct(p: ProductData): ProductCardData {
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    image: p.image,
+    images: p.images,
+    regularPrice: p.regularPrice,
+    salePrice: p.salePrice ?? undefined,
+    discountPercent: p.discountPercent,
+    isNew: p.isNew,
+    isBestSeller: p.isBestSeller,
+    brand: p.brand,
+    category: p.category,
+    colors: p.colors,
+  };
+}
+
+const fallbackProducts: ProductCardData[] = allProducts.slice(0, 8).map(mapFallbackProduct);
 
 async function getFeaturedProducts(): Promise<ProductCardData[]> {
   try {
@@ -46,11 +68,10 @@ async function getFeaturedProducts(): Promise<ProductCardData[]> {
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`Featured products fetch failed: ${res.status}`);
-      const json: any = await res.json();
-      const items: any[] = json?.data;
-      if (!Array.isArray(items)) throw new Error('Featured products response is not an array');
+      const json: ApiResponse<Product[]> = await res.json();
+      const items: Product[] = Array.isArray(json?.data) ? json.data : [];
       if (items.length === 0) return fallbackProducts;
-      return items.map(mapProduct);
+      return items.map(mapApiProduct);
     } finally {
       clearTimeout(timeout);
     }

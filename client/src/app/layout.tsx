@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { AppProvider } from "@/context/AppProvider";
-import { CustomCursor } from "@/components/animations/CustomCursor";
 import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import {
   DEFAULT_DESCRIPTION,
@@ -110,7 +109,6 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
         />
         <AppProvider>
-          <CustomCursor />
           <LoadingScreen />
           {children}
           <Toaster

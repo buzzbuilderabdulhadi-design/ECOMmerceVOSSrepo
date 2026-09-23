@@ -1,12 +1,38 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import adminApi from '@/services/admin';
-import { generateSlug } from '@/lib/utils';
+import { generateSlug, formatPrice } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/services/axios';
 import { Category } from '@/types';
+import Modal from '@/components/admin/Modal';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
+
+interface ProductVariant {
+  id: string;
+  productId: string;
+  color: string;
+  colorHex?: string | null;
+  size: string;
+  stock: number;
+  priceOverride?: number | null;
+  images: Array<{ url: string } | string>;
+  isActive: boolean;
+  sku: string;
+}
+
+interface VariantForm {
+  id?: string;
+  color: string;
+  colorHex: string;
+  size: string;
+  stock: number;
+  priceOverride: string;
+  sku: string;
+}
 
 interface ProductForm {
   name: string; slug: string; sku: string; description: string; shortDescription: string;
@@ -45,6 +71,7 @@ export default function AdminProductDetailPage() {
   const [form, setForm] = useState<ProductForm>({ ...emptyForm });
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(!isNew);
+  const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
@@ -52,6 +79,10 @@ export default function AdminProductDetailPage() {
   const [specValue, setSpecValue] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [variantForm, setVariantForm] = useState<VariantForm | null>(null);
+  const [savingVariant, setSavingVariant] = useState(false);
+  const [deletingVariant, setDeletingVariant] = useState<string | null>(null);
 
   useEffect(() => {
     adminApi.getCategories().then(setCategories).catch(err => toast.error(getErrorMessage(err) || 'Failed to load categories'));
@@ -69,7 +100,12 @@ export default function AdminProductDetailPage() {
           seoTitle: p.seoTitle || '', seoDescription: p.seoDescription || '',
           specifications: p.specifications || {},
         });
-      }).catch(err => toast.error(getErrorMessage(err) || 'Failed to load product')).finally(() => setLoading(false));
+        setVariants(p.variants || []);
+      }).catch(err => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) setNotFound(true);
+        else toast.error(getErrorMessage(err) || 'Failed to load product');
+      }).finally(() => setLoading(false));
     }
   }, [isNew, params.id]);
 
@@ -83,8 +119,8 @@ export default function AdminProductDetailPage() {
         slug: form.slug || generateSlug(form.name),
         images: form.images.length > 0 ? form.images : undefined,
         tags: form.tags.length > 0 ? form.tags : undefined,
-        salePrice: form.salePrice || undefined,
-        discountPercent: form.discountPercent || undefined,
+        salePrice: form.salePrice > 0 ? form.salePrice : null,
+        discountPercent: form.discountPercent > 0 ? form.discountPercent : null,
         subcategoryId: form.subcategoryId || undefined,
         specifications: Object.keys(form.specifications).length > 0 ? form.specifications : undefined,
         isActive: asDraft ? false : form.isActive,
@@ -127,13 +163,65 @@ export default function AdminProductDetailPage() {
     }
   };
 
+  const productId = !isNew ? (params.id as string) : '';
+
+  const handleSaveVariant = async () => {
+    if (!productId || !variantForm) return;
+    if (!variantForm.color.trim() || !variantForm.size.trim()) {
+      toast.error('Color and size are required');
+      return;
+    }
+    setSavingVariant(true);
+    try {
+      const payload = {
+        color: variantForm.color.trim(),
+        colorHex: variantForm.colorHex.trim() || undefined,
+        size: variantForm.size.trim(),
+        stock: variantForm.stock || 0,
+        priceOverride: variantForm.priceOverride ? parseFloat(variantForm.priceOverride) : undefined,
+        sku: variantForm.sku.trim() || undefined,
+      };
+      if (variantForm.id) {
+        await adminApi.updateVariant(productId, variantForm.id, payload);
+        toast.success('Variant updated');
+      } else {
+        await adminApi.createVariant(productId, payload);
+        toast.success('Variant created');
+      }
+      const p = await adminApi.getProduct(productId);
+      setVariants(p.variants || []);
+      setVariantForm(null);
+    } catch (err) { toast.error(getErrorMessage(err) || 'Failed to save variant'); } finally { setSavingVariant(false); }
+  };
+
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!productId) return;
+    setDeletingVariant(variantId);
+    try {
+      await adminApi.deleteVariant(productId, variantId);
+      setVariants(vs => vs.filter(v => v.id !== variantId));
+      toast.success('Variant deleted');
+    } catch (err) { toast.error(getErrorMessage(err) || 'Failed to delete variant'); } finally { setDeletingVariant(null); }
+  };
+
   const parentCategories = categories.filter((c: Category) => !c.parentId);
   const subcategories = parentCategories.find((c: Category) => c.id === form.categoryId)?.children || [];
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-sage border-t-transparent" /></div>;
 
+  if (notFound) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-red-200 bg-red-50 py-20 text-center">
+        <p className="text-sm font-medium text-red-700">Product not found</p>
+        <p className="mt-1 text-xs text-red-500">It may have been deleted or this is an invalid product ID.</p>
+        <Link href="/admin/products" className="mt-4 rounded-lg bg-navy px-4 py-2 text-xs font-medium text-ivory hover:bg-navy-light transition-colors">Back to products</Link>
+      </div>
+    );
+  }
+
   const tabs = [
     { id: 'basic', label: 'Basic Info' },
+    { id: 'variants', label: `Variants${variants.length ? ` (${variants.length})` : ''}` },
     { id: 'pricing', label: 'Pricing' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'images', label: 'Images' },
@@ -289,6 +377,90 @@ export default function AdminProductDetailPage() {
           </div>
         )}
 
+        {activeTab === 'variants' && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate">Manage color/size variants with independent stock and pricing.</p>
+              {productId ? (
+                <button
+                  onClick={() => setVariantForm({ color: '', colorHex: '#000000', size: '', stock: 0, priceOverride: '', sku: '' })}
+                  className="inline-flex items-center gap-2 rounded-lg bg-navy px-4 py-2 text-xs font-medium uppercase tracking-wider text-ivory hover:bg-navy-light transition-colors"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Add Variant
+                </button>
+              ) : (
+                <p className="text-xs text-slate">Save the product first to add variants.</p>
+              )}
+            </div>
+
+            {variants.length === 0 ? (
+              <div className="rounded-lg border-2 border-dashed border-sage-light/40 px-6 py-12 text-center">
+                <p className="text-sm text-slate">No variants yet. Add a variant to track stock and pricing by color/size.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-sage-light/30">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-sage-light/30 bg-sage-light/5 text-left">
+                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate">Color / Size</th>
+                      <th className="hidden sm:table-cell px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate">SKU</th>
+                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate">Stock</th>
+                      <th className="hidden md:table-cell px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate">Price</th>
+                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate">Status</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-sage-light/20">
+                    {variants.map((v) => (
+                      <tr key={v.id} className="hover:bg-sage-light/5 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            {v.colorHex && (
+                              <span className="h-4 w-4 flex-shrink-0 rounded-full border border-slate/20" style={{ backgroundColor: v.colorHex }} aria-hidden="true" />
+                            )}
+                            <span className="text-sm font-medium text-navy">{v.color}</span>
+                            <span className="text-sm text-slate">/ {v.size}</span>
+                          </div>
+                        </td>
+                        <td className="hidden sm:table-cell px-4 py-3 text-xs text-slate">{v.sku}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-sm font-medium ${v.stock === 0 ? 'text-red-600' : v.stock <= 5 ? 'text-walnut' : 'text-navy'}`}>{v.stock}</span>
+                        </td>
+                        <td className="hidden md:table-cell px-4 py-3 text-sm text-navy">{v.priceOverride != null ? formatPrice(v.priceOverride) : '-'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${v.isActive ? 'bg-sage-light/50 text-sage-dark' : 'bg-slate/10 text-slate'}`}>
+                            {v.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setVariantForm({ id: v.id, color: v.color, colorHex: v.colorHex || '#000000', size: v.size, stock: v.stock, priceOverride: v.priceOverride != null ? String(v.priceOverride) : '', sku: v.sku })}
+                              className="rounded p-1 text-slate hover:bg-sage-light/20 hover:text-navy"
+                              aria-label={`Edit variant ${v.color} / ${v.size}`}
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteVariant(v.id)}
+                              disabled={deletingVariant === v.id}
+                              className="rounded p-1 text-slate hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                              aria-label={`Delete variant ${v.color} / ${v.size}`}
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'pricing' && (
           <div className="space-y-5 max-w-md">
             <div>
@@ -303,7 +475,7 @@ export default function AdminProductDetailPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-navy">Discount Percentage (%)</label>
-              <input type="number" min="0" max="100" value={form.discountPercent || ''} onChange={e => update('discountPercent', parseFloat(e.target.value) || 0)}
+              <input type="number" min="0" max="99" value={form.discountPercent || ''} onChange={e => update('discountPercent', parseFloat(e.target.value) || 0)}
                 className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
             </div>
             {form.salePrice > 0 && form.regularPrice > 0 && (
@@ -385,6 +557,71 @@ export default function AdminProductDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Variant modal */}
+      <Modal open={!!variantForm} title={variantForm?.id ? 'Edit Variant' : 'Add Variant'} onClose={() => setVariantForm(null)}>
+        {variantForm && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-navy">Color *</label>
+                <input type="text" value={variantForm.color} onChange={e => setVariantForm({ ...variantForm, color: e.target.value })}
+                  className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-navy">Color Hex</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={variantForm.colorHex || '#000000'} onChange={e => setVariantForm({ ...variantForm, colorHex: e.target.value })}
+                    className="h-10 w-12 flex-shrink-0 cursor-pointer rounded-lg border border-sage-light/40" />
+                  <input type="text" value={variantForm.colorHex} onChange={e => setVariantForm({ ...variantForm, colorHex: e.target.value })} placeholder="#000000"
+                    className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-navy">Size *</label>
+                <input type="text" value={variantForm.size} onChange={e => setVariantForm({ ...variantForm, size: e.target.value })} placeholder="e.g. M, 42, One Size"
+                  className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-navy">Stock</label>
+                <input type="number" min="0" value={variantForm.stock} onChange={e => setVariantForm({ ...variantForm, stock: parseInt(e.target.value) || 0 })}
+                  className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-navy">Price Override ($)</label>
+                <input type="number" min="0" step="0.01" value={variantForm.priceOverride} onChange={e => setVariantForm({ ...variantForm, priceOverride: e.target.value })}
+                  placeholder="Leave empty to use product price" className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-navy">SKU</label>
+                <input type="text" value={variantForm.sku} onChange={e => setVariantForm({ ...variantForm, sku: e.target.value })}
+                  placeholder="Auto-generated if empty" className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setVariantForm(null)} className="rounded-lg border border-sage-light/40 px-4 py-2 text-sm font-medium text-navy hover:bg-sage-light/10">Cancel</button>
+              <button onClick={handleSaveVariant} disabled={savingVariant}
+                className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-ivory hover:bg-navy-light disabled:opacity-50">
+                {savingVariant ? 'Saving...' : variantForm.id ? 'Save Variant' : 'Add Variant'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deletingVariant}
+        title="Delete Variant"
+        message="Are you sure you want to delete this variant? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => deletingVariant && handleDeleteVariant(deletingVariant)}
+        onCancel={() => setDeletingVariant(null)}
+      />
     </div>
   );
 }

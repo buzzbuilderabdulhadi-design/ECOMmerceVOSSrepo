@@ -15,8 +15,33 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [failed, setFailed] = useState<Record<number, boolean>>({});
   const imageRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
+
+  // When a new product's image set arrives, reset any broken-image flags from
+  // the previous product.
+  useEffect(() => {
+    setFailed({});
+    setSelectedIndex(0);
+    setIsZoomed(false);
+    setIsFullscreen(false);
+  }, [images]);
+
+  const markFailed = useCallback((index: number) => {
+    setFailed((prev) => (prev[index] ? prev : { ...prev, [index]: true }));
+  }, []);
+
+  const renderPlaceholder = () => (
+    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-cream to-sage-light/30">
+      <div className="flex flex-col items-center gap-3 text-slate/60">
+        <svg className="h-14 w-14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <span className="text-xs uppercase tracking-[0.2em]">Image unavailable</span>
+      </div>
+    </div>
+  );
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!imageRef.current || !isZoomed) return;
@@ -77,6 +102,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
   }
 
   const selectedImage = images[selectedIndex];
+  const selectedFailed = !!failed[selectedIndex];
 
   return (
     <div className={cn('space-y-3', className)}>
@@ -88,27 +114,31 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
         aria-label={`${alt} image ${selectedIndex + 1} of ${images.length}. Press Enter to open fullscreen.`}
         className={cn(
           'relative aspect-square overflow-hidden rounded-2xl bg-cream focus:outline-none focus-visible:ring-2 focus-visible:ring-gold',
+          selectedFailed && 'cursor-default',
           isZoomed && 'cursor-zoom-out',
-          !isZoomed && 'cursor-zoom-in'
+          !isZoomed && !selectedFailed && 'cursor-zoom-in'
         )}
         onKeyDown={handleKeyDown}
-        onMouseEnter={() => setIsZoomed(true)}
+        onMouseEnter={() => !selectedFailed && setIsZoomed(true)}
         onMouseLeave={() => setIsZoomed(false)}
         onMouseMove={handleMouseMove}
-        onClick={() => setIsFullscreen(true)}
+        onClick={() => !selectedFailed && setIsFullscreen(true)}
       >
-        <Image
-          src={selectedImage}
-          alt={`${alt} - Image ${selectedIndex + 1}`}
-          fill
-          className={cn(
-            'object-cover transition-transform duration-200',
-            isZoomed && 'scale-150'
-          )}
-          style={isZoomed ? { transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%` } : undefined}
-          sizes="(max-width: 768px) 100vw, 50vw"
-          priority={selectedIndex === 0}
-        />
+        {selectedFailed ? renderPlaceholder() : (
+          <Image
+            src={selectedImage}
+            alt={`${alt} - Image ${selectedIndex + 1}`}
+            fill
+            onError={() => markFailed(selectedIndex)}
+            className={cn(
+              'object-cover transition-transform duration-200',
+              isZoomed && 'scale-150'
+            )}
+            style={isZoomed ? { transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%` } : undefined}
+            sizes="(max-width: 768px) 100vw, 50vw"
+            priority={selectedIndex === 0}
+          />
+        )}
         {/* Navigation arrows on image */}
         {images.length > 1 && (
           <>
@@ -161,13 +191,22 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
                   : 'border-sage-light/30 hover:border-navy/50'
               )}
             >
-              <Image
-                src={image}
-                alt={`${alt} thumbnail ${index + 1}`}
-                fill
-                className="object-cover"
-                sizes="80px"
-              />
+              {failed[index] ? (
+                <span className="absolute inset-0 flex items-center justify-center bg-sage-light/20 text-slate/50">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </span>
+              ) : (
+                <Image
+                  src={image}
+                  alt={`${alt} thumbnail ${index + 1}`}
+                  fill
+                  onError={() => markFailed(index)}
+                  className="object-cover"
+                  sizes="80px"
+                />
+              )}
             </button>
           ))}
         </div>
@@ -203,13 +242,24 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
             </svg>
           </button>
           <div className="relative h-[90vh] w-[90vw]" onClick={(e) => e.stopPropagation()}>
-            <Image
-              src={selectedImage}
-              alt={`${alt} fullscreen`}
-              fill
-              className="object-contain"
-              sizes="90vw"
-            />
+            {selectedFailed ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3 text-white/60">
+                  <svg className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs uppercase tracking-[0.2em]">Image unavailable</span>
+                </div>
+              </div>
+            ) : (
+              <Image
+                src={selectedImage}
+                alt={`${alt} fullscreen`}
+                fill
+                className="object-contain"
+                sizes="90vw"
+              />
+            )}
           </div>
           {images.length > 1 && (
             <>

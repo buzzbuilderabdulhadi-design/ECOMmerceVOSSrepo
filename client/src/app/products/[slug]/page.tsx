@@ -24,6 +24,7 @@ import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import toast from 'react-hot-toast';
 import { Modal } from '@/components/ui/Modal';
+import { cn } from '@/lib/utils';
 
 interface DetailProduct {
   id: string; name: string; slug: string; sku: string;
@@ -130,8 +131,17 @@ export default function ProductDetailsPage() {
         v.isActive !== false
     ) || null;
 
+  const hasRealVariants = variants.length > 0;
+  const canAddToCart = !hasRealVariants || !!matchingVariant;
+  const selectedStock = matchingVariant?.stock ?? detailProduct?.stock ?? 0;
+  const isOutOfStock = hasRealVariants ? !canAddToCart : selectedStock < 1;
+
   const handleAddToCart = async () => {
     if (!detailProduct) return;
+    if (!canAddToCart) {
+      toast.error('Please select an available size and color first.');
+      return;
+    }
     const variantId = matchingVariant?.id;
     const productForCart = {
       id: detailProduct.id,
@@ -149,6 +159,10 @@ export default function ProductDetailsPage() {
 
   const handleBuyNow = async () => {
     if (!detailProduct) return;
+    if (!canAddToCart) {
+      toast.error('Please select an available size and color first.');
+      return;
+    }
     const variantId = matchingVariant?.id;
     const productForCart = {
       id: detailProduct.id,
@@ -279,8 +293,16 @@ export default function ProductDetailsPage() {
                 </p>
 
                 <div className="mt-6 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sage animate-pulse" />
-                  <span className="text-sm font-medium text-sage-dark">In Stock ({detailProduct.stock} available)</span>
+                  <span className={cn('h-2 w-2 rounded-full animate-pulse', isOutOfStock ? 'bg-red-400' : 'bg-sage')} />
+                  <span className={cn('text-sm font-medium', isOutOfStock ? 'text-red-600' : hasRealVariants && selectedStock <= 5 ? 'text-amber-600' : 'text-sage-dark')}>
+                    {isOutOfStock
+                      ? hasRealVariants
+                        ? 'Out of stock for this size and color'
+                        : 'Out of stock'
+                      : hasRealVariants
+                        ? `In Stock (${selectedStock} available${selectedStock <= 5 ? ' — only a few left' : ''})`
+                        : `In Stock (${selectedStock} available)`}
+                  </span>
                 </div>
 
                 {/* Color */}
@@ -318,20 +340,29 @@ export default function ProductDetailsPage() {
                 <div className="mt-9 space-y-5">
                   <div className="flex items-center gap-5">
                     <label className="text-[11px] font-medium uppercase tracking-[0.25em] text-navy">Quantity</label>
-                    <QuantitySelector value={quantity} onChange={setQuantity} min={1} max={detailProduct.stock} />
+                    <QuantitySelector value={quantity} onChange={setQuantity} min={1} max={Math.max(1, selectedStock)} />
                   </div>
+
+                  {hasRealVariants && !matchingVariant && (
+                    <p className="flex items-center gap-2 text-xs font-medium text-red-600">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      This size and color combination isn&apos;t available. Choose another.
+                    </p>
+                  )}
 
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Magnetic className="flex-1">
-                      <Button variant="primary" size="lg" fullWidth onClick={handleAddToCart}>
+                      <Button variant="primary" size="lg" fullWidth onClick={handleAddToCart} disabled={isOutOfStock}>
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                         </svg>
-                        Add to Cart
+                        {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
                       </Button>
                     </Magnetic>
                     <Magnetic className="flex-1">
-                      <Button variant="gold" size="lg" fullWidth onClick={handleBuyNow}>
+                      <Button variant="gold" size="lg" fullWidth onClick={handleBuyNow} disabled={isOutOfStock}>
                         Buy Now
                       </Button>
                     </Magnetic>

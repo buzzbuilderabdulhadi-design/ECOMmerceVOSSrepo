@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { authenticate, authorizeAdmin } from '../middleware/auth.middleware';
+import { ApiError } from '../utils/apiError';
 import {
   getDashboard,
   getAnalytics,
@@ -27,6 +28,7 @@ import {
   getOrders,
   getOrder,
   updateOrderStatus,
+  verifyOrderPayment,
   deleteOrder,
   getCustomers,
   getCustomer,
@@ -63,15 +65,24 @@ import {
   updateProductSchema,
   bulkDeleteSchema,
   bulkUpdateSchema,
+  productParams,
   createVariantSchema,
   updateVariantSchema,
+  variantParams,
   createCategorySchema,
   updateCategorySchema,
+  categoryIdParam,
   updateOrderStatusSchema,
+  orderIdParam,
+  verifyOrderPaymentSchema,
   updateCustomerSchema,
+  customerIdParam,
   updateReviewSchema,
+  reviewIdParam,
   createCouponSchema,
   updateCouponSchema,
+  couponIdParam,
+  idParam,
   updateSeoSchema,
   createHomepageContentSchema,
   updateHomepageContentSchema,
@@ -93,7 +104,7 @@ const fileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
   if (ALLOWED_MIME_TYPES.includes(file.mimetype) && ALLOWED_EXTENSIONS.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`Invalid file type. Allowed: JPEG, PNG, WebP. Received: ${file.mimetype} (${ext})`));
+    cb(ApiError.badRequest(`Invalid file type. Allowed: JPEG, PNG, WebP. Received: ${file.mimetype} (${ext})`));
   }
 };
 
@@ -119,54 +130,55 @@ router.get('/analytics/customers', getCustomerAnalytics);
 
 // Products
 router.get('/products', getProducts);
-router.get('/products/:id', getProduct);
+router.get('/products/:id', validate(productParams), getProduct);
 router.post('/products', validate(createProductSchema), createProduct);
 router.put('/products/:id', validate(updateProductSchema), updateProduct);
-router.delete('/products/:id', deleteProduct);
+router.delete('/products/:id', validate(productParams), deleteProduct);
 router.post('/products/bulk-delete', validate(bulkDeleteSchema), bulkDeleteProducts);
 router.post('/products/bulk-update', validate(bulkUpdateSchema), bulkUpdateProducts);
-router.post('/products/:id/duplicate', duplicateProduct);
+router.post('/products/:id/duplicate', validate(productParams), duplicateProduct);
 
 // Product Variants
 router.post('/products/:id/variants', validate(createVariantSchema), createProductVariant);
 router.put('/products/:productId/variants/:id', validate(updateVariantSchema), updateProductVariant);
-router.delete('/products/:productId/variants/:id', deleteProductVariant);
+router.delete('/products/:productId/variants/:id', validate(variantParams), deleteProductVariant);
 
 // Categories
 router.get('/categories', getCategories);
-router.get('/categories/:id', getCategory);
+router.get('/categories/:id', validate(categoryIdParam), getCategory);
 router.post('/categories', validate(createCategorySchema), createCategory);
 router.put('/categories/:id', validate(updateCategorySchema), updateCategory);
-router.delete('/categories/:id', deleteCategory);
+router.delete('/categories/:id', validate(categoryIdParam), deleteCategory);
 
 // Orders
 router.get('/orders', getOrders);
-router.get('/orders/:id', getOrder);
+router.get('/orders/:id', validate(orderIdParam), getOrder);
 router.patch('/orders/:id/status', validate(updateOrderStatusSchema), updateOrderStatus);
-router.delete('/orders/:id', deleteOrder);
+router.patch('/orders/:id/payment', validate(verifyOrderPaymentSchema), verifyOrderPayment);
+router.delete('/orders/:id', validate(orderIdParam), deleteOrder);
 
 // Customers
 router.get('/customers', getCustomers);
-router.get('/customers/:id', getCustomer);
+router.get('/customers/:id', validate(customerIdParam), getCustomer);
 router.put('/customers/:id', validate(updateCustomerSchema), updateCustomer);
-router.delete('/customers/:id', deleteCustomer);
+router.delete('/customers/:id', validate(customerIdParam), deleteCustomer);
 
 // Reviews
 router.get('/reviews', getReviews);
 router.put('/reviews/:id', validate(updateReviewSchema), updateReview);
-router.delete('/reviews/:id', deleteReview);
+router.delete('/reviews/:id', validate(reviewIdParam), deleteReview);
 
 // Coupons
 router.get('/coupons', getCoupons);
-router.get('/coupons/:id', getCoupon);
+router.get('/coupons/:id', validate(couponIdParam), getCoupon);
 router.post('/coupons', validate(createCouponSchema), createCoupon);
 router.put('/coupons/:id', validate(updateCouponSchema), updateCoupon);
-router.delete('/coupons/:id', deleteCoupon);
+router.delete('/coupons/:id', validate(couponIdParam), deleteCoupon);
 
 // Media
 router.get('/media', getMedia);
 router.post('/media/upload', upload.single('file'), uploadMedia);
-router.delete('/media/:id', deleteMedia);
+router.delete('/media/:id', validate(idParam), deleteMedia);
 
 // Settings
 router.get('/settings', getSiteSettings);
@@ -178,7 +190,7 @@ router.put('/seo/:page', validate(updateSeoSchema), updateSeoEntry);
 
 // Notifications
 router.get('/notifications', getNotifications);
-router.patch('/notifications/:id/read', markNotificationRead);
+router.patch('/notifications/:id/read', validate(idParam), markNotificationRead);
 router.patch('/notifications/read-all', markAllNotificationsRead);
 
 // Activity Logs
@@ -189,6 +201,6 @@ router.delete('/activity-logs', clearActivityLogs);
 router.get('/homepage', getHomepageContent);
 router.post('/homepage', validate(createHomepageContentSchema), createHomepageContent);
 router.put('/homepage/:id', validate(updateHomepageContentSchema), updateHomepageContent);
-router.delete('/homepage/:id', deleteHomepageContent);
+router.delete('/homepage/:id', validate(idParam), deleteHomepageContent);
 
 export default router;

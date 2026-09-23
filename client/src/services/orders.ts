@@ -13,6 +13,7 @@ export const createOrder = async (data: {
   notes?: string;
   couponCode?: string;
   paymentMethod?: string;
+  idempotencyKey?: string;
 }): Promise<Order> => {
   const response = await axiosInstance.post('/orders', data);
   return response.data.data;

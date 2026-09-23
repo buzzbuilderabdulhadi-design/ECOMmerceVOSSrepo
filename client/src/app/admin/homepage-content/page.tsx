@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import adminApi from '@/services/admin';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 
 interface HomepageContent {
@@ -21,6 +22,7 @@ export default function AdminHomepageContentPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createKey, setCreateKey] = useState('');
   const [createValue, setCreateValue] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const loadContent = useCallback(async () => {
     try {
@@ -102,11 +104,11 @@ export default function AdminHomepageContentPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this section?')) return;
     try {
       await adminApi.deleteHomepageContent(id);
       toast.success('Section deleted');
       setSections(prev => prev.filter(s => s.id !== id));
+      setDeleteId(null);
     } catch {
       toast.error('Failed to delete');
     }
@@ -174,7 +176,7 @@ export default function AdminHomepageContentPage() {
                     className="rounded-full border border-sage-light/40 px-3 py-1.5 text-xs font-medium text-navy hover:bg-sage-light/10 transition-colors">
                     {editing === section.id ? 'Cancel' : 'Edit'}
                   </button>
-                  <button onClick={() => handleDelete(section.id)}
+                  <button onClick={() => setDeleteId(section.id)}
                     className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
                     Delete
                   </button>
@@ -202,6 +204,16 @@ export default function AdminHomepageContentPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteId}
+        title="Delete Section"
+        message="Are you sure you want to delete this homepage content section?"
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => deleteId && handleDelete(deleteId)}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import adminApi from '@/services/admin';
-import axiosInstance from '@/services/axios';
+import Modal from '@/components/admin/Modal';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 
 interface MediaItem {
@@ -21,8 +22,11 @@ export default function AdminMediaPage() {
   const [loading, setLoading] = useState(true);
   const [folder, setFolder] = useState('');
   const [showUpload, setShowUpload] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ url: '', altText: '', folder: '' });
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadForm, setUploadForm] = useState({ altText: '', folder: '' });
   const [uploading, setUploading] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadMedia = useCallback(async () => {
     try {
@@ -39,31 +43,45 @@ export default function AdminMediaPage() {
     loadMedia();
   }, [loadMedia]);
 
+  const openUpload = () => {
+    setFile(null);
+    setUploadForm({ altText: '', folder: '' });
+    setShowUpload(true);
+  };
+
   const handleUpload = async () => {
-    if (!uploadForm.url || !uploadForm.altText) {
-      toast.error('URL and alt text are required');
+    if (!file) {
+      toast.error('Choose a file to upload');
       return;
     }
     setUploading(true);
     try {
-      await axiosInstance.post('/admin/media/upload', uploadForm);
+      const payload = new FormData();
+      payload.append('file', file);
+      payload.append('altText', uploadForm.altText || file.name);
+      if (uploadForm.folder) payload.append('folder', uploadForm.folder);
+      await adminApi.uploadMedia(payload);
       toast.success('File uploaded');
       setShowUpload(false);
-      setUploadForm({ url: '', altText: '', folder: '' });
+      setFile(null);
+      setUploadForm({ altText: '', folder: '' });
       loadMedia();
-    } catch {
-      toast.error('Upload failed');
+    } catch (err) {
+      const msg = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.error
+        || (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        || 'Upload failed';
+      toast.error(msg);
     } finally {
       setUploading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this file?')) return;
     try {
       await adminApi.deleteMedia(id);
       toast.success('File deleted');
       setMedia(prev => prev.filter(m => m.id !== id));
+      setDeleteId(null);
     } catch {
       toast.error('Failed to delete file');
     }
@@ -85,43 +103,11 @@ export default function AdminMediaPage() {
             <option value="banners">Banners</option>
             <option value="avatars">Avatars</option>
           </select>
-          <button onClick={() => setShowUpload(true)} className="rounded-full bg-navy px-5 py-2.5 text-xs font-medium uppercase tracking-[0.14em] text-ivory hover:bg-navy-light transition-colors">
+          <button onClick={openUpload} className="rounded-full bg-navy px-5 py-2.5 text-xs font-medium uppercase tracking-[0.14em] text-ivory hover:bg-navy-light transition-colors">
             Upload
           </button>
         </div>
       </div>
-
-      {showUpload && (
-        <div className="rounded-xl border border-sage-light/30 bg-white p-6">
-          <h3 className="text-lg font-semibold text-navy mb-4">Upload Media</h3>
-          <div className="space-y-4 max-w-lg">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-navy">URL *</label>
-              <input type="url" value={uploadForm.url} onChange={e => setUploadForm(f => ({ ...f, url: e.target.value }))}
-                className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" placeholder="https://..." />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-navy">Alt Text *</label>
-              <input type="text" value={uploadForm.altText} onChange={e => setUploadForm(f => ({ ...f, altText: e.target.value }))}
-                className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-navy">Folder</label>
-              <input type="text" value={uploadForm.folder} onChange={e => setUploadForm(f => ({ ...f, folder: e.target.value }))}
-                className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" placeholder="e.g. products" />
-            </div>
-            <div className="flex gap-3">
-              <button onClick={handleUpload} disabled={uploading}
-                className="rounded-full bg-navy px-5 py-2.5 text-xs font-medium uppercase tracking-[0.14em] text-ivory hover:bg-navy-light disabled:opacity-50 transition-colors">
-                {uploading ? 'Uploading...' : 'Upload'}
-              </button>
-              <button onClick={() => setShowUpload(false)} className="rounded-full border border-sage-light/40 px-5 py-2.5 text-xs font-medium uppercase tracking-[0.14em] text-navy hover:bg-sage-light/10 transition-colors">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {media.length === 0 ? (
         <div className="rounded-xl border border-sage-light/30 bg-white p-12 text-center">
@@ -144,7 +130,8 @@ export default function AdminMediaPage() {
                 <p className="text-xs font-medium text-navy truncate">{item.altText || item.fileName || 'Untitled'}</p>
                 <p className="text-[10px] text-slate truncate">{item.folder || 'Unsorted'}</p>
               </div>
-              <button onClick={() => handleDelete(item.id)}
+              <button onClick={() => setDeleteId(item.id)}
+                aria-label={`Delete ${item.altText || item.fileName}`}
                 className="absolute top-2 right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 ×
               </button>
@@ -152,6 +139,52 @@ export default function AdminMediaPage() {
           ))}
         </div>
       )}
+
+      {/* Upload modal */}
+      <Modal open={showUpload} title="Upload Media" onClose={() => setShowUpload(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-navy">File *</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={e => setFile(e.target.files?.[0] || null)}
+              className="w-full rounded-lg border border-sage-light/40 px-3 py-2 text-sm focus:border-navy focus:outline-none"
+            />
+            {file && (
+              <p className="mt-1 text-xs text-slate">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-navy">Alt Text</label>
+            <input type="text" value={uploadForm.altText} onChange={e => setUploadForm(f => ({ ...f, altText: e.target.value }))}
+              className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-navy">Folder</label>
+            <input type="text" value={uploadForm.folder} onChange={e => setUploadForm(f => ({ ...f, folder: e.target.value }))}
+              className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" placeholder="e.g. products" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setShowUpload(false)} className="rounded-lg border border-sage-light/40 px-4 py-2 text-sm font-medium text-navy hover:bg-sage-light/10">Cancel</button>
+            <button onClick={handleUpload} disabled={uploading}
+              className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-ivory hover:bg-navy-light disabled:opacity-50">
+              {uploading ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        title="Delete File"
+        message="Are you sure you want to delete this file from the media library?"
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => deleteId && handleDelete(deleteId)}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }

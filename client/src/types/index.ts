@@ -121,6 +121,14 @@ export interface Category {
 }
 
 // --- Cart Types ---
+export interface CartItemAvailability {
+  available: boolean;
+  stockLeft: number;
+  quantityAdjusted: boolean;
+  unavailable: boolean;
+  message?: string;
+}
+
 export interface CartItem {
   id: string;
   cartId: string;
@@ -138,11 +146,16 @@ export interface Cart {
   couponCode?: string;
   discountAmount?: number;
   items: CartItem[];
+  availability?: Record<string, CartItemAvailability>;
+  couponNotice?: string;
 }
 
 // --- Order Types ---
 export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'RETURNED';
-export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+
+export type PaymentStatus = 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'AWAITING_VERIFICATION' | 'REFUNDED';
+
+export type PaymentMethod = 'STRIPE' | 'PAYPAL' | 'BANK_TRANSFER' | 'PAYONEER' | 'card';
 
 export interface OrderItem {
   id: string;
@@ -167,16 +180,94 @@ export interface Order {
   tax: number;
   discount: number;
   total: number;
-  paymentMethod?: string;
+  paymentMethod?: PaymentMethod;
   paymentStatus: PaymentStatus;
   shippingAddressId?: string;
   billingAddressId?: string;
   notes?: string;
   couponCode?: string;
+  idempotencyKey?: string;
+  stripePaymentIntentId?: string;
+  paypalOrderId?: string;
+  paypalCaptureId?: string;
+  paymentReference?: string;
+  paymentVerifiedBy?: string;
+  paymentVerifiedAt?: string;
   shippingAddress?: Address;
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CheckoutTotals {
+  subtotal: number;
+  discount: number;
+  netSubtotal: number;
+  shipping: number;
+  tax: number;
+  total: number;
+}
+
+export interface CheckoutPreviewItem {
+  productId: string;
+  variantId?: string;
+  name: string;
+  slug: string;
+  sku: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+  color?: string;
+  size?: string;
+  colorHex?: string;
+  stock: number;
+  image: string;
+}
+
+export interface CheckoutPreview {
+  items: CheckoutPreviewItem[];
+  totals: CheckoutTotals;
+  couponCode: string | null;
+  couponApplied: boolean;
+  couponWarning?: string;
+  currency: string;
+}
+
+export interface PaymentIntentResponse {
+  orderId: string;
+  orderNumber: string;
+  paymentIntentId: string;
+  clientSecret: string;
+  amountCents: number;
+  currency: string;
+  paymentStatus: PaymentStatus;
+}
+
+export interface CheckoutMethod {
+  id: PaymentMethod;
+  kind: 'online' | 'manual';
+  enabled: boolean;
+  label: string;
+  description: string;
+  instructions: string[];
+}
+
+export interface CheckoutMethodsResponse {
+  methods: CheckoutMethod[];
+  currency: string;
+}
+
+export interface PayPalOrderCreateResponse {
+  orderId: string;
+  paypalOrderId?: string;
+  approvalUrl?: string;
+  alreadyCaptured?: boolean;
+}
+
+export interface PayPalCaptureResponse {
+  orderId: string;
+  status: 'PAID';
+  captureId?: string;
 }
 
 // --- Review Types ---

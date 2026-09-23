@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { normalizePaymentMethod, PaymentMethodValue, PAYMENT_METHOD } from '../constants/order';
 
 // ============================================================
 // Centralized Configuration — Load & Validate Environment Variables
@@ -42,6 +43,28 @@ interface Config {
     secretKey: string;
     webhookSecret: string;
   };
+  paypal: {
+    clientId: string;
+    clientSecret: string;
+    environment: 'sandbox' | 'live';
+    webhookId: string;
+  };
+  bankTransfer: {
+    enabled: boolean;
+    bankName: string;
+    accountTitle: string;
+    iban: string;
+    accountNumber: string;
+    swift: string;
+    branch: string;
+    instructions: string;
+  };
+  payoneer: {
+    enabled: boolean;
+    accountEmail: string;
+    instructions: string;
+  };
+  currency: string;
 }
 
 // `trust proxy` accepts a boolean, a hop count, or a subnet list. Default to a
@@ -96,6 +119,28 @@ const config: Config = {
     secretKey: process.env.STRIPE_SECRET_KEY || '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
   },
+  paypal: {
+    clientId: process.env.PAYPAL_CLIENT_ID || '',
+    clientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
+    environment: process.env.PAYPAL_ENVIRONMENT === 'live' ? 'live' : 'sandbox',
+    webhookId: process.env.PAYPAL_WEBHOOK_ID || '',
+  },
+  bankTransfer: {
+    enabled: process.env.BANK_TRANSFER_ENABLED === 'true',
+    bankName: process.env.BANK_NAME || '',
+    accountTitle: process.env.BANK_ACCOUNT_TITLE || '',
+    iban: process.env.BANK_IBAN || '',
+    accountNumber: process.env.BANK_ACCOUNT_NUMBER || '',
+    swift: process.env.BANK_SWIFT_CODE || '',
+    branch: process.env.BANK_BRANCH || '',
+    instructions: process.env.BANK_TRANSFER_INSTRUCTIONS || '',
+  },
+  payoneer: {
+    enabled: process.env.PAYONEER_ENABLED !== 'false',
+    accountEmail: process.env.PAYONEER_ACCOUNT_EMAIL || '',
+    instructions: process.env.PAYONEER_INSTRUCTIONS || '',
+  },
+  currency: process.env.CURRENCY || 'usd',
 };
 
 // Validate required config
@@ -135,6 +180,88 @@ export function validateConfig(): void {
       }
     }
   }
+}
+
+// ============================================================
+// Payment method availability
+//
+// A method is only advertised/usable when its provider is actually
+// configured. Missing credentials must disable the method, never crash
+// checkout. Credentials themselves are read from the server environment only
+// and are never exposed to the client.
+// ============================================================
+
+export function isStripeConfigured(): boolean {
+  return Boolean(config.stripe.secretKey);
+}
+
+export function isPaypalConfigured(): boolean {
+  return Boolean(config.paypal.clientId && config.paypal.clientSecret);
+}
+
+export function isBankTransferConfigured(): boolean {
+  return (
+    config.bankTransfer.enabled &&
+    Boolean(config.bankTransfer.bankName && config.bankTransfer.iban)
+  );
+}
+
+export function isPayoneerConfigured(): boolean {
+  return Boolean(config.payoneer.enabled && config.payoneer.accountEmail);
+}
+
+export function isPaymentMethodConfigured(method: PaymentMethodValue): boolean {
+  switch (method) {
+    case PAYMENT_METHOD.STRIPE:
+      return isStripeConfigured();
+    case PAYMENT_METHOD.PAYPAL:
+      return isPaypalConfigured();
+    case PAYMENT_METHOD.BANK_TRANSFER:
+      return isBankTransferConfigured();
+    case PAYMENT_METHOD.PAYONEER:
+      return isPayoneerConfigured();
+    default:
+      return false;
+  }
+}
+
+/**
+ * Join non-empty instruction lines so the stored env string can use newline
+ * separators while remaining config-agnostic.
+ */
+export function joinInstructions(...lines: Array<string | undefined>): string {
+  return lines.filter((line) => line && line.trim().length > 0).join('\n');
+}
+
+/**
+ * Public (non-secret) instructions shown to the customer for manual methods.
+ * Contains neither credentials nor provider secrets.
+ */
+export function getManualPaymentInstructions(method: PaymentMethodValue): string[] {
+  const words = (text: string) => text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  if (method === PAYMENT_METHOD.BANK_TRANSFER) {
+    return words(
+      joinInstructions(
+        config.bankTransfer.instructions,
+        config.bankTransfer.bankName && `Bank: ${config.bankTransfer.bankName}`,
+        config.bankTransfer.accountTitle && `Account name: ${config.bankTransfer.accountTitle}`,
+        config.bankTransfer.iban && `IBAN: ${config.bankTransfer.iban}`,
+        config.bankTransfer.accountNumber && `Account number: ${config.bankTransfer.accountNumber}`,
+        config.bankTransfer.swift && `SWIFT/BIC: ${config.bankTransfer.swift}`,
+        config.bankTransfer.branch && `Branch: ${config.bankTransfer.branch}`
+      )
+    );
+  }
+  if (method === PAYMENT_METHOD.PAYONEER) {
+    return words(
+      joinInstructions(
+        config.payoneer.instructions,
+        config.payoneer.accountEmail && `Payoneer account: ${config.payoneer.accountEmail}`,
+        'Please include your order number as the payment reference.'
+      )
+    );
+  }
+  return [];
 }
 
 export default config;

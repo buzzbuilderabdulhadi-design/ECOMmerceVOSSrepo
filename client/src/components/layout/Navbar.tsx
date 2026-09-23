@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
+import { useCartDrawer } from '@/context/CartDrawerContext';
 import { NAV_CATEGORIES } from '@/data/navigation';
 import { MegaMenu } from '@/components/layout/MegaMenu';
 
@@ -30,6 +31,7 @@ const emptySubscribe = () => () => {};
 
 export function Navbar({ className }: NavbarProps) {
   const { itemCount } = useCart();
+  const { openCart } = useCartDrawer();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -454,10 +456,11 @@ export function Navbar({ className }: NavbarProps) {
                   </svg>
                 </Link>
 
-                <Link
-                  href="/cart"
+                <button
+                  type="button"
+                  onClick={openCart}
                   className="relative rounded-full p-3 transition-all hover:scale-105 active:scale-95"
-                  aria-label="Cart"
+                  aria-label="Open cart"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -472,7 +475,7 @@ export function Navbar({ className }: NavbarProps) {
                       {itemCount > 99 ? '99+' : itemCount}
                     </motion.span>
                   )}
-                </Link>
+                </button>
 
                 <Link
                   href="/dashboard"

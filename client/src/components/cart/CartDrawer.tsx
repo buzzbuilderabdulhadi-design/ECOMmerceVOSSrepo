@@ -16,7 +16,7 @@ interface CartDrawerProps {
 const SHIPPING_THRESHOLD = 200;
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
-  const { cart, isLoading, itemCount, subtotal, updateQuantity, removeItem } = useCart();
+  const { cart, isLoading, itemCount, subtotal, updateQuantity, removeItem, isItemPending } = useCart();
   const cartItems = cart?.items || [];
 
   useEffect(() => {
@@ -129,6 +129,10 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       const price = v?.priceOverride ?? p.salePrice ?? p.regularPrice;
                       const firstImage = p.images?.[0];
                       const imageUrl = typeof firstImage === 'string' ? firstImage : (firstImage as { url?: string })?.url || '';
+                      const flag = cart?.availability?.[item.id];
+                      const unavailable = !!flag?.unavailable;
+                      const pending = isItemPending(item.id);
+                      const maxStock = Math.max(1, Math.min(flag?.stockLeft ?? v?.stock ?? p.stock ?? 99, 99));
                       return (
                         <motion.div
                           key={item.id}
@@ -157,11 +161,17 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                                     </>
                                   )}
                                 </p>
+                                {flag?.message && (
+                                  <p className={unavailable ? 'mt-0.5 flex items-center gap-1 text-[11px] font-medium text-red-600' : 'mt-0.5 flex items-center gap-1 text-[11px] font-medium text-amber-600'} role="status">
+                                    {flag.message}
+                                  </p>
+                                )}
                               </div>
                               <button
                                 type="button"
                                 onClick={() => removeItem(item.id)}
-                                className="rounded-full p-1.5 text-slate transition-all hover:bg-red-50 hover:text-red-500 active:scale-90"
+                                disabled={pending}
+                                className="rounded-full p-1.5 text-slate transition-all hover:bg-red-50 hover:text-red-500 active:scale-90 disabled:pointer-events-none disabled:opacity-50"
                                 aria-label={`Remove ${p.name}`}
                               >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -170,13 +180,18 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                               </button>
                             </div>
                             <div className="flex items-center justify-between">
-                              <QuantitySelector
-                                value={item.quantity}
-                                onChange={(q) => updateQuantity(item.id, q)}
-                                min={1}
-                                max={v?.stock ?? p.stock ?? 10}
-                                size="sm"
-                              />
+                              {!unavailable ? (
+                                <QuantitySelector
+                                  value={item.quantity}
+                                  onChange={(q) => updateQuantity(item.id, q)}
+                                  min={1}
+                                  max={maxStock}
+                                  size="sm"
+                                  disabled={pending}
+                                />
+                              ) : (
+                                <span className="text-[11px] text-slate">Remove to continue</span>
+                              )}
                               <span className="font-display text-lg text-navy">
                                 ${(price * item.quantity).toFixed(2)}
                               </span>

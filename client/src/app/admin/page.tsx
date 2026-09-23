@@ -1,19 +1,25 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import adminApi from '@/services/admin';
+import { getErrorMessage } from '@/services/axios';
 import { formatPrice } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/Skeleton';
 
 interface DashboardStats {
   stats: {
     totalProducts: number;
+    activeProducts: number;
+    inactiveProducts: number;
     totalOrders: number;
     totalCustomers: number;
     totalRevenue: number;
     pendingOrders: number;
+    paidOrders: number;
+    awaitingVerificationOrders: number;
+    cancelledOrders: number;
     lowStockProducts: number;
   };
   recentOrders: Array<{
@@ -23,7 +29,7 @@ interface DashboardStats {
     status: string;
     paymentStatus: string;
     createdAt: string;
-    user: { name: string; email: string };
+    user: { name: string; email: string } | null;
   }>;
   recentCustomers: Array<{
     id: string;
@@ -56,13 +62,20 @@ const statusColors: Record<string, string> = {
 export default function AdminDashboard() {
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     adminApi.getDashboard()
       .then(setData)
-      .catch(() => {})
+      .catch((err) => setError(getErrorMessage(err)))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -71,6 +84,21 @@ export default function AdminDashboard() {
           {[1,2,3,4].map(i => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </div>
         <Skeleton className="h-96 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-red-200 bg-red-50 py-16 text-center">
+        <p className="text-sm font-medium text-red-700">Unable to load dashboard data.</p>
+        <p className="mt-1 text-xs text-red-500">{error}</p>
+        <button
+          onClick={load}
+          className="mt-4 rounded-lg bg-navy px-4 py-2 text-xs font-medium text-ivory hover:bg-navy-light transition-colors"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -85,7 +113,9 @@ export default function AdminDashboard() {
   ];
 
   const quickStats = [
-    { label: 'Pending Orders', value: stats?.pendingOrders || 0, href: '/admin/orders?status=PENDING', color: 'text-walnut' },
+    { label: 'Awaiting Verification', value: stats?.awaitingVerificationOrders || 0, href: '/admin/orders?paymentStatus=AWAITING_VERIFICATION', color: 'text-walnut' },
+    { label: 'Pending Orders', value: stats?.pendingOrders || 0, href: '/admin/orders?status=PENDING', color: 'text-navy' },
+    { label: 'Paid Orders', value: stats?.paidOrders || 0, href: '/admin/orders?paymentStatus=PAID', color: 'text-sage-dark' },
     { label: 'Low Stock', value: stats?.lowStockProducts || 0, href: '/admin/products?status=lowStock', color: 'text-red-600' },
   ];
 
@@ -124,11 +154,25 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {quickStats.map((qs) => (
           <Link key={qs.label} href={qs.href} className="flex items-center justify-between rounded-xl border border-sage-light/30 bg-white p-4 hover:shadow-md transition-all">
             <span className="text-sm font-medium text-slate">{qs.label}</span>
             <span className={`text-xl font-bold font-display ${qs.color}`}>{qs.value}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Inventory snapshot */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'Active Products', value: stats?.activeProducts || 0, href: '/admin/products?status=active' },
+          { label: 'Inactive Products', value: stats?.inactiveProducts || 0, href: '/admin/products?status=inactive' },
+          { label: 'Cancelled Orders', value: stats?.cancelledOrders || 0, href: '/admin/orders?status=CANCELLED' },
+        ].map((item) => (
+          <Link key={item.label} href={item.href} className="flex items-center justify-between rounded-xl border border-sage-light/30 bg-white p-4 hover:shadow-md transition-all">
+            <span className="text-sm font-medium text-slate">{item.label}</span>
+            <span className="text-lg font-bold font-display text-sage-dark">{item.value}</span>
           </Link>
         ))}
       </div>
@@ -139,11 +183,11 @@ export default function AdminDashboard() {
           <h2 className="text-sm font-semibold text-navy">Recent Orders</h2>
           <Link href="/admin/orders" className="text-xs font-medium text-sage-dark hover:text-navy">View all</Link>
         </div>
-        {data?.recentOrders?.length === 0 ? (
+        {!data?.recentOrders?.length ? (
           <div className="px-5 py-12 text-center text-sm text-slate">No orders yet</div>
         ) : (
           <div className="divide-y divide-sage-light/20">
-            {data?.recentOrders?.map((order) => (
+            {data.recentOrders.map((order) => (
               <Link key={order.id} href={`/admin/orders/${order.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-sage-light/5 transition-colors">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-navy truncate">{order.user?.name || 'Unknown'}</p>
@@ -167,16 +211,16 @@ export default function AdminDashboard() {
           <h2 className="text-sm font-semibold text-navy">Recent Reviews</h2>
           <Link href="/admin/reviews" className="text-xs font-medium text-sage-dark hover:text-navy">View all</Link>
         </div>
-        {data?.recentReviews?.length === 0 ? (
+        {!data?.recentReviews?.length ? (
           <div className="px-5 py-12 text-center text-sm text-slate">No reviews yet</div>
         ) : (
           <div className="divide-y divide-sage-light/20">
-            {data?.recentReviews?.map((review) => (
+            {data.recentReviews.map((review) => (
               <div key={review.id} className="px-5 py-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-0.5">
+                  <div className="flex items-center gap-0.5" aria-label={`${review.rating} out of 5 stars`}>
                     {[1,2,3,4,5].map(s => (
-                      <svg key={s} className={`h-3.5 w-3.5 ${s <= review.rating ? 'text-gold' : 'text-sage-light/40'}`} fill="currentColor" viewBox="0 0 20 20">
+                      <svg key={s} className={`h-3.5 w-3.5 ${s <= review.rating ? 'text-gold' : 'text-sage-light/40'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                       </svg>
                     ))}

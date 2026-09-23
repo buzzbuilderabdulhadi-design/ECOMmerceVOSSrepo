@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { PaymentElement } from '@stripe/react-stripe-js';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
@@ -13,13 +13,19 @@ import { TextReveal } from '@/components/animations/TextReveal';
 import { useCart } from '@/context/CartContext';
 import { createAddress } from '@/services/addresses';
 import { createOrder } from '@/services/orders';
+import {
+  fetchCheckoutPreview,
+  fetchCheckoutMethods,
+  createOrderPaymentIntent,
+  createPayPalOrder,
+} from '@/services/checkout';
 import { getErrorMessage } from '@/services/axios';
+import { computeTotals } from '@/lib/pricing';
+import { StripeCheckoutProvider, useStripeElements } from '@/components/checkout/StripeCheckoutProvider';
+import type { CheckoutMethod, CheckoutPreview, PaymentMethod } from '@/types';
 import { cn } from '@/lib/utils';
 
 type Step = 'shipping' | 'payment' | 'review';
-
-const SHIPPING_COST = 15;
-const TAX_RATE = 0.08;
 
 interface ShippingForm {
   fullName: string;
@@ -30,6 +36,13 @@ interface ShippingForm {
   state: string;
   zip: string;
   country: string;
+}
+
+interface ManualResult {
+  orderNumber: string;
+  reference: string;
+  methodLabel: string;
+  instructions: string[];
 }
 
 const initialShipping: ShippingForm = {
@@ -43,15 +56,46 @@ const initialShipping: ShippingForm = {
   country: '',
 };
 
+const FALLBACK_LABELS: Record<string, string> = {
+  STRIPE: 'Card (Stripe)',
+  PAYPAL: 'PayPal',
+  BANK_TRANSFER: 'Direct Bank Transfer',
+  PAYONEER: 'Payoneer',
+};
+
+function methodLabel(methods: CheckoutMethod[], id: PaymentMethod | null | undefined): string {
+  if (!id) return 'Not selected';
+  const found = methods.find((m) => m.id === id);
+  return found?.label ?? FALLBACK_LABELS[id] ?? String(id);
+}
+
 export default function CheckoutPage() {
-  const router = useRouter();
-  const { cart, subtotal } = useCart();
+  return (
+    <StripeCheckoutProvider>
+      <CheckoutContent />
+    </StripeCheckoutProvider>
+  );
+}
+
+function CheckoutContent() {
+  const { stripe, elements } = useStripeElements();
+  const { cart, subtotal, refreshCart } = useCart();
   const [step, setStep] = useState<Step>('shipping');
   const [shippingForm, setShippingForm] = useState<ShippingForm>(initialShipping);
   const [shippingErrors, setShippingErrors] = useState<Partial<Record<keyof ShippingForm, string>>>({});
   const [isPlacing, setIsPlacing] = useState(false);
   const [orderError, setOrderError] = useState('');
   const [completedOrder, setCompletedOrder] = useState<string | null>(null);
+  const [manualResult, setManualResult] = useState<ManualResult | null>(null);
+  const [paypalRedirecting, setPaypalRedirecting] = useState(false);
+  const [methods, setMethods] = useState<CheckoutMethod[]>([]);
+  const [methodsError, setMethodsError] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [preview, setPreview] = useState<CheckoutPreview | null>(null);
+  const [previewError, setPreviewError] = useState('');
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `zg-order-${Date.now()}`
+  );
 
   const steps: { id: Step; label: string }[] = [
     { id: 'shipping', label: 'Shipping' },
@@ -60,10 +104,53 @@ export default function CheckoutPage() {
   ];
   const currentIndex = steps.findIndex((s) => s.id === step);
 
+  const enabledMethods = methods.filter((m) => m.enabled);
+  const anyMethodAvailable = enabledMethods.length > 0;
+  const selectedMethod = methods.find((m) => m.id === paymentMethod);
+  const selectedIsManual = paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'PAYONEER';
+
   const discount = cart?.discountAmount || 0;
-  const shipping = subtotal - discount >= 200 ? 0 : SHIPPING_COST;
-  const tax = Math.max(0, subtotal - discount) * TAX_RATE;
-  const total = Math.max(0, subtotal - discount + shipping + tax);
+  // Display-only mirror; the server recomputes all totals authoritatively.
+  const fallbackTotals = computeTotals(subtotal, discount);
+  const totals = preview ? preview.totals : fallbackTotals;
+
+  React.useEffect(() => {
+    let active = true;
+    fetchCheckoutPreview()
+      .then((data) => {
+        if (active) {
+          setPreview(data);
+          setPreviewError('');
+        }
+      })
+      .catch((error) => {
+        if (active) setPreviewError(getErrorMessage(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let active = true;
+    fetchCheckoutMethods()
+      .then((data) => {
+        if (!active) return;
+        setMethods(data.methods || []);
+        setMethodsError('');
+        setPaymentMethod((prev) => {
+          if (prev) return prev;
+          const first = data.methods?.find((m) => m.enabled);
+          return first?.id ?? null;
+        });
+      })
+      .catch((error) => {
+        if (active) setMethodsError(getErrorMessage(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const updateShipping = (field: keyof ShippingForm, value: string) => {
     setShippingForm((prev) => ({ ...prev, [field]: value }));
@@ -92,6 +179,10 @@ export default function CheckoutPage() {
     setOrderError('');
     setIsPlacing(true);
     try {
+      if (!paymentMethod || !selectedMethod?.enabled) {
+        throw new Error('Please choose a payment method.');
+      }
+
       const address = await createAddress({
         label: 'Shipping',
         fullName: shippingForm.fullName,
@@ -104,18 +195,76 @@ export default function CheckoutPage() {
         country: shippingForm.country,
         isDefault: true,
       });
+
       const order = await createOrder({
         shippingAddressId: address.id,
         couponCode: cart?.couponCode,
-        paymentMethod: 'card',
+        paymentMethod,
+        idempotencyKey,
       });
-      setCompletedOrder(order.orderNumber);
+
+      if (paymentMethod === 'STRIPE' || paymentMethod === 'card') {
+        if (!stripe || !elements) {
+          throw new Error('Payment is not fully configured yet. Please try again.');
+        }
+        const paymentIntent = await createOrderPaymentIntent(order.id);
+        const { error } = await stripe.confirmPayment({
+          elements,
+          clientSecret: paymentIntent.clientSecret,
+          confirmParams: { return_url: window.location.href },
+        });
+        if (error) {
+          throw new Error(error.message || 'Payment could not be completed.');
+        }
+        await refreshCart();
+        setCompletedOrder(order.orderNumber);
+        return;
+      }
+
+      if (paymentMethod === 'PAYPAL') {
+        const origin = window.location.origin;
+        const paypal = await createPayPalOrder({
+          orderId: order.id,
+          returnUrl: `${origin}/checkout/paypal?orderId=${order.id}`,
+          cancelUrl: `${origin}/checkout?cancelled=paypal`,
+        });
+        await refreshCart();
+        if (paypal.alreadyCaptured) {
+          setCompletedOrder(order.orderNumber);
+          return;
+        }
+        if (!paypal.approvalUrl) {
+          throw new Error('PayPal could not start your payment. Please try again.');
+        }
+        setPaypalRedirecting(true);
+        window.location.href = paypal.approvalUrl;
+        return;
+      }
+
+      // Manual methods (bank transfer / Payoneer) settle offline and are
+      // verified by an admin. No payment is captured on the client.
+      await refreshCart();
+      setManualResult({
+        orderNumber: order.orderNumber,
+        reference: order.orderNumber,
+        methodLabel: methodLabel(methods, paymentMethod),
+        instructions: selectedMethod?.instructions ?? [],
+      });
     } catch (error) {
       setOrderError(getErrorMessage(error));
     } finally {
       setIsPlacing(false);
     }
   };
+
+  const noMethodsBanner = !anyMethodAvailable && !methodsError ? (
+    <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-800">
+      <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <span>Payments are not configured yet. Please check back soon or contact support.</span>
+    </div>
+  ) : null;
 
   return (
     <PageTransition>
@@ -184,7 +333,41 @@ export default function CheckoutPage() {
           </div>
 
           <ScrollReveal>
-            {completedOrder ? (
+            {manualResult ? (
+              <div className="hairline rounded-2xl bg-white/70 p-6 text-center backdrop-blur-sm sm:p-10">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-walnut/10">
+                  <svg className="h-8 w-8 text-walnut" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="font-display text-3xl font-light text-navy">Order Placed — Payment Pending</h2>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
+                  Your order <span className="font-medium text-navy">#{manualResult.orderNumber}</span> has been placed and is{' '}
+                  <span className="font-medium text-walnut">awaiting payment verification</span>. Please complete your{' '}
+                  <span className="font-medium text-navy">{manualResult.methodLabel}</span> payment as described below.
+                </p>
+                <div className="mx-auto mt-6 max-w-md rounded-xl border border-sage-light/30 bg-sage-light/10 p-5 text-left">
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-sage-dark">Payment Reference</p>
+                  <p className="mt-1 font-mono text-lg font-medium text-navy">{manualResult.reference}</p>
+                  {manualResult.instructions.length > 0 ? (
+                    <ul className="mt-4 space-y-2">
+                      {manualResult.instructions.map((line, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-slate">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sage-dark" />
+                          {line}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm text-slate">Please include your order number as the payment reference.</p>
+                  )}
+                </div>
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                  <Button href="/dashboard/orders" variant="primary">View My Orders</Button>
+                  <Button href="/shop" variant="ghost">Continue Shopping</Button>
+                </div>
+              </div>
+            ) : completedOrder ? (
               <div className="hairline rounded-2xl bg-white/70 p-6 text-center backdrop-blur-sm sm:p-10">
                 <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sage-light/40">
                   <svg className="h-8 w-8 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,7 +377,7 @@ export default function CheckoutPage() {
                 <h2 className="font-display text-3xl font-light text-navy">Thank You</h2>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
                   Your order <span className="font-medium text-navy">#{completedOrder}</span> has been placed successfully.
-                  A confirmation has been sent to your email.
+                  A confirmation email will be sent once your payment is fully processed.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
                   <Button href="/dashboard/orders" variant="primary">View My Orders</Button>
@@ -306,27 +489,109 @@ export default function CheckoutPage() {
               <div className="hairline rounded-2xl bg-white/70 p-6 backdrop-blur-sm sm:p-10">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-sage-dark">Step 02 — Secure Payment</p>
                 <h2 className="mt-2 font-display text-3xl font-light text-navy">Payment Information</h2>
-                <div className="mt-7 space-y-5">
-                  <Input label="Card Number" placeholder="1234 5678 9012 3456" />
-                  <div className="grid gap-5 sm:grid-cols-3">
-                    <Input label="Expiry Date" placeholder="MM/YY" />
-                    <Input label="CVV" placeholder="123" />
-                    <Input label="ZIP Code" placeholder="10001" />
+                {previewError && (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
+                    {previewError}
                   </div>
-                  <label className="flex cursor-pointer items-center gap-3 text-sm text-navy">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-gold"
-                    />
-                    Save card for future purchases
-                  </label>
-                  <p className="flex items-center gap-2 text-xs text-slate">
-                  <svg className="h-4 w-4 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                    Your payment details are encrypted end-to-end.
-                  </p>
+                )}
+                {methodsError && (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-800">
+                    {methodsError}
+                  </div>
+                )}
+                <div className="mt-7">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {methods.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        disabled={!m.enabled}
+                        onClick={() => setPaymentMethod(m.id)}
+                        className={cn(
+                          'rounded-xl border p-4 text-left transition-all duration-200',
+                          m.enabled
+                            ? paymentMethod === m.id
+                              ? 'border-navy bg-navy/[0.04] shadow-sm'
+                              : 'border-sage-light/40 bg-white hover:border-navy/40 hover:bg-sage-light/5'
+                            : 'cursor-not-allowed border-sage-light/20 bg-slate-50 opacity-60'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className={cn('text-sm font-semibold', paymentMethod === m.id ? 'text-navy' : 'text-navy')}>
+                              {m.label}
+                            </span>
+                            <span
+                              className={cn(
+                                'ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+                                m.kind === 'manual'
+                                  ? 'bg-walnut/10 text-walnut'
+                                  : 'bg-sage-dark/10 text-sage-dark'
+                              )}
+                            >
+                              {m.kind === 'manual' ? 'Manual · Verified after you pay' : 'Instant'}
+                            </span>
+                          </div>
+                          {paymentMethod === m.id && m.enabled && (
+                            <svg className="h-5 w-5 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-slate">{m.description}</p>
+                        {!m.enabled && <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-slate">Unavailable</p>}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-7">
+                    {paymentMethod === 'STRIPE' || paymentMethod === 'card' ? (
+                      <>
+                        <PaymentElement />
+                        <p className="mt-5 flex items-center gap-2 text-xs text-slate">
+                          <svg className="h-4 w-4 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                          Your card details are handled securely by Stripe and are never sent to our servers.
+                        </p>
+                      </>
+                    ) : paymentMethod === 'PAYPAL' ? (
+                      <div className="rounded-xl border border-sage-light/30 bg-sage-light/10 p-5">
+                        <p className="text-sm leading-relaxed text-slate">
+                          You'll be redirected to PayPal to approve the payment securely.
+                          You will return to ZOYA GOODS once the payment is complete.
+                        </p>
+                        <p className="mt-3 text-xs text-slate">
+                          No card details are shared with us — PayPal handles everything on their secure site.
+                        </p>
+                      </div>
+                    ) : (paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'PAYONEER') && selectedMethod ? (
+                      <div className="rounded-xl border border-sage-light/30 bg-sage-light/10 p-5">
+                        <p className="text-sm font-medium text-navy">How it works</p>
+                        <ol className="mt-3 space-y-2 text-sm text-slate">
+                          <li>1. Place your order now — you will not be charged today.</li>
+                          <li>2. Transfer the order total to our {selectedMethod.label} account using the details below.</li>
+                          <li>3. Include your order number as the payment reference.</li>
+                          <li>4. Your order stays <span className="font-medium text-walnut">awaiting verification</span> until ZOYA GOODS confirms the payment.</li>
+                        </ol>
+                        {selectedMethod.instructions.length > 0 && (
+                          <ul className="mt-3 space-y-1 border-t border-sage-light/40 pt-3 text-xs text-slate">
+                            {selectedMethod.instructions.map((line, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-sage-dark" />
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <p className="mt-3 text-xs text-walnut">
+                          No payment is taken from you here. We verify the transfer before your order is confirmed.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
+                {noMethodsBanner}
                 <div className="mt-10 flex flex-wrap items-center justify-between gap-4">
                   <Button variant="ghost" onClick={() => setStep('shipping')}>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -334,7 +599,11 @@ export default function CheckoutPage() {
                     </svg>
                     Back to Shipping
                   </Button>
-                  <Button variant="primary" onClick={() => setStep('review')}>
+                  <Button
+                    variant="primary"
+                    onClick={() => setStep('review')}
+                    disabled={!paymentMethod || !selectedMethod?.enabled}
+                  >
                     Review Order
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -363,8 +632,12 @@ export default function CheckoutPage() {
                       <h3 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-sage-dark">
                         <span className="h-px w-6 bg-sage" /> Payment Method
                       </h3>
-                      <p className="mt-2 font-display text-lg text-navy">Card</p>
-                      <p className="text-sm text-slate">Charged on order placement</p>
+                      <p className="mt-2 font-display text-lg text-navy">{methodLabel(methods, paymentMethod)}</p>
+                      <p className="text-sm text-slate">
+                        {selectedIsManual
+                          ? 'Pay by this method after placing the order. Payment awaits verification before the order is confirmed.'
+                          : 'Charged securely when you place the order'}
+                      </p>
                     </div>
                   </div>
 
@@ -372,28 +645,28 @@ export default function CheckoutPage() {
                     <div className="space-y-3 text-sm">
                       <div className="flex justify-between">
                         <span className="text-sage-light">Subtotal</span>
-                        <span className="font-medium text-ivory">${subtotal.toFixed(2)}</span>
+                        <span className="font-medium text-ivory">${totals.subtotal.toFixed(2)}</span>
                       </div>
-                      {discount > 0 && (
+                      {totals.discount > 0 && (
                         <div className="flex justify-between">
                           <span className="text-sage-light">Discount</span>
-                          <span className="font-medium text-sage-light">-${discount.toFixed(2)}</span>
+                          <span className="font-medium text-sage-light">-${totals.discount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between">
                         <span className="text-sage-light">Shipping</span>
-                        <span className={shipping === 0 ? 'font-medium text-sage-light' : 'font-medium text-ivory'}>
-                          {shipping === 0 ? 'FREE' : `$${shipping.toFixed(2)}`}
+                        <span className={totals.shipping === 0 ? 'font-medium text-sage-light' : 'font-medium text-ivory'}>
+                          {totals.shipping === 0 ? 'FREE' : `$${totals.shipping.toFixed(2)}`}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sage-light">Estimated Tax</span>
-                        <span className="font-medium text-ivory">${tax.toFixed(2)}</span>
+                        <span className="font-medium text-ivory">${totals.tax.toFixed(2)}</span>
                       </div>
                       <div className="hairline-b hairline-gold" />
                       <div className="flex items-baseline justify-between pt-1">
                         <span className="font-display text-xl text-ivory">Total</span>
-                        <span className="font-display text-4xl font-light text-ivory">${total.toFixed(2)}</span>
+                        <span className="font-display text-4xl font-light text-ivory">${totals.total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -404,14 +677,32 @@ export default function CheckoutPage() {
                   </div>
                 )}
                 <div className="mt-10 flex flex-wrap items-center justify-between gap-4">
-                  <Button variant="ghost" onClick={() => setStep('payment')} disabled={isPlacing}>
+                  <Button variant="ghost" onClick={() => setStep('payment')} disabled={isPlacing || paypalRedirecting}>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
                     </svg>
                     Back to Payment
                   </Button>
-                  <Button variant="primary" size="lg" isLoading={isPlacing} onClick={handlePlaceOrder}>
-                    Place Order
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    isLoading={isPlacing}
+                    disabled={
+                      isPlacing ||
+                      paypalRedirecting ||
+                      !paymentMethod ||
+                      !selectedMethod?.enabled ||
+                      ((paymentMethod === 'STRIPE' || paymentMethod === 'card') && (!stripe || !elements))
+                    }
+                    onClick={handlePlaceOrder}
+                  >
+                    {paypalRedirecting
+                      ? 'Redirecting to PayPal...'
+                      : selectedIsManual
+                        ? 'Place Order'
+                        : paymentMethod === 'PAYPAL'
+                          ? `Continue to PayPal`
+                          : `Pay $${totals.total.toFixed(2)}`}
                   </Button>
                 </div>
               </div>

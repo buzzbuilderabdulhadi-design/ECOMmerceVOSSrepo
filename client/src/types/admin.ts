@@ -20,6 +20,7 @@ export interface OrderDetail extends Order {
   user?: Pick<User, 'id' | 'name' | 'email' | 'phone'>;
   trackingNumber?: string;
   internalNotes?: string;
+  verifiedByUser?: { id: string; name: string } | null;
 }
 
 // --- Admin: Notifications ---
@@ -48,10 +49,12 @@ export interface CustomerDetail {
   email: string;
   avatar?: string;
   phone?: string;
+  emailVerified?: boolean;
   createdAt: string;
   orders?: Order[];
   addresses?: Address[];
   reviews?: Review[];
+  _stats?: { totalSpent: number; orderCount: number; reviewCount: number };
 }
 
 // --- Admin: Analytics ---

@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { useAuth } from '@/context/AuthContext';
+import { useWishlist } from '@/context/WishlistContext';
 import { fetchOrders } from '@/services/orders';
 import type { Order } from '@/types';
 import {
@@ -35,6 +36,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { items: wishlistItems, isLoading: wishlistLoading } = useWishlist();
   const [orders, setOrders] = useState<Order[]>([]);
   const [totalOrders, setTotalOrders] = useState(0);
 
@@ -56,7 +58,7 @@ export default function DashboardPage() {
   const statCards = [
     { label: 'Total Orders', value: String(totalOrders), icon: FiShoppingBag, color: 'text-sage-dark bg-sage-light/40' },
     { label: 'Active Orders', value: String(activeOrders), icon: FiClock, color: 'text-walnut bg-walnut/10' },
-    { label: 'Wishlist', value: '—', icon: FiHeart, color: 'text-navy-light bg-navy-light/10' },
+    { label: 'Wishlist', value: wishlistLoading ? '…' : String(wishlistItems.length), icon: FiHeart, color: 'text-navy-light bg-navy-light/10' },
     { label: 'Reviews', value: '—', icon: FiStar, color: 'text-sage-dark bg-sage-light/40' },
   ];
 

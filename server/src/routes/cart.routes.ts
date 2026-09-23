@@ -15,6 +15,7 @@ import {
   clearCart,
   applyCouponToCart,
   removeCouponFromCart,
+  mergeGuestCart,
 } from '../controllers/cart.controller';
 
 const router = Router();
@@ -24,6 +25,8 @@ router.post('/items', optionalAuth, validate(addToCartSchema), addToCart);
 router.put('/items/:itemId', optionalAuth, validate(updateCartItemSchema), updateCartItem);
 router.delete('/items/:itemId', optionalAuth, validate(removeCartItemSchema), removeCartItem);
 router.delete('/', optionalAuth, clearCart);
+
+router.post('/merge', optionalAuth, mergeGuestCart);
 
 router.post('/coupon', optionalAuth, validate(applyCouponSchema), applyCouponToCart);
 router.delete('/coupon', optionalAuth, removeCouponFromCart);

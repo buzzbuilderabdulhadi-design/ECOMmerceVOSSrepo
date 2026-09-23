@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,7 +65,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [notifications, setNotifications] = useState<{ data: Array<{ id: string; title: string; message: string; isRead: boolean; createdAt: string }> }>({ data: [] });
+  const [notifications, setNotifications] = useState<{ data: Array<{ id: string; title: string; message: string; isRead: boolean; createdAt: string }>; unreadCount: number }>({ data: [], unreadCount: 0 });
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -81,11 +81,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   useEffect(() => {
     if (isAuthenticated && user?.role === 'ADMIN' && !isLoginPage) {
-      adminApi.getNotifications({ limit: '10' }).then(res => setNotifications(res)).catch(() => {});
+      adminApi.getNotifications({ limit: '10' }).then(res => {
+        setNotifications({ data: res.data ?? [], unreadCount: res.unreadCount ?? 0 });
+      }).catch(() => {});
     }
   }, [isAuthenticated, user, isLoginPage]);
 
-  const unreadCount = notifications.data?.filter((n: { isRead: boolean }) => !n.isRead).length || 0;
+  const unreadCount = notifications.unreadCount > 0 ? notifications.unreadCount : (notifications.data?.filter((n: { isRead: boolean }) => !n.isRead).length || 0);
 
   const handleMarkAllRead = async () => {
     try {
@@ -93,6 +95,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       setNotifications(prev => ({
         ...prev,
         data: prev.data.map(n => ({ ...n, isRead: true })),
+        unreadCount: 0,
       }));
     } catch {}
   };

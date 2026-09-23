@@ -10,6 +10,31 @@ import axios, {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+const SESSION_STORAGE_KEY = 'zoya_session_id';
+
+/**
+ * A persistent, anonymous session identifier used to scope guest carts on the
+ * server. It is stored in localStorage so a guest's cart survives page
+ * reloads and is later merged into their account cart on login.
+ */
+export function getClientSessionId(): string {
+  if (typeof window === 'undefined') return '';
+  let sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
+  if (!sessionId) {
+    sessionId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `zg-session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+  }
+  return sessionId;
+}
+
+export function removeClientSessionId(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -19,7 +44,7 @@ const axiosInstance = axios.create({
 });
 
 // ============================================================
-// Request Interceptor — Attach JWT Token
+// Request Interceptor — Attach JWT Token + Guest Session ID
 // ============================================================
 
 axiosInstance.interceptors.request.use(
@@ -29,6 +54,13 @@ axiosInstance.interceptors.request.use(
       const token = localStorage.getItem('voss_token');
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+      // Always send the guest session id when present so guest carts and the
+      // post-login merge work. Requires `withCredentials` for cookies; headers
+      // are the only transport used for the session here.
+      const sessionId = getClientSessionId();
+      if (sessionId && config.headers) {
+        config.headers['x-session-id'] = sessionId;
       }
     }
     return config;

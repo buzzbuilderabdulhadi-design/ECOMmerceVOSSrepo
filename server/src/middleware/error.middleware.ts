@@ -51,6 +51,13 @@ export const errorHandler = (
         message = 'Invalid database constraint.';
         statusCode = 400;
         break;
+      case 'P2023':
+        // MongoDB ObjectId-scoped error raised when an id is not a valid
+        // ObjectId. Return a controlled 400 instead of leaking an internal
+        // database error. Validating ObjectId up-front is preferred.
+        message = 'Invalid record identifier.';
+        statusCode = 400;
+        break;
       default:
         message = 'An unexpected database error occurred.';
         statusCode = 500;
@@ -103,7 +110,7 @@ export const errorHandler = (
 
     switch (multerErr.code) {
       case 'LIMIT_FILE_SIZE':
-        message = 'File is too large. Maximum size is 5MB.';
+        message = 'File is too large. Maximum size is 10MB.';
         break;
       case 'LIMIT_FILE_COUNT':
         message = 'Too many files uploaded.';

@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -8,6 +9,8 @@ import rateLimit from 'express-rate-limit';
 import config from './config';
 import prisma, { connectDatabase, disconnectDatabase } from './config/db';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { stripeWebhook as stripeWebhookHandler } from './controllers/webhooks.controller';
+import { paypalWebhook as paypalWebhookHandler } from './controllers/paypal.webhook';
 import logger from './utils/logger';
 
 // ============================================================
@@ -45,6 +48,22 @@ app.use(compression());
 // Cookie parser
 app.use(cookieParser());
 
+// Stripe webhook MUST receive the raw body before any JSON parsing so the
+// signature can be verified against the exact bytes Stripe signed.
+app.post(
+  '/api/v1/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  stripeWebhookHandler
+);
+
+// PayPal webhook MUST also receive the raw body: its signature verification
+// endpoint requires the exact event JSON and webhook-specific headers.
+app.post(
+  '/api/v1/webhooks/paypal',
+  express.raw({ type: 'application/json' }),
+  paypalWebhookHandler
+);
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -55,6 +74,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 if (config.env === 'development') {
   app.use(morgan('dev'));
 }
+
+// Serve admin-uploaded files that were not promoted to a CDN.
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), {
+  maxAge: '7d',
+  dotfiles: 'ignore',
+  fallthrough: true,
+}));
 
 // ============================================================
 // Rate Limiting
@@ -90,15 +116,23 @@ app.use('/api/auth', authLimiter);
 // Health Check
 // ============================================================
 
-app.get('/api/health', (_req, res) => {
-  res.json({
-    success: true,
+app.get('/api/health', async (_req, res) => {
+  let dbConnected = false;
+  try {
+    await prisma.$runCommandRaw({ ping: 1 });
+    dbConnected = true;
+  } catch {
+    dbConnected = false;
+  }
+
+  res.status(dbConnected ? 200 : 503).json({
+    success: dbConnected,
     data: {
-      status: 'ok',
+      status: dbConnected ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
       environment: config.env,
       uptime: process.uptime(),
-      database: prisma ? 'connected' : 'disconnected',
+      database: dbConnected ? 'connected' : 'disconnected',
     },
   });
 });

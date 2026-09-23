@@ -1,0 +1,47 @@
+export const ORDER_STATUS = {
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  PROCESSING: 'PROCESSING',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
+  RETURNED: 'RETURNED',
+} as const;
+
+export type OrderStatusValue = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS];
+
+export const PAYMENT_STATUS = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  PAID: 'PAID',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
+  AWAITING_VERIFICATION: 'AWAITING_VERIFICATION',
+  REFUNDED: 'REFUNDED',
+} as const;
+
+export type PaymentStatusValue = (typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS];
+
+export const PAYMENT_TERMINAL = new Set<PaymentStatusValue>([
+  PAYMENT_STATUS.PAID,
+  PAYMENT_STATUS.REFUNDED,
+  PAYMENT_STATUS.CANCELLED,
+]);
+
+export const ORDER_TRANSITIONS: Record<OrderStatusValue, readonly OrderStatusValue[]> = {
+  [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.PROCESSING, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.PROCESSING, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.PROCESSING]: [ORDER_STATUS.SHIPPED, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.SHIPPED]: [ORDER_STATUS.DELIVERED, ORDER_STATUS.RETURNED],
+  [ORDER_STATUS.DELIVERED]: [],
+  [ORDER_STATUS.CANCELLED]: [],
+  [ORDER_STATUS.RETURNED]: [],
+};
+
+export function canTransitionOrder(from: OrderStatusValue, to: OrderStatusValue): boolean {
+  return ORDER_TRANSITIONS[from] !== undefined && ORDER_TRANSITIONS[from].includes(to);
+}
+
+export function isOrderCancellable(paymentStatus: PaymentStatusValue): boolean {
+  return !PAYMENT_TERMINAL.has(paymentStatus);
+}

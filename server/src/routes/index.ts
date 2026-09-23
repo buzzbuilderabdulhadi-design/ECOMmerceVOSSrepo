@@ -12,6 +12,7 @@ import addressRoutes from './addresses.routes';
 import userRoutes from './users.routes';
 import questionRoutes from './questions.routes';
 import mediaRoutes from './media.routes';
+import checkoutRoutes from './checkout.routes';
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.use('/cart', cartRoutes);
 router.use('/wishlist', wishlistRoutes);
 router.use('/reviews', reviewRoutes);
 router.use('/orders', orderRoutes);
+router.use('/checkout', checkoutRoutes);
 router.use('/coupons', couponRoutes);
 router.use('/addresses', addressRoutes);
 router.use('/users', userRoutes);

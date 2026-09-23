@@ -37,8 +37,16 @@ export async function connectDatabase(): Promise<void> {
     console.log('✅ Database connected successfully');
     console.log(`   Environment: ${config.env}`);
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
-    process.exit(1);
+    // Do not crash the server if the database is temporarily unreachable.
+    // The API still starts, `/api/health` reports degraded, and the Prisma
+    // client reconnects automatically once the database becomes reachable.
+    console.warn(
+      '⚠️  Database connection failed — starting server in degraded mode. ' +
+        'All database-backed endpoints will return errors until connectivity is restored.'
+    );
+    if (config.env === 'development') {
+      console.warn('   Reason:', error instanceof Error ? error.message : String(error));
+    }
   }
 }
 

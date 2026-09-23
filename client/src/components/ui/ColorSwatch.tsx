@@ -45,7 +45,7 @@ export function ColorSwatch({
         const isSelected = selectedColor === color.name;
         return (
           <button
-            key={color.name}
+            key={`${color.name}-${color.hex}`}
             type="button"
             onClick={() => !color.disabled && onChange?.(color)}
             disabled={color.disabled}

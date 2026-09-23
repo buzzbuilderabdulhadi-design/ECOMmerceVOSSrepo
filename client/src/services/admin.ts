@@ -1,9 +1,14 @@
 import axiosInstance from './axios';
-import type { Product, Category, Order, Review, Coupon, User, ApiResponse, PaginatedResponse } from '@/types';
+import type { Product, Category, Coupon, User } from '@/types';
 
 // ============================================================
 // Admin API Service
 // ============================================================
+
+type ProductInput = Omit<Partial<Product>, 'salePrice' | 'discountPercent'> & {
+  salePrice?: number | null;
+  discountPercent?: number | null;
+};
 
 const adminApi = {
   // Dashboard
@@ -19,8 +24,8 @@ const adminApi = {
   // Products
   getProducts: (params?: Record<string, string>) => axiosInstance.get('/admin/products', { params }).then(r => r.data),
   getProduct: (id: string) => axiosInstance.get(`/admin/products/${id}`).then(r => r.data.data),
-  createProduct: (data: Partial<Product>) => axiosInstance.post('/admin/products', data).then(r => r.data),
-  updateProduct: (id: string, data: Partial<Product>) => axiosInstance.put(`/admin/products/${id}`, data).then(r => r.data),
+  createProduct: (data: ProductInput) => axiosInstance.post('/admin/products', data).then(r => r.data),
+  updateProduct: (id: string, data: ProductInput) => axiosInstance.put(`/admin/products/${id}`, data).then(r => r.data),
   deleteProduct: (id: string) => axiosInstance.delete(`/admin/products/${id}`).then(r => r.data),
   bulkDeleteProducts: (ids: string[]) => axiosInstance.post('/admin/products/bulk-delete', { ids }).then(r => r.data),
   bulkUpdateProducts: (ids: string[], data: Partial<Product>) => axiosInstance.post('/admin/products/bulk-update', { ids, data }).then(r => r.data),
@@ -38,6 +43,8 @@ const adminApi = {
   getOrder: (id: string) => axiosInstance.get(`/admin/orders/${id}`).then(r => r.data.data),
   updateOrderStatus: (id: string, data: { status?: string; trackingNumber?: string; notes?: string }) =>
     axiosInstance.patch(`/admin/orders/${id}/status`, data).then(r => r.data),
+  verifyOrderPayment: (id: string, status: 'PAID' | 'FAILED') =>
+    axiosInstance.patch(`/admin/orders/${id}/payment`, { status }).then(r => r.data.data),
   deleteOrder: (id: string) => axiosInstance.delete(`/admin/orders/${id}`).then(r => r.data),
 
   // Customers
@@ -61,6 +68,7 @@ const adminApi = {
 
   // Media
   getMedia: (folder?: string) => axiosInstance.get('/admin/media', { params: { folder } }).then(r => r.data.data),
+  uploadMedia: (payload: FormData) => axiosInstance.post('/admin/media/upload', payload, { headers: { 'Content-Type': undefined } }).then(r => r.data),
   deleteMedia: (id: string) => axiosInstance.delete(`/admin/media/${id}`).then(r => r.data),
 
   // Settings

@@ -24,14 +24,18 @@ export const updateAddress = async (req: Request, res: Response, next: NextFunct
     const data = req.body;
     const id = req.params.id as string;
     if (data.isDefault) await prisma.address.updateMany({ where: { userId: req.user!.userId, id: { not: id } }, data: { isDefault: false } });
-    const address = await prisma.address.update({ where: { id }, data });
+    const updated = await prisma.address.updateMany({ where: { id, userId: req.user!.userId }, data });
+    if (updated.count === 0) throw ApiError.notFound('Address not found');
+    const address = await prisma.address.findFirst({ where: { id, userId: req.user!.userId } });
     sendSuccess(res, address, 'Address updated');
   } catch (error) { next(error); }
 };
 
 export const deleteAddress = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.address.delete({ where: { id: req.params.id as string } });
+    const id = req.params.id as string;
+    const deleted = await prisma.address.deleteMany({ where: { id, userId: req.user!.userId } });
+    if (deleted.count === 0) throw ApiError.notFound('Address not found');
     sendMessage(res, 'Address deleted');
   } catch (error) { next(error); }
 };

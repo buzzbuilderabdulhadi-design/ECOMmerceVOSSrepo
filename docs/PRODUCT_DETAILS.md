@@ -142,8 +142,6 @@ Touch Swipe
 
 Future support:
 
-360° View
-
 Product Videos
 
 Gallery should adapt beautifully on mobile.

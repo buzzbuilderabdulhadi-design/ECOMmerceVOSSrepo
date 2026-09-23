@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import adminApi from '@/services/admin';
 import { generateSlug } from '@/lib/utils';
+import Modal from '@/components/admin/Modal';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/services/axios';
 import { Category as BaseCategory } from '@/types';
@@ -138,76 +140,65 @@ export default function AdminCategoriesPage() {
       )}
 
       {/* Form modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-          <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-navy">{editing ? 'Edit Category' : 'New Category'}</h3>
-            <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-navy">Name *</label>
-                <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-navy">Slug</label>
-                <input type="text" value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} placeholder="auto-generated from name"
-                  className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-navy">Description</label>
-                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3}
-                  className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-navy">Image URL</label>
-                <input type="text" value={form.image} onChange={e => setForm(f => ({ ...f, image: e.target.value }))}
-                  className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-navy">Display Order</label>
-                  <input type="number" value={form.displayOrder} onChange={e => setForm(f => ({ ...f, displayOrder: parseInt(e.target.value) || 0 }))}
-                    className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-navy">Parent Category</label>
-                  <select value={form.parentId} onChange={e => setForm(f => ({ ...f, parentId: e.target.value }))}
-                    className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none">
-                    <option value="">None (Top Level)</option>
-                    {parentCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} className="h-4 w-4 rounded border-sage-light/60 text-navy" />
-                <span className="text-sm text-navy">Active (visible on store)</span>
-              </label>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-sage-light/40 px-4 py-2 text-sm font-medium text-navy hover:bg-sage-light/10">Cancel</button>
-                <button type="submit" disabled={saving} className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-ivory hover:bg-navy-light disabled:opacity-50">
-                  {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
-                </button>
-              </div>
-            </form>
+      <Modal open={showForm} title={editing ? 'Edit Category' : 'New Category'} onClose={() => setShowForm(false)} maxWidth="max-w-lg">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-navy">Name *</label>
+            <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
           </div>
-        </div>
-      )}
-
-      {/* Delete modal */}
-      {showDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDelete(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-navy">Delete Category</h3>
-            <p className="mt-2 text-sm text-slate">Are you sure? Products in this category will be unlinked.</p>
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setShowDelete(null)} className="rounded-lg border border-sage-light/40 px-4 py-2 text-sm font-medium text-navy hover:bg-sage-light/10">Cancel</button>
-              <button onClick={() => showDelete && handleDelete(showDelete)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Delete</button>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-navy">Slug</label>
+            <input type="text" value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} placeholder="auto-generated from name"
+              className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-navy">Description</label>
+            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3}
+              className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-navy">Image URL</label>
+            <input type="text" value={form.image} onChange={e => setForm(f => ({ ...f, image: e.target.value }))}
+              className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-navy">Display Order</label>
+              <input type="number" value={form.displayOrder} onChange={e => setForm(f => ({ ...f, displayOrder: parseInt(e.target.value) || 0 }))}
+                className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy/20" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-navy">Parent Category</label>
+              <select value={form.parentId} onChange={e => setForm(f => ({ ...f, parentId: e.target.value }))}
+                className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none">
+                <option value="">None (Top Level)</option>
+                {parentCategories.filter(c => c.id !== editing?.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
           </div>
-        </div>
-      )}
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} className="h-4 w-4 rounded border-sage-light/60 text-navy" />
+            <span className="text-sm text-navy">Active (visible on store)</span>
+          </label>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-sage-light/40 px-4 py-2 text-sm font-medium text-navy hover:bg-sage-light/10">Cancel</button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-navy px-4 py-2 text-sm font-medium text-ivory hover:bg-navy-light disabled:opacity-50">
+              {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!showDelete}
+        title="Delete Category"
+        message="Are you sure? Products in this category will be unlinked."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => showDelete && handleDelete(showDelete)}
+        onCancel={() => setShowDelete(null)}
+      />
     </div>
   );
 }
