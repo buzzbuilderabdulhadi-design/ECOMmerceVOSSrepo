@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -12,29 +12,104 @@ import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
-import { getProductsBySubcategory, categoryDescriptions } from '@/data/products';
+import { fetchCategory, fetchProducts } from '@/services';
+import { getErrorMessage } from '@/services/axios';
+import { variantsToColors } from '@/lib/utils';
+import { useWishlist } from '@/context/WishlistContext';
+import { useAuth } from '@/context/AuthContext';
+import type { Category, Product } from '@/types';
+import toast from 'react-hot-toast';
 
-function toProductCard(p: { id: string; name: string; slug: string; image: string; images?: string[]; regularPrice: number; salePrice?: number; discountPercent?: number; rating: number; reviewCount: number; isNew?: boolean; isBestSeller?: boolean; colors?: { name: string; hex: string }[]; stock?: number; brand: string; category: string; subcategory?: string }): ProductCardData {
+const CATEGORY_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=900&q=85';
+
+function toProductCard(p: Product): ProductCardData {
+  const firstImage = p.images?.[0];
   return {
-    id: p.id, name: p.name, slug: p.slug, image: p.image, images: p.images,
-    regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
-    rating: p.rating, reviewCount: p.reviewCount, isNew: p.isNew, isBestSeller: p.isBestSeller,
-    colors: p.colors, stock: p.stock, brand: p.brand, category: p.subcategory ?? p.category,
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    image: typeof firstImage === 'string' ? firstImage : firstImage?.url || '',
+    images: p.images?.map((i) => (typeof i === 'string' ? i : i.url)) || [],
+    regularPrice: p.regularPrice,
+    salePrice: p.salePrice,
+    discountPercent: p.discountPercent,
+    isNew: p.isNew,
+    isBestSeller: p.isBestSeller,
+    stock: p.stock,
+    brand: p.brand,
+    category: p.category?.name,
+    colors: variantsToColors(p.variants),
+    defaultVariantId: p.variants?.find((v) => v.isActive !== false)?.id,
   };
 }
 
 export default function CategoryPage() {
   const params = useParams();
   const slug = params.slug as string;
-  const [isLoading] = useState(false);
-  const [error] = useState<string | null>(null);
-  const [wishlistedIds] = useState<Set<string>>(new Set());
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const category = categoryDescriptions[slug];
-  const rawProducts = slug ? getProductsBySubcategory(slug) : [];
-  const products = rawProducts.map(toProductCard);
+  const [category, setCategory] = useState<Category | null>(null);
+  const [products, setProducts] = useState<ProductCardData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  if (!slug || !category) {
+  const { wishlistedProductIds, toggleItem } = useWishlist();
+  const { isAuthenticated } = useAuth();
+
+  const handleWishlistToggle = useCallback(
+    async (productId: string) => {
+      if (!isAuthenticated) {
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+      const ok = await toggleItem(
+        {
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+          regularPrice: product.regularPrice,
+          salePrice: product.salePrice,
+          images: product.images ?? [product.image],
+          stock: product.stock ?? 0,
+        } as Product,
+        product.defaultVariantId
+      );
+      if (!ok) toast.error('Could not update your wishlist.');
+    },
+    [isAuthenticated, products, toggleItem, router, pathname]
+  );
+
+  const isWishlistedFor = (id: string) => wishlistedProductIds.has(id);
+
+  const load = useCallback(async () => {
+    if (!slug) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [cat, list] = await Promise.all([
+        fetchCategory(slug),
+        fetchProducts({ category: slug, page: '1', limit: '100' }),
+      ]);
+      if (!cat) {
+        setError('Category not found');
+        return;
+      }
+      setCategory(cat);
+      setProducts(list.data.map(toProductCard));
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to load this category. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => { void load(); }, [load, reloadKey]);
+
+  if (error === 'Category not found') {
     return (
       <main className="min-h-screen">
         <Navbar />
@@ -56,8 +131,12 @@ export default function CategoryPage() {
     return (
       <main className="min-h-screen">
         <Navbar />
-        <div className="pt-24">
-          <ErrorState message={error} onRetry={() => window.location.reload()} />
+        <div className="mx-auto max-w-3xl px-4 pt-24 sm:px-6 lg:px-8">
+          <ErrorState
+            title="Failed to load category"
+            message={error}
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
         </div>
         <Footer />
       </main>
@@ -71,28 +150,32 @@ export default function CategoryPage() {
 
         {/* Category Hero */}
         <section className="relative overflow-hidden bg-walnut">
-          <div className="absolute inset-0">
-            <Image src={category.image} alt={category.name} fill className="object-cover opacity-40" sizes="100vw" priority />
-          </div>
+          {category?.image && (
+            <div className="absolute inset-0">
+              <Image src={category.image} alt={category.name || ''} fill className="object-cover opacity-40" sizes="100vw" priority />
+            </div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-r from-navy/70 via-navy/40 to-transparent" />
           <div className="relative z-10 mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 md:py-28">
             <Breadcrumb
               items={[
                 { label: 'Home', href: '/' },
                 { label: 'Shop', href: '/shop' },
-                { label: category.name },
+                { label: category?.name || 'Collection' },
               ]}
               onDark
             />
             <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
-              {category.name}
+              {category?.name || 'Collection'}
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-white sm:text-lg">
-              {category.description}
+              {category?.description || 'Browse this collection.'}
             </p>
-            <p className="mt-4 text-sm text-white">
-              {products.length} Products
-            </p>
+            {!isLoading && (
+              <p className="mt-4 text-sm text-white">
+                {products.length} {products.length === 1 ? 'Product' : 'Products'}
+              </p>
+            )}
           </div>
         </section>
 
@@ -114,7 +197,8 @@ export default function CategoryPage() {
                 <StaggerItem key={product.id}>
                   <ProductCard
                     product={product}
-                    isWishlisted={wishlistedIds.has(product.id)}
+                    onWishlistToggle={handleWishlistToggle}
+                    isWishlisted={isWishlistedFor(product.id)}
                   />
                 </StaggerItem>
               ))}

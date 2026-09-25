@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import config from './index';
+import logger from '../utils/logger';
 
 // ============================================================
 // Prisma Database Connection Configuration
@@ -34,18 +35,18 @@ if (config.env === 'production') {
 export async function connectDatabase(): Promise<void> {
   try {
     await prisma.$connect();
-    console.log('✅ Database connected successfully');
-    console.log(`   Environment: ${config.env}`);
+    logger.info('Database connected successfully');
+    logger.info(`Environment: ${config.env}`);
   } catch (error) {
     // Do not crash the server if the database is temporarily unreachable.
     // The API still starts, `/api/health` reports degraded, and the Prisma
     // client reconnects automatically once the database becomes reachable.
-    console.warn(
-      '⚠️  Database connection failed — starting server in degraded mode. ' +
+    logger.warn(
+      'Database connection failed — starting server in degraded mode. ' +
         'All database-backed endpoints will return errors until connectivity is restored.'
     );
     if (config.env === 'development') {
-      console.warn('   Reason:', error instanceof Error ? error.message : String(error));
+      logger.warn(`Reason: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
@@ -53,22 +54,10 @@ export async function connectDatabase(): Promise<void> {
 export async function disconnectDatabase(): Promise<void> {
   try {
     await prisma.$disconnect();
-    console.log('🔌 Database disconnected');
+    logger.info('Database disconnected');
   } catch (error) {
-    console.error('Error disconnecting database:', error);
+    logger.error('Error disconnecting database:', { error: String(error) });
   }
 }
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  await disconnectDatabase();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  await disconnectDatabase();
-  process.exit(0);
-});
-
 export default prisma;
-

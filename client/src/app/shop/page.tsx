@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
@@ -12,11 +13,11 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { fetchProducts } from '@/services/products';
+import { getErrorMessage } from '@/services/axios';
 import { variantsToColors } from '@/lib/utils';
 import { useWishlist } from '@/context/WishlistContext';
 import { useAuth } from '@/context/AuthContext';
 import type { Product } from '@/types';
-import type { ProductData } from '@/data/products';
 import toast from 'react-hot-toast';
 
 const sortOptions = [
@@ -25,24 +26,6 @@ const sortOptions = [
   { label: 'Price: High to Low', value: 'price_desc' },
   { label: 'Best Rated', value: 'rating' },
 ];
-
-function sortFallback(products: ProductCardData[], sortBy: string) {
-  const sorted = [...products];
-  switch (sortBy) {
-    case 'price_asc': return sorted.sort((a, b) => (a.salePrice ?? a.regularPrice) - (b.salePrice ?? b.regularPrice));
-    case 'price_desc': return sorted.sort((a, b) => (b.salePrice ?? b.regularPrice) - (a.salePrice ?? a.regularPrice));
-    default: return sorted;
-  }
-}
-
-function mapFallbackCards(products: ProductData[]): ProductCardData[] {
-  return products.map((p) => ({
-    id: p.id, name: p.name, slug: p.slug, image: p.image, images: p.images,
-    regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
-    isNew: p.isNew, isBestSeller: p.isBestSeller, stock: p.stock, brand: p.brand, category: p.subcategory,
-    colors: p.colors,
-  }));
-}
 
 function mapProduct(p: Product): ProductCardData {
   const firstImage = p.images?.[0];
@@ -54,37 +37,66 @@ function mapProduct(p: Product): ProductCardData {
     isNew: p.isNew, isBestSeller: p.isBestSeller, stock: p.stock, brand: p.brand,
     category: p.category?.name,
     colors: variantsToColors(p.variants),
-    defaultVariantId: p.variants?.find((v) => v.isActive)?.id,
+    defaultVariantId: p.variants?.find((v) => v.isActive !== false)?.id,
   };
 }
 
 export default function ShopPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen">
+          <Navbar />
+          <div className="mx-auto max-w-[1400px] px-4 py-24 sm:px-8 lg:px-12">
+            <LoadingState variant="product-grid" count={9} />
+          </div>
+        </main>
+      }
+    >
+      <ShopContent />
+    </Suspense>
+  );
+}
+
+function ShopContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.get('search') ?? '';
+  // Footer deep-links advertise curated views. They arrive as URL params that
+  // the rest of the shop (which owns the visible sort control) must honor.
+  const saleParam = searchParams.get('sale');
+  const bestParam = searchParams.get('isBestSeller');
+  const sortParam = searchParams.get('sort') ?? '';
+  const isSaleView = saleParam === 'true';
+  const isBestSellerView = bestParam === 'true' || sortParam === 'best';
+  const initialSort = ['newest', 'price_asc', 'price_desc', 'rating'].includes(sortParam)
+    ? sortParam
+    : sortParam === 'new' || sortParam === 'best'
+      ? 'newest'
+      : 'newest';
+
   const [products, setProducts] = useState<ProductCardData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState(initialSort);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [isApi, setIsApi] = useState(true);
   const perPage = 9;
 
-  const { items: wishlistItems, addItem: addWishlist, removeItem: removeWishlist } = useWishlist();
+  const { wishlistedProductIds, toggleItem } = useWishlist();
   const { isAuthenticated } = useAuth();
 
-  const handleWishlistToggle = async (productId: string) => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to save items to your wishlist.');
-      return;
-    }
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
-    const existing = wishlistItems.find((w) => w.productId === productId);
-    if (existing) {
-      const ok = await removeWishlist(existing.id);
-      if (!ok) toast.error('Could not update your wishlist.');
-    } else {
-      const ok = await addWishlist(
+  const handleWishlistToggle = useCallback(
+    async (productId: string) => {
+      if (!isAuthenticated) {
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+      const ok = await toggleItem(
         {
           id: product.id,
           name: product.name,
@@ -97,43 +109,70 @@ export default function ShopPage() {
         product.defaultVariantId
       );
       if (!ok) toast.error('Could not update your wishlist.');
-    }
-  };
+    },
+    [isAuthenticated, products, toggleItem, router, pathname]
+  );
 
-  const isWishlistedFor = (id: string) => isAuthenticated && wishlistItems.some((w) => w.productId === id);
+  const isWishlistedFor = (id: string) => wishlistedProductIds.has(id);
 
-  const load = useCallback(async (page: number, sort: string) => {
+  const load = useCallback(async (page: number, sort: string, q: string) => {
     try {
-      const res = await fetchProducts({ sort, page: String(page), limit: String(perPage) });
+      const res = await fetchProducts({
+        sort,
+        page: String(page),
+        limit: String(perPage),
+        ...(q ? { search: q } : {}),
+        ...(isSaleView ? { isSale: 'true' } : {}),
+        ...(isBestSellerView ? { isBestSeller: 'true' } : {}),
+      });
       setProducts(res.data.map(mapProduct));
       setTotalPages(res.pagination.totalPages);
       setTotal(res.pagination.total);
-      setIsApi(true);
       setError(null);
-    } catch {
-      setIsApi(false);
-      const { allProducts } = await import('@/data/products');
-      const fallbackCards = mapFallbackCards(allProducts);
-      const sorted = sortFallback(fallbackCards, sort);
-      const start = (page - 1) * perPage;
-      setProducts(sorted.slice(start, start + perPage));
-      setTotalPages(Math.ceil(sorted.length / perPage));
-      setTotal(sorted.length);
-      setError(null);
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to load products.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isSaleView, isBestSellerView]);
 
-  useEffect(() => { void Promise.resolve().then(() => load(currentPage, sortBy)); }, [currentPage, sortBy, load]);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, saleParam, bestParam, sortParam]);
+
+  useEffect(() => { void Promise.resolve().then(() => load(currentPage, sortBy, search)); }, [currentPage, sortBy, search, load]);
 
   const handleSort = (value: string) => { setIsLoading(true); setSortBy(value); setCurrentPage(1); };
+
+  const errorStateHeading = isBestSellerView
+    ? 'No best sellers right now'
+    : isSaleView
+      ? 'Nothing on sale right now'
+      : search
+        ? `No matches for “${search}”`
+        : 'No products found';
+
+  const heading = isBestSellerView
+    ? 'Best Sellers'
+    : isSaleView
+      ? 'The Sale Collection'
+      : search
+        ? `Results for “${search}”`
+        : 'All Products';
+
+  const description = isBestSellerView
+    ? 'The pieces our customers reach for again and again.'
+    : isSaleView
+      ? 'Limited-time reductions on selected luxury pieces.'
+      : search
+        ? 'Hand-picked matches from the complete ZOYA GOODS collection.'
+        : 'Browse our complete collection of premium jackets and luxury accessories.';
 
   if (error) {
     return (
       <main className="min-h-screen">
         <Navbar />
-        <div className="pt-32"><ErrorState message={error} onRetry={() => load(currentPage, sortBy)} /></div>
+        <div className="pt-32"><ErrorState message={error} onRetry={() => load(currentPage, sortBy, search)} /></div>
         <Footer />
       </main>
     );
@@ -157,15 +196,15 @@ export default function ShopPage() {
               <div>
                 <TextReveal
                   as="h1"
-                  text="All Products"
+                  text={heading}
                   className="font-display text-5xl font-light text-navy sm:text-6xl lg:text-7xl"
                 />
                 <p className="mt-4 max-w-lg text-sm leading-relaxed text-slate sm:text-base">
-                  Browse our complete collection of premium jackets and luxury accessories.
+                  {description}
                 </p>
               </div>
               <p className="font-display text-2xl font-light text-navy">
-                {isApi ? `${total}` : `${total}`} <span className="text-sm uppercase tracking-[0.2em] text-slate">Pieces</span>
+                {total} <span className="text-sm uppercase tracking-[0.2em] text-slate">Pieces</span>
               </p>
             </div>
           </div>
@@ -175,7 +214,7 @@ export default function ShopPage() {
         <div className="hairline-b hairline-t bg-white/40">
           <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-8 lg:px-12">
             <p className="text-xs uppercase tracking-[0.2em] text-slate">
-              {isApi ? `Showing ${products.length} of ${total}` : `${total} products`}
+              Showing {products.length} of {total}
             </p>
             <div className="flex items-center gap-3">
               <label htmlFor="sort" className="text-[11px] uppercase tracking-[0.2em] text-slate">Sort by</label>
@@ -203,8 +242,9 @@ export default function ShopPage() {
             <LoadingState variant="product-grid" count={perPage} />
           ) : products.length === 0 ? (
             <EmptyState
-              icon={undefined} title="No products found"
-              description="Try adjusting your filters or browse our categories."
+              icon={undefined}
+              title={errorStateHeading}
+              description="Try a different keyword or browse our categories."
               actionLabel="View All Products" actionHref="/shop"
             />
           ) : (
@@ -235,18 +275,30 @@ export default function ShopPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
-                  {Array.from({ length: totalPages }).map((_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => { setIsLoading(true); setCurrentPage(i + 1); }}
-                      className={currentPage === i + 1
-                        ? 'flex h-11 w-11 items-center justify-center rounded-full bg-navy font-display text-lg text-cream'
-                        : 'flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 font-display text-lg text-navy transition-all hover:border-sage hover:bg-sage/15 active:scale-90'}
-                    >
-                      {String(i + 1).padStart(2, '0')}
-                    </button>
-                  ))}
+                  {(() => {
+                    const windowStart = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+                    const windowEnd = Math.min(totalPages, Math.max(currentPage + 2, 5));
+                    const pageButtons: (number | '…')[] = [];
+                    if (windowStart > 1) pageButtons.push(1);
+                    if (windowStart > 2) pageButtons.push('…');
+                    for (let i = windowStart; i <= windowEnd; i++) pageButtons.push(i);
+                    if (windowEnd < totalPages - 1) pageButtons.push('…');
+                    if (windowEnd < totalPages) pageButtons.push(totalPages);
+                    return pageButtons.map((p, idx) => p === '…' ? (
+                      <span key={`e-${idx}`} className="px-1 text-slate">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => { setIsLoading(true); setCurrentPage(p); }}
+                        className={currentPage === p
+                          ? 'flex h-11 w-11 items-center justify-center rounded-full bg-navy font-display text-lg text-cream'
+                          : 'flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 font-display text-lg text-navy transition-all hover:border-sage hover:bg-sage/15 active:scale-90'}
+                      >
+                        {String(p).padStart(2, '0')}
+                      </button>
+                    ));
+                  })()}
                   <button
                     type="button"
                     disabled={currentPage === totalPages}

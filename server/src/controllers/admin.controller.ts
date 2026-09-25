@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
+import cloudinary from 'cloudinary';
 import prisma from '../config/db';
 import { sendSuccess, sendCreated, sendPaginated, sendMessage } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
@@ -17,6 +20,10 @@ import {
   PaymentStatusValue,
 } from '../constants/order';
 import { setOrderPaid, setOrderPaymentFailed } from '../services/payment/payment-state.service';
+import { reverseOrderReservations } from '../services/order-reversal.service';
+import { notifyOrderStatus, notifyUser } from '../services/notification.service';
+import { sendOrderStatusEmail } from '../utils/email';
+import config from '../config';
 
 // Invalidate cached public catalog reads after any product/category/variant write.
 const invalidateCatalog = () => {
@@ -106,7 +113,7 @@ export const getAnalytics = async (_req: Request, res: Response, next: NextFunct
 
 export const getSalesAnalytics = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const days = parseInt(req.query.days as string) || 30;
+    const days = Math.min(366, Math.max(1, parseInt(req.query.days as string) || 30));
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
@@ -538,6 +545,18 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
       if (parentId) {
         const parent = await prisma.category.findUnique({ where: { id: parentId }, select: { id: true } });
         if (!parent) throw ApiError.badRequest('Parent category not found');
+        let cursor: string | null = parent.id;
+        let hops = 0;
+        while (cursor && hops < 50) {
+          if (cursor === id) {
+            throw ApiError.badRequest('A category cannot be moved under its own descendant');
+          }
+          const nextRow: { parentId: string | null } | null = await prisma.category
+            .findUnique({ where: { id: cursor }, select: { parentId: true } })
+            .catch(() => null);
+          cursor = nextRow?.parentId ?? null;
+          hops += 1;
+        }
       }
       data.parentId = parentId || null;
     }
@@ -644,8 +663,32 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
         ...(notes !== undefined && { internalNotes: notes }),
       },
     });
+    // Stock and coupon were reserved at creation; returning them on a
+    // cancellation keeps inventory and coupon limits honest.
+    if (status === ORDER_STATUS.CANCELLED && current.status !== ORDER_STATUS.CANCELLED) {
+      await reverseOrderReservations(id);
+    }
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_ORDER_STATUS', entity: 'Order', entityId: order.id, metadata: { from: current.status, to: status || current.status } } });
     sendSuccess(res, order, 'Order status updated');
+
+    // Notify + email the customer for status moves they can see. Fire and
+    // forget — a failing email must not roll back the admin action.
+    if (status && status !== current.status && ['SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'].includes(status)) {
+      notifyOrderStatus({ id: order.id, userId: order.userId, orderNumber: order.orderNumber }, status).catch(() => {});
+      prisma.user
+        .findUnique({ where: { id: order.userId }, select: { id: true, name: true, email: true } })
+        .then((user) => {
+          if (!user) return;
+          return sendOrderStatusEmail({
+            to: user.email,
+            name: user.name,
+            orderNumber: order.orderNumber,
+            status,
+            orderUrl: `${config.client.url}/dashboard/orders/${order.id}`,
+          });
+        })
+        .catch(() => {});
+    }
   } catch (error) { next(error); }
 };
 
@@ -658,6 +701,8 @@ export const deleteOrder = async (req: Request, res: Response, next: NextFunctio
       throw ApiError.badRequest('Cannot delete a paid order. Refund or archive it instead.');
     }
     // MongoDB enforces no referential actions: remove dependent docs explicitly.
+    // Restock first while the items still exist, then release the coupon.
+    await reverseOrderReservations(id);
     await prisma.orderItem.deleteMany({ where: { orderId: id } });
     await prisma.paymentEvent.deleteMany({ where: { orderId: id } });
     await prisma.order.delete({ where: { id } });
@@ -836,6 +881,25 @@ export const updateReview = async (req: Request, res: Response, next: NextFuncti
     const review = await prisma.review.update({ where: { id }, data: { ...(isApproved !== undefined && { isApproved }), ...(adminReply !== undefined && { adminReply }) } });
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'UPDATE_REVIEW', entity: 'Review', entityId: review.id, metadata: { isApproved } } });
     sendSuccess(res, review, 'Review updated');
+
+    // Tell the author their review went live (or was told to be revised).
+    if (isApproved === true) {
+      notifyUser({
+        userId: review.userId,
+        title: 'Review approved',
+        message: 'Your product review has been approved and is now public.',
+        type: 'review',
+        link: '/dashboard/reviews',
+      }).catch(() => {});
+    } else if (isApproved === false) {
+      notifyUser({
+        userId: review.userId,
+        title: 'Review update',
+        message: 'Your product review is pending approval again. Thanks for your patience.',
+        type: 'review',
+        link: '/dashboard/reviews',
+      }).catch(() => {});
+    }
   } catch (error) { next(error); }
 };
 
@@ -850,6 +914,68 @@ export const deleteReview = async (req: Request, res: Response, next: NextFuncti
     }
     await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_REVIEW', entity: 'Review', entityId: id } });
     sendMessage(res, 'Review deleted');
+  } catch (error) { next(error); }
+};
+
+export const getQuestions = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { page, limit, skip } = parsePagination(req.query);
+    const status = req.query.status as string;
+    const search = req.query.search as string;
+    const where: any = {};
+    if (status === 'answered') where.answer = { not: null };
+    if (status === 'unanswered') where.answer = null;
+    if (search) {
+      where.OR = [
+        { question: { contains: search, mode: 'insensitive' } },
+        { answer: { contains: search, mode: 'insensitive' } },
+        { product: { name: { contains: search, mode: 'insensitive' } } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+    const [questions, total] = await Promise.all([
+      prisma.productQuestion.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true, avatar: true } }, product: { select: { id: true, name: true, slug: true } } } }),
+      prisma.productQuestion.count({ where }),
+    ]);
+    sendPaginated(res, questions, { page, limit, total });
+  } catch (error) { next(error); }
+};
+
+export const answerQuestion = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const { answer } = req.body;
+    const question = await prisma.productQuestion.findUnique({ where: { id }, select: { id: true, userId: true } });
+    if (!question) throw ApiError.notFound('Question not found');
+
+    const updated = await prisma.productQuestion.update({
+      where: { id },
+      data: { answer, adminAnsweredAt: new Date(), isPublished: true },
+    });
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'ANSWER_QUESTION', entity: 'ProductQuestion', entityId: id } });
+    sendSuccess(res, updated, 'Answer published');
+
+    // Let the asker know their question has been answered.
+    notifyUser({
+      userId: question.userId,
+      title: 'Question answered',
+      message: 'Your product question has been answered — check the product page.',
+      type: 'question',
+    }).catch(() => {});
+  } catch (error) { next(error); }
+};
+
+export const deleteQuestion = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    try {
+      await prisma.productQuestion.delete({ where: { id } });
+    } catch (error) {
+      if (isForeignKeyError(error)) throw ApiError.badRequest('Cannot delete question: it has related data');
+      throw error;
+    }
+    await prisma.activityLog.create({ data: { userId: req.user?.userId, action: 'DELETE_QUESTION', entity: 'ProductQuestion', entityId: id } });
+    sendMessage(res, 'Question deleted');
   } catch (error) { next(error); }
 };
 
@@ -952,41 +1078,53 @@ export const uploadMedia = async (req: Request, res: Response, next: NextFunctio
     let media;
     if (req.file) {
       // Cloudinary is optional at runtime: if credentials are configured we
-      // upload to the CDN, otherwise fall back to serving the file locally.
-      const config = require('../config').default;
-      let url = `/uploads/${req.file.filename}`;
+      // upload to the CDN, otherwise fall back to serving the file locally by
+      // PROMOTING the validated temp file into the public uploads dir.
+      const cloudinaryReady =
+        config.cloudinary && config.cloudinary.name && config.cloudinary.apiKey && config.cloudinary.apiSecret;
+
+      let url: string;
       let publicId: string | null = null;
       let width: number | null = null;
       let height: number | null = null;
+      const folder = (req.body.folder as string) || 'zoya-goods';
 
-      if (config.cloudinary && config.cloudinary.name && config.cloudinary.apiKey && config.cloudinary.apiSecret) {
-        const { v2: cloudinary } = require('cloudinary');
-        cloudinary.config({ cloud_name: config.cloudinary.name, api_key: config.cloudinary.apiKey, api_secret: config.cloudinary.apiSecret });
-        const folder = (req.body.folder as string) || 'general';
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: `voss/${folder}`,
+      if (cloudinaryReady) {
+        cloudinary.v2.config({ cloud_name: config.cloudinary.name, api_key: config.cloudinary.apiKey, api_secret: config.cloudinary.apiSecret });
+        const result = await cloudinary.v2.uploader.upload(req.file.path, {
+          folder,
           resource_type: 'auto',
         });
         url = result.secure_url;
         publicId = result.public_id;
         width = result.width ?? null;
         height = result.height ?? null;
+      } else {
+        const uploadsDir = path.join(process.cwd(), 'uploads');
+        await fs.promises.mkdir(uploadsDir, { recursive: true });
+        await fs.promises.copyFile(req.file.path, path.join(uploadsDir, req.file.filename));
+        url = `/uploads/${req.file.filename}`;
       }
 
-      media = await prisma.media.create({
-        data: {
-          fileName: req.file.originalname,
-          url,
-          publicId,
-          mimeType: req.file.mimetype,
-          size: req.file.size,
-          width,
-          height,
-          folder: (req.body.folder as string) || 'general',
-          altText: (req.body.altText as string) || req.file.originalname,
-          uploadedBy: req.user?.userId,
-        },
-      });
+      try {
+        media = await prisma.media.create({
+          data: {
+            fileName: req.file.originalname,
+            url,
+            publicId,
+            mimeType: req.file.mimetype,
+            size: req.file.size,
+            width,
+            height,
+            folder,
+            altText: (req.body.altText as string) || req.file.originalname,
+            uploadedBy: req.user?.userId,
+          },
+        });
+      } finally {
+        // Always remove the staged temp file (promoted copy already made).
+        fs.promises.unlink(req.file.path).catch(() => {});
+      }
     } else {
       media = await prisma.media.create({
         data: {
@@ -1011,8 +1149,7 @@ export const deleteMedia = async (req: Request, res: Response, next: NextFunctio
     const media = await prisma.media.findUnique({ where: { id } });
     if (media?.publicId) {
       try {
-        const { v2: cloudinary } = require('cloudinary');
-        await cloudinary.uploader.destroy(media.publicId);
+        await cloudinary.v2.uploader.destroy(media.publicId);
       } catch {
         // ignore cloudinary delete errors
       }

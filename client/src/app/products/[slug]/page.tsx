@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -19,9 +19,12 @@ import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { TextReveal } from '@/components/animations/TextReveal';
 import { Magnetic } from '@/components/animations/Magnetic';
 import { LoadingState } from '@/components/shared/LoadingState';
+import { ErrorState } from '@/components/shared/ErrorState';
 import { fetchProduct } from '@/services/products';
+import { getErrorMessage } from '@/services/axios';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
@@ -60,29 +63,14 @@ function mapToDetail(p: any, reviews?: any[]): DetailProduct | null {
   };
 }
 
-function fallbackDetail(slug: string, products: any[]): DetailProduct | null {
-  const p = products.find((x: any) => x.slug === slug);
-  if (!p) return null;
-  return {
-    id: p.id, name: p.name, slug: p.slug, sku: p.sku,
-    description: p.description,
-    regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
-    images: p.images, brand: p.brand,
-    category: p.category, subcategoryName: p.subcategory,
-    rating: p.rating, reviewCount: p.reviewCount,
-    colors: p.colors, sizes: p.sizes,
-    stock: p.stock, material: p.material,
-    specifications: { Material: p.material, Fit: p.sizes.length > 4 ? 'Regular Fit' : 'Standard', Origin: 'Imported' },
-    isNew: p.isNew, isBestSeller: p.isBestSeller,
-  };
-}
-
 export default function ProductDetailsPage() {
   const params = useParams();
   const slug = params.slug as string;
   const router = useRouter();
+  const pathname = usePathname();
   const { addItem } = useCart();
-  const { items: wishlistItems, isInWishlist, addItem: addWishlist, removeItem: removeWishlist } = useWishlist();
+  const { isInWishlist, toggleItem } = useWishlist();
+  const { isAuthenticated } = useAuth();
 
   const [detailProduct, setDetailProduct] = useState<DetailProduct | null>(null);
   const [variants, setVariants] = useState<any[]>([]);
@@ -95,6 +83,8 @@ export default function ProductDetailsPage() {
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     setIsLoading(true);
     setError(null);
@@ -105,23 +95,23 @@ export default function ProductDetailsPage() {
         setVariants(data.variants || []);
         setReviews(data.reviews || []);
         if (mapped) {
-          setSelectedColor(mapped.colors[0] || { name: '', hex: '' });
-          setSelectedSize(mapped.sizes[1] || mapped.sizes[0] || '');
+          const rawVariants: any[] = data.variants || [];
+          const inStock = rawVariants.find((v: any) => v.isActive !== false && Number(v.stock) > 0);
+          if (inStock) {
+            setSelectedColor({ name: inStock.color, hex: inStock.colorHex });
+            setSelectedSize(inStock.size);
+          } else {
+            setSelectedColor(mapped.colors[0] || { name: '', hex: '' });
+            setSelectedSize(mapped.sizes[1] || mapped.sizes[0] || '');
+          }
         }
       })
-      .catch(async () => {
-        const { allProducts } = await import('@/data/products');
-        const fb = fallbackDetail(slug, allProducts);
-        if (fb) {
-          setDetailProduct(fb);
-          setSelectedColor(fb.colors[0] || { name: '', hex: '' });
-          setSelectedSize(fb.sizes[1] || fb.sizes[0] || '');
-        } else {
-          setError('Product not found');
-        }
+      .catch((err: unknown) => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        setError(status === 404 ? 'Product not found' : getErrorMessage(err) || 'Failed to load this product. Please try again.');
       })
       .finally(() => setIsLoading(false));
-  }, [slug]);
+  }, [slug, reloadKey]);
 
   const matchingVariant =
     variants.find(
@@ -153,8 +143,8 @@ export default function ProductDetailsPage() {
       stock: detailProduct.stock,
     } as any;
     const ok = await addItem(productForCart, quantity, variantId);
-    if (ok) toast.success('Added to cart');
-    else toast.error('Could not add this item to your cart.');
+    if (ok === null) toast.success('Added to cart');
+    else toast.error(ok || 'Could not add this item to your cart.');
   };
 
   const handleBuyNow = async () => {
@@ -174,26 +164,33 @@ export default function ProductDetailsPage() {
       stock: detailProduct.stock,
     } as any;
     const ok = await addItem(productForCart, quantity, variantId);
-    if (ok) router.push('/checkout');
-    else toast.error('Could not add this item to your cart.');
+    if (ok === null) router.push('/checkout');
+    else toast.error(ok || 'Could not add this item to your cart.');
   };
 
   const handleWishlistToggle = async () => {
     if (!detailProduct) return;
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
     const productId = detailProduct.id;
     const variantId = matchingVariant?.id;
-    if (isInWishlist(productId, variantId)) {
-      const item = wishlistItems.find(
-        (i) => i.productId === productId && (variantId ? i.variantId === variantId : true)
-      );
-      const ok = item ? await removeWishlist(item.id) : true;
-      if (ok) toast.success('Removed from wishlist');
-      else toast.error('Could not update your wishlist.');
-    } else {
-      const ok = await addWishlist({ id: productId, name: detailProduct.name, slug: detailProduct.slug, regularPrice: detailProduct.regularPrice, salePrice: detailProduct.salePrice, images: detailProduct.images, stock: detailProduct.stock, variantId } as any);
-      if (ok) toast.success('Added to wishlist');
-      else toast.error('Could not update your wishlist.');
-    }
+    const wasSaved = isInWishlist(productId, variantId);
+    const ok = await toggleItem(
+      {
+        id: productId,
+        name: detailProduct.name,
+        slug: detailProduct.slug,
+        regularPrice: detailProduct.regularPrice,
+        salePrice: detailProduct.salePrice,
+        images: detailProduct.images,
+        stock: detailProduct.stock,
+      } as any,
+      variantId
+    );
+    if (ok) toast.success(wasSaved ? 'Removed from wishlist' : 'Added to wishlist');
+    else toast.error('Could not update your wishlist.');
   };
 
   if (error) {
@@ -201,11 +198,21 @@ export default function ProductDetailsPage() {
       <main className="min-h-screen">
         <Navbar />
         <div className="pt-36">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-            <h1 className="font-display text-3xl font-light text-navy">Product not found</h1>
-            <p className="mt-2 text-slate">The product you're looking for doesn't exist.</p>
-            <Link href="/shop" className="mt-4 inline-block text-walnut underline">Back to Shop</Link>
-          </div>
+          {error === 'Product not found' ? (
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
+              <h1 className="font-display text-3xl font-light text-navy">Product not found</h1>
+              <p className="mt-2 text-slate">The product you're looking for doesn't exist.</p>
+              <Link href="/shop" className="mt-4 inline-block text-walnut underline">Back to Shop</Link>
+            </div>
+          ) : (
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              <ErrorState
+                title="Failed to load product"
+                message={error}
+                onRetry={() => setReloadKey((k) => k + 1)}
+              />
+            </div>
+          )}
         </div>
         <Footer />
       </main>

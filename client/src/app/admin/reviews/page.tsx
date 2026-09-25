@@ -31,7 +31,7 @@ export default function AdminReviewsPage() {
     } catch (err) { toast.error(getErrorMessage(err) || 'Failed to load reviews'); } finally { setLoading(false); }
   }, [status, debouncedSearch]);
 
-  useEffect(() => { fetchReviews(1); }, [fetchReviews]);
+  useEffect(() => { fetchReviews(1); }, [status, debouncedSearch]);
 
   const handleApprove = async (id: string, isApproved: boolean) => {
     try { await adminApi.updateReview(id, { isApproved }); setReviews(r => r.map(x => x.id === id ? { ...x, isApproved } : x)); } catch (err) { toast.error(getErrorMessage(err) || 'Failed to update review status'); }

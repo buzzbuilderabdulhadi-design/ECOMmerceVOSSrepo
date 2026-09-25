@@ -16,28 +16,185 @@ const transport = nodemailer.createTransport({
   },
 });
 
+const emailConfigured = () => Boolean(config.email.user && config.email.password);
+
+interface MailOptions {
+  to: string;
+  subject: string;
+  html: string;
+}
+
+async function sendEmail(options: MailOptions): Promise<void> {
+  if (!emailConfigured()) {
+    // No SMTP credentials — never fail the caller; a dead email pipe must not
+    // take down an order or a reset flow. In development the subject line is
+    // useful; production stays silent.
+    if (config.env !== 'production') {
+      console.warn(`[email] SMTP not configured. Suppressed "${options.subject}" to ${options.to}.`);
+    }
+    return;
+  }
+  await transport.sendMail({
+    from: `"ZOYA GOODS" <${config.email.user}>`,
+    to: options.to,
+    subject: options.subject,
+    html: options.html,
+  });
+}
+
+const money = (value: number, currency: string) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(value);
+
+const shell = (content: string) => `
+  <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+    ${content}
+  </div>
+`;
+
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
-  if (!config.email.user || !config.email.password) {
-    // No SMTP credentials configured — log instead of crashing the request
-    console.warn(`[email] SMTP not configured. Password reset link for ${to}: ${resetUrl}`);
+  // Never print the reset token/URL in production (it is a working account
+  // takeover link); in development the full URL is useful.
+  if (!emailConfigured()) {
+    if (config.env !== 'production') {
+      console.warn(`[email] SMTP not configured. Password reset link for ${to}: ${resetUrl}`);
+    } else {
+      console.warn(`[email] SMTP not configured. Password reset suppressed for ${to}.`);
+    }
     return;
   }
 
-  await transport.sendMail({
-    from: `"ZOYA GOODS" <${config.email.user}>`,
+  await sendEmail({
     to,
     subject: 'Reset Your Password — ZOYA GOODS',
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-        <h2 style="font-weight:400">Reset your password</h2>
-        <p style="color:#555">We received a request to reset the password for your ZOYA GOODS account.</p>
-        <p style="margin:32px 0">
-          <a href="${resetUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
-            Reset Password
-          </a>
-        </p>
-        <p style="color:#555;font-size:13px">This link is valid for 1 hour. If you did not request this, you can safely ignore this email.</p>
-      </div>
-    `,
+    html: shell(`
+      <h2 style="font-weight:400">Reset your password</h2>
+      <p style="color:#555">We received a request to reset the password for your ZOYA GOODS account.</p>
+      <p style="margin:32px 0">
+        <a href="${resetUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+          Reset Password
+        </a>
+      </p>
+      <p style="color:#555;font-size:13px">This link is valid for 1 hour. If you did not request this, you can safely ignore this email.</p>
+    `),
+  });
+}
+
+export async function sendOrderConfirmationEmail(options: {
+  to: string;
+  name: string;
+  orderNumber: string;
+  itemCount: number;
+  total: number;
+  currency: string;
+  orderUrl: string;
+}): Promise<void> {
+  await sendEmail({
+    to: options.to,
+    subject: `Order confirmation ${options.orderNumber} — ZOYA GOODS`,
+    html: shell(`
+      <h2 style="font-weight:400">Thank you, ${options.name}!</h2>
+      <p style="color:#555">Your order <strong>${options.orderNumber}</strong> (${options.itemCount} item${options.itemCount === 1 ? '' : 's'}, ${money(options.total, options.currency)}) has been received.</p>
+      <p style="color:#555">If you chose an online payment, we will email you once the payment is confirmed and your order moves into processing.</p>
+      <p style="margin:28px 0">
+        <a href="${options.orderUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+          View your order
+        </a>
+      </p>
+    `),
+  });
+}
+
+export async function sendPaymentConfirmationEmail(options: {
+  to: string;
+  name: string;
+  orderNumber: string;
+  total: number;
+  currency: string;
+  orderUrl: string;
+}): Promise<void> {
+  await sendEmail({
+    to: options.to,
+    subject: `Payment received for ${options.orderNumber} — ZOYA GOODS`,
+    html: shell(`
+      <h2 style="font-weight:400">Payment received</h2>
+      <p style="color:#555">Hi ${options.name}, we received ${money(options.total, options.currency)} for order <strong>${options.orderNumber}</strong>. Your order is now confirmed and will begin processing shortly.</p>
+      <p style="margin:28px 0">
+        <a href="${options.orderUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+          Track your order
+        </a>
+      </p>
+    `),
+  });
+}
+
+export async function sendOrderStatusEmail(options: {
+  to: string;
+  name: string;
+  orderNumber: string;
+  status: string;
+  orderUrl: string;
+}): Promise<void> {
+  const human = options.status.replace(/_/g, ' ').toLowerCase();
+  await sendEmail({
+    to: options.to,
+    subject: `Your order ${options.orderNumber} is now ${human} — ZOYA GOODS`,
+    html: shell(`
+      <h2 style="font-weight:400">Order update</h2>
+      <p style="color:#555">Hi ${options.name}, your order <strong>${options.orderNumber}</strong> is now <strong>${human}</strong>.</p>
+      <p style="margin:28px 0">
+        <a href="${options.orderUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+          View your order
+        </a>
+      </p>
+    `),
+  });
+}
+
+export async function sendContactNotificationEmail(options: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}): Promise<void> {
+  const recipient = config.email.user;
+  if (!recipient) return;
+  await sendEmail({
+    to: recipient,
+    subject: `[ZOYA GOODS Contact] ${options.subject}`,
+    html: shell(`
+      <h2 style="font-weight:400">New contact message</h2>
+      <p><strong>From:</strong> ${options.name} &lt;${options.email}&gt;</p>
+      <p><strong>Subject:</strong> ${options.subject}</p>
+      <div style="border-left:3px solid #000;padding-left:14px;color:#555;white-space:pre-wrap">${options.message}</div>
+    `),
+  });
+}
+
+export async function sendManualPaymentEmail(options: {
+  to: string;
+  name: string;
+  orderNumber: string;
+  total: number;
+  currency: string;
+  instructions: string;
+  orderUrl: string;
+}): Promise<void> {
+  await sendEmail({
+    to: options.to,
+    subject: `How to complete your payment for ${options.orderNumber} — ZOYA GOODS`,
+    html: shell(`
+      <h2 style="font-weight:400">Almost there, ${options.name}</h2>
+      <p style="color:#555">Your order <strong>${options.orderNumber}</strong> (${money(options.total, options.currency)}) is awaiting payment.</p>
+      <p style="color:#555;white-space:pre-line">${options.instructions}</p>
+      <p style="color:#555">Please include your order number as the payment reference. We will confirm your order once the payment is verified.</p>
+      <p style="margin:28px 0">
+        <a href="${options.orderUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+          View your order
+        </a>
+      </p>
+    `),
   });
 }

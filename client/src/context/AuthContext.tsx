@@ -31,6 +31,7 @@ type AuthAction =
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  completeGoogleLogin: (code: string, state: string) => Promise<void>;
   logout: () => void;
   updateUser: (user: User) => void;
   error: string | null;
@@ -149,6 +150,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Completes the Google OAuth authorization-code flow: exchange the code on
+  // the server, then persist the resulting session exactly like register/login
+  // so the auth state, navbar and protected pages behave identically.
+  const completeGoogleLogin = useCallback(async (code: string, state: string) => {
+    dispatch({ type: 'LOGIN_START' });
+    try {
+      const response = await axiosInstance.post('/auth/google/callback', { code, state });
+      const { user, accessToken, refreshToken } = response.data.data;
+
+      saveStoredSession(user, accessToken);
+      localStorage.setItem('voss_refresh_token', refreshToken);
+      setCookie('voss_access_token', accessToken, 60 * 60 * 24 * 7);
+
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      dispatch({ type: 'LOGIN_FAILURE', payload: message });
+      throw new Error(message);
+    }
+  }, []);
+
   const logout = useCallback(() => {
     clearStoredSession();
     localStorage.removeItem('voss_refresh_token');
@@ -171,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...state,
         login,
         register,
+        completeGoogleLogin,
         logout,
         updateUser,
         error: state.error,

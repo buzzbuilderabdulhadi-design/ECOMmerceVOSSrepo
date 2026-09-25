@@ -59,6 +59,12 @@ const adminApi = {
     axiosInstance.put(`/admin/reviews/${id}`, data).then(r => r.data),
   deleteReview: (id: string) => axiosInstance.delete(`/admin/reviews/${id}`).then(r => r.data),
 
+  // Product Questions (Q&A)
+  getQuestions: (params?: Record<string, string>) => axiosInstance.get('/admin/questions', { params }).then(r => r.data),
+  answerQuestion: (id: string, answer: string) =>
+    axiosInstance.put(`/admin/questions/${id}/answer`, { answer }).then(r => r.data),
+  deleteQuestion: (id: string) => axiosInstance.delete(`/admin/questions/${id}`).then(r => r.data),
+
   // Coupons
   getCoupons: (params?: Record<string, string>) => axiosInstance.get('/admin/coupons', { params }).then(r => r.data),
   getCoupon: (id: string) => axiosInstance.get(`/admin/coupons/${id}`).then(r => r.data.data),

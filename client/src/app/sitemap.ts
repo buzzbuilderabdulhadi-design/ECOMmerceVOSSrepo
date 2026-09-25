@@ -1,5 +1,4 @@
 import type { MetadataRoute } from 'next';
-import { allProducts, categoryDescriptions } from '@/data/products';
 import { SITE_URL } from '@/lib/seo';
 
 const staticRoutes: { path: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'] }[] = [
@@ -21,7 +20,23 @@ const staticRoutes: { path: string; priority: number; changeFrequency: MetadataR
   { path: '/affiliates', priority: 0.3, changeFrequency: 'monthly' },
 ];
 
-export default function sitemap(): MetadataRoute.Sitemap {
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+async function fetchData<T>(path: string): Promise<T[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      cache: 'force-cache',
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return Array.isArray(json?.data) ? json.data : [];
+  } catch {
+    return [];
+  }
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   const pages: MetadataRoute.Sitemap = staticRoutes.map((route) => ({
@@ -31,22 +46,27 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: route.priority,
   }));
 
+  const [allProducts, allCategories] = await Promise.all([
+    fetchData<{ slug: string; images?: Array<string | { url: string }> }>('/products?limit=100'),
+    fetchData<{ slug: string }>('/categories'),
+  ]);
+
   const products: MetadataRoute.Sitemap = allProducts.map((product) => ({
     url: `${SITE_URL}/products/${product.slug}`,
     lastModified: now,
     changeFrequency: 'weekly',
     priority: 0.8,
-    images: product.images.length ? product.images : [product.image],
+    images: (product.images ?? [])
+      .map((i) => (typeof i === 'string' ? i : i.url))
+      .filter(Boolean),
   }));
 
-  const categories: MetadataRoute.Sitemap = Object.keys(categoryDescriptions).map(
-    (slug) => ({
-      url: `${SITE_URL}/category/${slug}`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    })
-  );
+  const categories: MetadataRoute.Sitemap = allCategories.map((category) => ({
+    url: `${SITE_URL}/category/${category.slug}`,
+    lastModified: now,
+    changeFrequency: 'weekly',
+    priority: 0.7,
+  }));
 
   return [...pages, ...categories, ...products];
 }

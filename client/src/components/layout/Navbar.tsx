@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
-import { useCartDrawer } from '@/context/CartDrawerContext';
+import { useWishlist } from '@/context/WishlistContext';
+import { useAuth } from '@/context/AuthContext';
 import { NAV_CATEGORIES } from '@/data/navigation';
 import { MegaMenu } from '@/components/layout/MegaMenu';
 
@@ -31,11 +32,15 @@ const emptySubscribe = () => () => {};
 
 export function Navbar({ className }: NavbarProps) {
   const { itemCount } = useCart();
-  const { openCart } = useCartDrawer();
+  const { items: wishlistItems } = useWishlist();
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
   const mounted = useSyncExternalStore(
     emptySubscribe,
     () => true,
@@ -63,6 +68,31 @@ export function Navbar({ className }: NavbarProps) {
       first.focus();
     }
   };
+
+  const submitSearch = () => {
+    const query = searchQuery.trim();
+    setIsSearchOpen(false);
+    setSearchQuery('');
+    if (query) {
+      router.push(`/shop?search=${encodeURIComponent(query)}`);
+    }
+  };
+
+  const signOut = () => {
+    logout();
+    setAccountOpen(false);
+    router.push('/');
+  };
+
+  useEffect(() => {
+    const onPointerDown = (e: MouseEvent) => {
+      if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
 
   useEffect(() => {
     if (isMobileMenuOpen) mobileCloseRef.current?.focus();
@@ -111,6 +141,7 @@ export function Navbar({ className }: NavbarProps) {
         setIsSearchOpen(false);
         setIsMobileMenuOpen(false);
         setOpenCategory(null);
+        setAccountOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -164,12 +195,26 @@ export function Navbar({ className }: NavbarProps) {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          submitSearch();
+                        }
+                      }}
                       placeholder="What are you looking for?"
-                      className="w-full border-b border-cream/25 bg-transparent pb-4 font-display text-3xl font-light text-ivory placeholder-ivory/80 focus:border-sage-light focus:outline-none sm:text-5xl"
+                      className="w-full border-b border-cream/25 bg-transparent pb-4 pr-12 font-display text-3xl font-light text-ivory placeholder-ivory/80 focus:border-sage-light focus:outline-none sm:text-5xl"
                     />
-                    <svg className="absolute right-0 top-1/2 h-7 w-7 -translate-y-1/2 text-sage-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+                    <button
+                      type="button"
+                      onClick={submitSearch}
+                      disabled={!searchQuery.trim()}
+                      aria-label="Submit search"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 text-sage-light transition-colors hover:text-gold disabled:pointer-events-none disabled:opacity-40"
+                    >
+                      <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </button>
                   </div>
 
                   <div className="mt-10">
@@ -325,8 +370,14 @@ export function Navbar({ className }: NavbarProps) {
                 transition={{ delay: 0.5 }}
                 className="flex items-center justify-center gap-8 border-t border-cream/10 py-6"
               >
-                <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="text-xs uppercase tracking-[0.2em] text-ivory">Account</Link>
                 <Link href="/wishlist" onClick={() => setIsMobileMenuOpen(false)} className="text-xs uppercase tracking-[0.2em] text-ivory">Wishlist</Link>
+                <Link
+                  href={isAuthenticated ? '/dashboard' : '/login'}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-xs uppercase tracking-[0.2em] text-ivory"
+                >
+                  {isAuthenticated ? 'Account' : 'Sign In'}
+                </Link>
                 <Link href="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-xs uppercase tracking-[0.2em] text-ivory">Contact</Link>
               </motion.div>
             </motion.div>
@@ -350,7 +401,7 @@ export function Navbar({ className }: NavbarProps) {
           <p className="min-w-0 truncate text-[11px] font-medium tracking-[0.12em] text-ivory uppercase">
             Complimentary worldwide shipping on orders over $200
           </p>
-          <span className="hidden flex-shrink-0 text-[10px] uppercase tracking-[0.2em] text-ivory sm:block">ZOYA GOODS&nbsp;2024</span>
+          <span className="hidden flex-shrink-0 text-[10px] uppercase tracking-[0.2em] text-ivory sm:block">ZOYA GOODS&nbsp;{new Date().getFullYear()}</span>
         </div>
 
         {/* Main bar */}
@@ -454,11 +505,20 @@ export function Navbar({ className }: NavbarProps) {
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
+                  {wishlistItems.length > 0 && (
+                    <motion.span
+                      key={wishlistItems.length}
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                    >
+                      {wishlistItems.length > 99 ? '99+' : wishlistItems.length}
+                    </motion.span>
+                  )}
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={openCart}
+                <Link
+                  href="/cart"
                   className="relative rounded-full p-3 transition-all hover:scale-105 active:scale-95"
                   aria-label="Open cart"
                 >
@@ -475,17 +535,103 @@ export function Navbar({ className }: NavbarProps) {
                       {itemCount > 99 ? '99+' : itemCount}
                     </motion.span>
                   )}
-                </button>
-
-                <Link
-                  href="/dashboard"
-                  className="hidden rounded-full p-3 transition-all hover:scale-105 active:scale-95 sm:inline-flex"
-                  aria-label="Account"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
                 </Link>
+
+                {authLoading ? (
+                  <span
+                    aria-hidden
+                    className="hidden h-9 w-9 animate-pulse rounded-full bg-navy/5 sm:block"
+                  />
+                ) : isAuthenticated ? (
+                  <div ref={accountRef} className="relative hidden sm:block">
+                    <button
+                      type="button"
+                      onClick={() => setAccountOpen((open) => !open)}
+                      aria-haspopup="menu"
+                      aria-expanded={accountOpen}
+                      aria-label="Account menu"
+                      className="flex items-center gap-1.5 rounded-full p-2 transition-all hover:bg-navy/5 active:scale-95"
+                    >
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-ivory">
+                        {((user?.name || 'A').trim().charAt(0) || 'A').toUpperCase()}
+                      </span>
+                      <svg
+                        className={cn(
+                          'h-3 w-3 text-navy transition-transform duration-200',
+                          accountOpen && 'rotate-180'
+                        )}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    <AnimatePresence>
+                      {accountOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute right-0 top-full z-[70] mt-2 w-60 overflow-hidden rounded-2xl border border-sage-light/40 bg-white shadow-xl shadow-navy/10"
+                        >
+                          <div className="border-b border-sage-light/30 px-4 py-3">
+                            <p className="truncate text-sm font-semibold text-navy">
+                              {user?.name || 'My Account'}
+                            </p>
+                            <p className="truncate text-xs text-slate">{user?.email}</p>
+                          </div>
+                          <div className="py-1.5">
+                            {[
+                              { label: 'Dashboard', href: '/dashboard' },
+                              { label: 'My Orders', href: '/dashboard/orders' },
+                              { label: 'My Wishlist', href: '/wishlist' },
+                              { label: 'Saved Addresses', href: '/dashboard/addresses' },
+                            ].map((item) => (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                onClick={() => setAccountOpen(false)}
+                                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-navy transition-colors hover:bg-navy/5"
+                              >
+                                {item.label}
+                              </Link>
+                            ))}
+                          </div>
+                          <div className="border-t border-sage-light/30 py-1.5">
+                            <button
+                              type="button"
+                              onClick={signOut}
+                              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
+                            >
+                              Sign Out
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      className="hidden rounded-full p-3 transition-all hover:scale-105 active:scale-95 sm:inline-flex"
+                      aria-label="Sign in"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </Link>
+                    <Link
+                      href="/login"
+                      className="hidden text-[11px] font-semibold uppercase tracking-[0.16em] text-navy transition-colors hover:text-walnut md:inline-flex"
+                    >
+                      Sign In
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
 

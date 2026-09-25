@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import type { ProductData } from '@/data/products';
 
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || 'https://zoyagoods.com'
@@ -97,7 +96,23 @@ export function websiteJsonLd() {
   };
 }
 
-export function productJsonLd(product: ProductData) {
+export interface ProductJsonLdInput {
+  name: string;
+  description?: string | null;
+  sku: string;
+  brand?: string | null;
+  category?: string | null;
+  images?: string[];
+  image?: string;
+  rating?: number;
+  reviewCount?: number;
+  slug: string;
+  stock: number;
+  regularPrice: number;
+  salePrice?: number | null;
+}
+
+export function productJsonLd(product: ProductJsonLdInput) {
   const price = product.salePrice ?? product.regularPrice;
   return {
     '@context': 'https://schema.org',
@@ -107,12 +122,12 @@ export function productJsonLd(product: ProductData) {
     sku: product.sku,
     brand: { '@type': 'Brand', name: product.brand || SITE_NAME },
     category: product.category,
-    image: product.images.length ? product.images : [product.image],
-    ...(product.reviewCount > 0
+    image: product.images?.length ? product.images : [product.image],
+    ...((product.reviewCount ?? 0) > 0
       ? {
           aggregateRating: {
             '@type': 'AggregateRating',
-            ratingValue: product.rating,
+            ratingValue: product.rating ?? 0,
             reviewCount: product.reviewCount,
           },
         }

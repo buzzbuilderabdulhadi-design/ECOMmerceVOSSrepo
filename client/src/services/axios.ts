@@ -10,7 +10,27 @@ import axios, {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+export { API_BASE_URL };
+
 const SESSION_STORAGE_KEY = 'zoya_session_id';
+
+// Endpoints whose 401/403 is a business/auth error — NEVER an expired-session
+// signal. Triggering the refresh queue for these re-submits the failed request
+// with a rotated token (e.g. a wrong-password /auth/login while an old session
+// still exists) and burns a refresh-token rotation for nothing.
+const NO_REFRESH_ENDPOINTS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/password',
+  '/auth/google',
+];
+
+export function shouldSkipRefresh(url: string): boolean {
+  return NO_REFRESH_ENDPOINTS.some((endpoint) => url.includes(endpoint));
+}
 
 /**
  * A persistent, anonymous session identifier used to scope guest carts on the
@@ -28,6 +48,18 @@ export function getClientSessionId(): string {
     localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
   }
   return sessionId;
+}
+
+/**
+ * Returns the existing guest session id WITHOUT creating one. Used to detect
+ * whether a real guest session (and therefore a guest cart to merge) exists —
+ * the getter above must not be used for that check because it generates a new
+ * id on the spot, which made the post-login cart merge fire on EVERY
+ * authenticated page load instead of only right after a guest session.
+ */
+export function peekClientSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(SESSION_STORAGE_KEY);
 }
 
 export function removeClientSessionId(): void {
@@ -55,10 +87,19 @@ axiosInstance.interceptors.request.use(
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      // Always send the guest session id when present so guest carts and the
-      // post-login merge work. Requires `withCredentials` for cookies; headers
-      // are the only transport used for the session here.
-      const sessionId = getClientSessionId();
+      // Attach the guest session id so guest carts and the post-login merge
+      // work. A new id is minted ONLY for unauthenticated cart/wishlist
+      // traffic — minting here on every request was the bug: after the merge
+      // removed the id, the very next authenticated GET /cart re-created it,
+      // so a /cart/merge storm fired on every page load. Authenticated
+      // requests never mint.
+      let sessionId: string | null = null;
+      const existingSession: string | null = peekClientSessionId();
+      if (existingSession) {
+        sessionId = existingSession;
+      } else if (!token && config.url && (config.url.startsWith('/cart') || config.url.startsWith('/wishlist'))) {
+        sessionId = getClientSessionId();
+      }
       if (sessionId && config.headers) {
         config.headers['x-session-id'] = sessionId;
       }
@@ -102,6 +143,14 @@ axiosInstance.interceptors.response.use(
 
     // If 401 and not already retrying
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // A 401 returned by an auth endpoint (login/register/refresh/…) is a
+      // business failure — e.g. "Invalid email or password" — never an
+      // expired-session signal. Do not enter the refresh/retry queue.
+      const failedUrl = originalRequest.url || '';
+      if (shouldSkipRefresh(failedUrl)) {
+        return Promise.reject(error);
+      }
+
       // A 401 on a request that never sent an access token is simply an
       // unauthenticated request (e.g. the wishlist fetch for a guest).
       // Do NOT attempt a token refresh or force-navigate to /login here —

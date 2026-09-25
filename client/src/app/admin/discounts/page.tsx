@@ -37,7 +37,7 @@ export default function AdminDiscountsPage() {
   useEffect(() => { fetchCoupons(1); }, [fetchCoupons]);
 
   const openCreate = () => { setEditing(null); setForm({ code: '', type: 'PERCENTAGE', value: 0, isActive: true, expiresAt: '' }); setShowForm(true); };
-  const openEdit = (c: Coupon) => { setEditing(c); setForm({ code: c.code, type: c.type, value: c.value, minOrderAmount: c.minOrderAmount, maxUses: c.maxUses, isActive: c.isActive, expiresAt: c.expiresAt ? new Date(c.expiresAt).toISOString().split('T')[0] : '' }); setShowForm(true); };
+  const openEdit = (c: Coupon) => { setEditing(c); setForm({ code: c.code, type: c.type, value: c.value, minOrderAmount: c.minOrderAmount, maxUses: c.maxUses, maxDiscount: c.maxDiscount, isActive: c.isActive, expiresAt: c.expiresAt ? new Date(c.expiresAt).toISOString().split('T')[0] : '' }); setShowForm(true); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +47,7 @@ export default function AdminDiscountsPage() {
     }
     setSaving(true);
     try {
-      const data: Partial<Coupon> = { ...form, expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : undefined, maxUses: form.maxUses || undefined, minOrderAmount: form.minOrderAmount || undefined };
+      const data: Partial<Coupon> = { ...form, expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : undefined, maxUses: form.maxUses || undefined, minOrderAmount: form.minOrderAmount || undefined, maxDiscount: form.maxDiscount || undefined };
       if (editing) { await adminApi.updateCoupon(editing.id, data); }
       else { await adminApi.createCoupon(data); }
       setShowForm(false); fetchCoupons(pagination.page);
@@ -104,7 +104,7 @@ export default function AdminDiscountsPage() {
                 {coupons.map(c => (
                   <tr key={c.id} className="hover:bg-sage-light/5">
                     <td className="px-5 py-3"><span className="font-mono text-sm font-medium text-navy">{c.code}</span></td>
-                    <td className="px-5 py-3 text-sm text-navy">{c.type === 'PERCENTAGE' ? `${c.value}%` : formatPrice(c.value)}</td>
+                    <td className="px-5 py-3 text-sm text-navy">{c.type === 'PERCENTAGE' ? `${c.value}%${c.maxDiscount ? ` (max ${formatPrice(c.maxDiscount)})` : ''}` : formatPrice(c.value)}</td>
                     <td className="hidden sm:table-cell px-5 py-3 text-sm text-slate">{c.minOrderAmount ? formatPrice(c.minOrderAmount) : '-'}</td>
                     <td className="hidden md:table-cell px-5 py-3 text-sm text-slate">{c.usedCount}{c.maxUses ? `/${c.maxUses}` : ''}</td>
                     <td className="hidden lg:table-cell px-5 py-3 text-sm text-slate">{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : 'Never'}</td>
@@ -163,6 +163,13 @@ export default function AdminDiscountsPage() {
                 className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
             </div>
           </div>
+          {form.type === 'PERCENTAGE' && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-navy">Max Discount ($)</label>
+              <input type="number" min="0" step="0.01" value={form.maxDiscount || ''} onChange={e => setForm(f => ({ ...f, maxDiscount: parseFloat(e.target.value) || 0 }))}
+                placeholder="Optional dollar cap on the discount" className="w-full rounded-lg border border-sage-light/40 px-3 py-2.5 text-sm focus:border-navy focus:outline-none" />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-navy">Expiration Date</label>

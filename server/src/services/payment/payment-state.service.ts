@@ -9,10 +9,13 @@
 // ============================================================
 
 import prisma from '../../config/db';
+import config from '../../config';
 import {
   PAYMENT_STATUS,
   PaymentStatusValue,
 } from '../../constants/order';
+import { notifyOrderPaid } from '../notification.service';
+import { sendPaymentConfirmationEmail } from '../../utils/email';
 
 export function updatePaymentStatus(
   orderId: string,
@@ -57,7 +60,41 @@ export function setOrderPaid(
       },
       data: patch,
     })
-    .then((result) => result.count > 0);
+    .then((result) => {
+      // Money settled: notify + email the customer. This is the single choke
+      // point that every verified flow (admin confirmation, PayPal capture,
+      // Stripe/PayPal webhooks) funnels through, so the "payment received"
+      // communication can never be duplicated or missed.
+      if (result.count > 0) {
+        onOrderPaid(orderId).catch(() => {});
+      }
+      return result.count > 0;
+    });
+}
+
+async function onOrderPaid(orderId: string): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+  if (!order || !order.user) return;
+
+  await notifyOrderPaid({
+    id: order.id,
+    userId: order.userId,
+    orderNumber: order.orderNumber,
+    total: order.total,
+    currency: config.currency,
+  });
+
+  await sendPaymentConfirmationEmail({
+    to: order.user.email,
+    name: order.user.name,
+    orderNumber: order.orderNumber,
+    total: order.total,
+    currency: config.currency,
+    orderUrl: `${config.client.url}/dashboard/orders/${order.id}`,
+  });
 }
 
 export function setOrderPaymentFailed(orderId: string): Promise<boolean> {

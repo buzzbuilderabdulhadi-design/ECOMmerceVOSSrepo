@@ -19,9 +19,23 @@ export const createOrder = async (data: {
   return response.data.data;
 };
 
-export const fetchOrders = async (params?: Record<string, string>): Promise<{ data: Order[]; pagination: PaginationMeta }> => {
-  const response = await axiosInstance.get('/orders', { params });
-  return response.data;
+// In-flight dedupe keyed by param signature: concurrent identical order-list
+// fetches (dev StrictMode double-mounts, multiple callers) share one request.
+const orderRequests = new Map<string, Promise<{ data: Order[]; pagination: PaginationMeta }>>();
+
+export const fetchOrders = (params?: Record<string, string>): Promise<{ data: Order[]; pagination: PaginationMeta }> => {
+  const key = JSON.stringify(params || {});
+  let request = orderRequests.get(key);
+  if (!request) {
+    request = axiosInstance
+      .get('/orders', { params })
+      .then((response) => response.data)
+      .finally(() => {
+        orderRequests.delete(key);
+      });
+    orderRequests.set(key, request);
+  }
+  return request;
 };
 
 export const fetchOrder = async (id: string): Promise<Order> => {

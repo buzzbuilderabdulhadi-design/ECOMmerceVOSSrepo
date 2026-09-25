@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { useCart } from '@/context/CartContext';
-import { useCartDrawer } from '@/context/CartDrawerContext';
 import type { WishlistItem, Product } from '@/types';
 import toast from 'react-hot-toast';
 
@@ -19,7 +18,6 @@ export function WishlistCard({ item, onRemove }: WishlistCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const { addItem } = useCart();
-  const { openCart } = useCartDrawer();
 
   const p = item.product;
   const v = item.variant;
@@ -52,7 +50,6 @@ export function WishlistCard({ item, onRemove }: WishlistCardProps) {
       const message = await addItem(productForCart, 1, addableVariantId);
       if (message === null) {
         toast.success('Added to cart');
-        openCart();
       } else {
         toast.error(message);
       }

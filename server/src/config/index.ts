@@ -49,6 +49,11 @@ interface Config {
     environment: 'sandbox' | 'live';
     webhookId: string;
   };
+  google: {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+  };
   bankTransfer: {
     enabled: boolean;
     bankName: string;
@@ -125,6 +130,13 @@ const config: Config = {
     environment: process.env.PAYPAL_ENVIRONMENT === 'live' ? 'live' : 'sandbox',
     webhookId: process.env.PAYPAL_WEBHOOK_ID || '',
   },
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    redirectUri:
+      process.env.GOOGLE_REDIRECT_URI ||
+      `http://localhost:3000/auth/google/callback`,
+  },
   bankTransfer: {
     enabled: process.env.BANK_TRANSFER_ENABLED === 'true',
     bankName: process.env.BANK_NAME || '',
@@ -179,6 +191,32 @@ export function validateConfig(): void {
         );
       }
     }
+
+    // CORS origin must be a concrete origin, never a wildcard — with
+    // credentials enabled, `origin: "*"` is both invalid and dangerous.
+    if (config.client.url.includes('*')) {
+      throw new Error(
+        'Environment variable CLIENT_URL must be a concrete origin (e.g. https://zoyagoods.com). Wildcards are not allowed when credentials are enabled.'
+      );
+    }
+
+    // Email: a half-configured mailbox silently drops every transactional
+    // email at checkout. Require a complete pair (or none at all).
+    const hasEmailUser = Boolean(config.email.user);
+    const hasEmailPassword = Boolean(config.email.password);
+    if (hasEmailUser !== hasEmailPassword) {
+      throw new Error(
+        'Environment variables EMAIL_USER and EMAIL_PASSWORD must be set together (or neither). A partial SMTP configuration silently drops all transactional email.'
+      );
+    }
+
+    // Stripe: checkout is only "enabled" when BOTH the key and the webhook
+    // secret exist. Otherwise asynchron-verified payments 503 forever.
+    if (config.stripe.secretKey && !config.stripe.webhookSecret) {
+      throw new Error(
+        'Environment variable STRIPE_WEBHOOK_SECRET is required when STRIPE_SECRET_KEY is configured — webhook verification will fail without it.'
+      );
+    }
   }
 }
 
@@ -208,6 +246,10 @@ export function isBankTransferConfigured(): boolean {
 
 export function isPayoneerConfigured(): boolean {
   return Boolean(config.payoneer.enabled && config.payoneer.accountEmail);
+}
+
+export function isGoogleConfigured(): boolean {
+  return Boolean(config.google.clientId && config.google.clientSecret);
 }
 
 export function isPaymentMethodConfigured(method: PaymentMethodValue): boolean {

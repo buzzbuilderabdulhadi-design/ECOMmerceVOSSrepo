@@ -2,8 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
@@ -45,7 +45,16 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ title, subtitle, children }: DashboardLayoutProps) {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const router = useRouter();
+  const { isAuthenticated, isLoading, logout } = useAuth();
+
+  // Account pages are private. Redirect signed-out visitors to the login
+  // page and return them here after they sign in.
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+    }
+  }, [isLoading, isAuthenticated, pathname, router]);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 

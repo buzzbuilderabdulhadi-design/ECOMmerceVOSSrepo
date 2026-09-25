@@ -1,7 +1,7 @@
 {
-  "name": "voss-server",
+  "name": "zoya-goods-server",
   "version": "1.0.0",
-  "description": "VOSS Luxury Fashion E-Commerce Backend API",
+  "description": "ZOYA GOODS Luxury Fashion E-Commerce Backend API",
   "main": "dist/app.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
@@ -10,7 +10,8 @@
     "lint": "eslint src/**/*.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "seed:catalog": "ts-node prisma/seed-catalog.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",

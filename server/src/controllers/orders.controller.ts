@@ -13,6 +13,11 @@ import {
 } from '../constants/order';
 import { getPaymentProvider } from '../services/payment/providers';
 import { setOrderPaymentCancelled } from '../services/payment/payment-state.service';
+import { reverseOrderReservations } from '../services/order-reversal.service';
+import { notifyOrderCreated, notifyAdminsLowStock } from '../services/notification.service';
+import { sendOrderConfirmationEmail, sendManualPaymentEmail } from '../utils/email';
+import { getManualPaymentInstructions } from '../config';
+import config from '../config';
 
 const generateOrderNumber = () => `ZG-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
@@ -232,6 +237,65 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
         data: { couponCode: null, discountAmount: null },
       });
       sendCreated(res, order, 'Order created successfully');
+
+      // Fire-and-forget side effects: confirmation notification + email must
+      // never delay/derail the checkout response.
+      notifyOrderCreated({
+        id: order.id,
+        userId,
+        orderNumber: order.orderNumber,
+        total: order.total,
+        currency: config.currency,
+      }).catch(() => {});
+
+      // Alert admins about SKUs that dropped to/under their low-stock
+      // threshold as a result of this order's stock deduction. Fetches fresh
+      // stock from the DB (atomic decrements already applied for this order).
+      const reservedProductIds = [...new Set(reservations.map((r) => r.productId))];
+      if (reservedProductIds.length > 0) {
+        prisma.product
+          .findMany({
+            where: { id: { in: reservedProductIds } },
+            select: { id: true, name: true, sku: true, stock: true, lowStockThreshold: true },
+          })
+          .then((products) => {
+            for (const product of products) {
+              if (product.lowStockThreshold != null && product.stock > 0 && product.stock <= product.lowStockThreshold) {
+                notifyAdminsLowStock(product).catch(() => {});
+              }
+            }
+          })
+          .catch(() => {});
+      }
+      if (order.userId) {
+        prisma.user
+          .findUnique({ where: { id: userId }, select: { id: true, name: true, email: true } })
+          .then((user) => {
+            if (!user) return;
+            const orderUrl = `${config.client.url}/dashboard/orders/${order.id}`;
+            if (manualPayment) {
+              return sendManualPaymentEmail({
+                to: user.email,
+                name: user.name,
+                orderNumber: order.orderNumber,
+                total: order.total,
+                currency: config.currency,
+                instructions: getManualPaymentInstructions(method).join('\n'),
+                orderUrl,
+              });
+            }
+            return sendOrderConfirmationEmail({
+              to: user.email,
+              name: user.name,
+              orderNumber: order.orderNumber,
+              itemCount: order.items?.length ?? orderItems.length,
+              total: order.total,
+              currency: config.currency,
+              orderUrl,
+            });
+          })
+          .catch(() => {});
+      }
     } catch (error) {
       await releaseReservations();
       throw error;
@@ -241,8 +305,8 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
 
 export const getOrders = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
     const [orders, total] = await Promise.all([
       prisma.order.findMany({ where: { userId: req.user!.userId }, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, include: { items: { include: { product: { select: { name: true, slug: true, images: true } } } } } }),
       prisma.order.count({ where: { userId: req.user!.userId } }),
@@ -285,6 +349,10 @@ export const cancelOrder = async (req: Request, res: Response, next: NextFunctio
 
     const updated = await prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } });
     await setOrderPaymentCancelled(id);
+    // Put the units and the coupon back: stock was deducted at creation and
+    // the coupon's usedCount incremented. Reversing both keeps inventory and
+    // coupon limits accurate.
+    await reverseOrderReservations(id);
     sendSuccess(res, updated, 'Order cancelled');
   } catch (error) { next(error); }
 };

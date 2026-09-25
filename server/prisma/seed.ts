@@ -14,6 +14,7 @@ async function main() {
   await prisma.review.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
+  await prisma.paymentEvent.deleteMany();
   await prisma.cartItem.deleteMany();
   await prisma.cart.deleteMany();
   await prisma.productVariant.deleteMany();
@@ -136,7 +137,7 @@ async function main() {
     prisma.siteSetting.create({ data: { key: 'site_name', value: 'ZOYA GOODS' } }),
     prisma.siteSetting.create({ data: { key: 'site_description', value: 'Luxury Fashion E-Commerce' } }),
     prisma.siteSetting.create({ data: { key: 'currency', value: 'USD' } }),
-    prisma.siteSetting.create({ data: { key: 'free_shipping_threshold', value: 150 } }),
+    prisma.siteSetting.create({ data: { key: 'free_shipping_threshold', value: 200 } }),
     prisma.siteSetting.create({ data: { key: 'default_shipping_cost', value: 15 } }),
     prisma.siteSetting.create({ data: { key: 'tax_rate', value: 0.08 } }),
     prisma.siteSetting.create({ data: { key: 'contact_email', value: 'hello@zoyagoods.com' } }),

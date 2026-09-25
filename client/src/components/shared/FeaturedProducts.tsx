@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ProductCard, type ProductCardData } from '@/components/product/ProductCard';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
@@ -33,25 +34,23 @@ export function FeaturedProducts({
   wishlistedIds,
 }: FeaturedProductsProps) {
   const railRef = useRef<HTMLDivElement>(null);
-  const { items: wishlistItems, addItem: addWishlist, removeItem: removeWishlist } = useWishlist();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { wishlistedProductIds, toggleItem } = useWishlist();
   const { isAuthenticated } = useAuth();
 
   // When no external handler is wired (e.g. the homepage rail), the section
   // manages its own wishlist hearts so every browse surface has an entry point.
-  const handleWishlistToggle = async (productId: string) => {
-    if (onWishlistToggle) { onWishlistToggle(productId); return; }
-    if (!isAuthenticated) {
-      toast.error('Please sign in to save items to your wishlist.');
-      return;
-    }
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
-    const existing = wishlistItems.find((w) => w.productId === productId);
-    if (existing) {
-      const ok = await removeWishlist(existing.id);
-      if (!ok) toast.error('Could not update your wishlist.');
-    } else {
-      const ok = await addWishlist(
+  const handleWishlistToggle = useCallback(
+    async (productId: string) => {
+      if (onWishlistToggle) { onWishlistToggle(productId); return; }
+      if (!isAuthenticated) {
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+      const ok = await toggleItem(
         {
           id: product.id,
           name: product.name,
@@ -64,13 +63,14 @@ export function FeaturedProducts({
         product.defaultVariantId
       );
       if (!ok) toast.error('Could not update your wishlist.');
-    }
-  };
+    },
+    [products, isAuthenticated, onWishlistToggle, router, pathname, toggleItem]
+  );
 
   const isWishlistedFor = (id: string) =>
     onWishlistToggle
       ? wishlistedIds?.has(id) ?? false
-      : isAuthenticated && wishlistItems.some((w) => w.productId === id);
+      : wishlistedProductIds.has(id);
 
   if (!products || products.length === 0) return null;
 

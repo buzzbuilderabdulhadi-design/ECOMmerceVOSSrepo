@@ -5,13 +5,11 @@ import { FeaturedCategories } from '@/components/shared/FeaturedCategories';
 import { FeaturedProducts } from '@/components/shared/FeaturedProducts';
 import { WhyChooseZoya } from '@/components/shared/WhyChooseZoya';
 import { NewsletterSection } from '@/components/shared/NewsletterSection';
-import { allProducts } from '@/data/products';
 import { pageMetadata } from '@/lib/seo';
 import { variantsToColors } from '@/lib/utils';
 import type { Metadata } from 'next';
 import type { ApiResponse, Product } from '@/types';
 import type { ProductCardData } from '@/components/product/ProductCard';
-import type { ProductData } from '@/data/products';
 
 export const metadata: Metadata = pageMetadata({ path: '/' });
 
@@ -33,29 +31,9 @@ function mapApiProduct(p: Product): ProductCardData {
     brand: p.brand,
     category: p.category?.name,
     colors: variantsToColors(p.variants),
-    defaultVariantId: p.variants?.find((v) => v.isActive)?.id,
+    defaultVariantId: p.variants?.find((v) => v.isActive !== false)?.id,
   };
 }
-
-function mapFallbackProduct(p: ProductData): ProductCardData {
-  return {
-    id: p.id,
-    name: p.name,
-    slug: p.slug,
-    image: p.image,
-    images: p.images,
-    regularPrice: p.regularPrice,
-    salePrice: p.salePrice ?? undefined,
-    discountPercent: p.discountPercent,
-    isNew: p.isNew,
-    isBestSeller: p.isBestSeller,
-    brand: p.brand,
-    category: p.category,
-    colors: p.colors,
-  };
-}
-
-const fallbackProducts: ProductCardData[] = allProducts.slice(0, 8).map(mapFallbackProduct);
 
 async function getFeaturedProducts(): Promise<ProductCardData[]> {
   try {
@@ -70,13 +48,12 @@ async function getFeaturedProducts(): Promise<ProductCardData[]> {
       if (!res.ok) throw new Error(`Featured products fetch failed: ${res.status}`);
       const json: ApiResponse<Product[]> = await res.json();
       const items: Product[] = Array.isArray(json?.data) ? json.data : [];
-      if (items.length === 0) return fallbackProducts;
       return items.map(mapApiProduct);
     } finally {
       clearTimeout(timeout);
     }
   } catch {
-    return fallbackProducts;
+    return [];
   }
 }
 
@@ -92,7 +69,7 @@ export default async function HomePage() {
         subtitle="Premium Leather & Suede Collection"
         description="Discover our curated collection of handcrafted jackets, designed for those who appreciate the finer things in life."
         primaryCta={{ label: 'Shop Now', href: '/shop' }}
-        secondaryCta={{ label: 'Explore Collection', href: '/category/new-arrivals' }}
+        secondaryCta={{ label: 'Explore Collection', href: '/shop?sort=newest' }}
         imageSrc="https://images.unsplash.com/photo-1551028719-00167b16eac5?w=900&q=85"
         imageAlt="ZOYA GOODS Luxury Collection"
         showcaseImages={[

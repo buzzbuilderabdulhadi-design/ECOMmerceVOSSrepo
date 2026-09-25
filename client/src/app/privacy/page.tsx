@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           </div>
         </section>
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-zoya">
-          <p>Last updated: January 2024</p>
+          <p>Last updated: September 2026</p>
           <h2>Information We Collect</h2>
           <p>We collect information you provide directly to us, including name, email address, phone number, shipping address, and payment information when you make a purchase or create an account.</p>
           <h2>How We Use Your Information</h2>

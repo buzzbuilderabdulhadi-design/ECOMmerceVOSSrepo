@@ -11,6 +11,19 @@ export interface AdminReview extends Review {
   user?: Pick<User, 'id' | 'name' | 'avatar'>;
 }
 
+// --- Admin: Product Questions (Q&A) ---
+export interface AdminQuestion {
+  id: string;
+  question: string;
+  answer?: string | null;
+  adminAnsweredAt?: string | null;
+  helpfulCount: number;
+  isPublished: boolean;
+  createdAt: string;
+  product?: Pick<Product, 'id' | 'name' | 'slug'>;
+  user?: Pick<User, 'id' | 'name' | 'avatar'>;
+}
+
 // --- Admin: Orders ---
 export interface AdminOrder extends Order {
   user?: Pick<User, 'id' | 'name' | 'email'>;

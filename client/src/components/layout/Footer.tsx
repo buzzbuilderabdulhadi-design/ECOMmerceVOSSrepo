@@ -18,7 +18,7 @@ interface FooterProps {
 
 const quickLinks: FooterLink[] = [
   { label: 'Shop All', href: '/shop' },
-  { label: 'New Arrivals', href: '/shop?sort=new' },
+  { label: 'New Arrivals', href: '/shop?sort=newest' },
   { label: 'Best Sellers', href: '/shop?sort=best' },
   { label: 'Sale', href: '/shop?sale=true' },
   { label: 'Wishlist', href: '/wishlist' },
@@ -26,12 +26,12 @@ const quickLinks: FooterLink[] = [
 ];
 
 const categories: FooterLink[] = [
-  { label: 'Outerwear', href: '/category/outerwear' },
-  { label: 'Tailoring', href: '/category/tailoring' },
-  { label: 'Knitwear', href: '/category/knitwear' },
-  { label: 'Footwear', href: '/category/shoes' },
-  { label: 'Leather Goods', href: '/category/bags' },
-  { label: 'Accessories', href: '/category/accessories' },
+  { label: 'Clothing & Accessories', href: '/category/clothing-accessories' },
+  { label: 'Jackets', href: '/category/jackets' },
+  { label: 'Handbags', href: '/category/handbags' },
+  { label: 'Watches', href: '/category/watches' },
+  { label: 'Jewelry', href: '/category/jewelry' },
+  { label: 'Beauty & Fragrance', href: '/category/beauty-fragrance' },
 ];
 
 const customerService: FooterLink[] = [
@@ -69,22 +69,10 @@ const contactItems = [
     ),
     content: (
       <span className="text-sm leading-relaxed text-ivory">
-        1200 Madison Avenue
+        Online boutique
         <br />
-        New York, NY 10128
+        Worldwide shipping
       </span>
-    ),
-  },
-  {
-    icon: (
-      <svg className="mt-0.5 h-4 w-4 shrink-0 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-      </svg>
-    ),
-    content: (
-      <a href="tel:+18005550188" className="text-sm text-ivory transition-colors duration-300 hover:text-gold">
-        +1 (800) 555-0188
-      </a>
     ),
   },
   {

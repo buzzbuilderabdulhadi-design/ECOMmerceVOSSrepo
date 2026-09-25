@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { useCart } from '@/context/CartContext';
-import { useCartDrawer } from '@/context/CartDrawerContext';
 import type { Product } from '@/types';
 import toast from 'react-hot-toast';
 
@@ -40,7 +39,7 @@ interface ProductCardProps {
   index?: number;
 }
 
-export function ProductCard({
+export const ProductCard = memo(function ProductCard({
   product,
   variant = 'default',
   onWishlistToggle,
@@ -55,7 +54,6 @@ export function ProductCard({
   const [isHoverImageError, setIsHoverImageError] = useState(false);
 
   const { addItem } = useCart();
-  const { openCart } = useCartDrawer();
 
   const {
     id,
@@ -97,7 +95,6 @@ export function ProductCard({
       );
       if (message === null) {
         toast.success('Added to cart');
-        openCart();
       } else {
         toast.error(message);
       }
@@ -334,4 +331,4 @@ ${(salePrice ?? regularPrice).toFixed(2)}
       </div>
     </motion.div>
   );
-}
+});

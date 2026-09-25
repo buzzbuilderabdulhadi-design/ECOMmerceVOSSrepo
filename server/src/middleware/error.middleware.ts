@@ -110,7 +110,7 @@ export const errorHandler = (
 
     switch (multerErr.code) {
       case 'LIMIT_FILE_SIZE':
-        message = 'File is too large. Maximum size is 10MB.';
+        message = 'File is too large. Maximum size is 5MB.';
         break;
       case 'LIMIT_FILE_COUNT':
         message = 'Too many files uploaded.';

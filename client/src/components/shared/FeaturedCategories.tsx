@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { TextReveal } from '@/components/animations/TextReveal';
 import { Parallax } from '@/components/animations/Parallax';
+import { fetchFeaturedCategories } from '@/services';
+import type { Category } from '@/types';
 
 interface CategoryItem {
   name: string;
@@ -23,14 +25,7 @@ interface FeaturedCategoriesProps {
   className?: string;
 }
 
-const defaultCategories: CategoryItem[] = [
-  { name: 'Leather Jackets', slug: 'leather-jackets', image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=900&q=85', productCount: 24 },
-  { name: 'Bomber Jackets', slug: 'bomber-jackets', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=900&q=85', productCount: 18 },
-  { name: 'Suede Jackets', slug: 'suede-jackets', image: 'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=900&q=85', productCount: 12 },
-  { name: 'Denim Jackets', slug: 'denim-jackets', image: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=900&q=85', productCount: 15 },
-  { name: 'Puffer Jackets', slug: 'puffer-jackets', image: 'https://images.unsplash.com/photo-1539533113208-f6df8cc8b543?w=900&q=85', productCount: 20 },
-  { name: 'Winter Parkas', slug: 'winter-parkas', image: 'https://images.unsplash.com/photo-1539533113208-f6df8cc8b543?w=900&q=85', productCount: 10 },
-];
+const CATEGORY_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=900&q=85';
 
 const spanClasses = [
   'col-span-2 lg:col-span-3 lg:row-span-2',
@@ -41,12 +36,43 @@ const spanClasses = [
   'col-span-2 lg:col-span-3',
 ];
 
+type CategoryWithCount = Category & { _count?: { products: number } };
+
 export function FeaturedCategories({
-  categories = defaultCategories,
+  categories,
   title = 'Shop by Category',
   description = 'Explore our curated collections of premium jackets and luxury outerwear.',
   className,
 }: FeaturedCategoriesProps) {
+  const [tiles, setTiles] = useState<CategoryItem[]>(categories ?? []);
+
+  useEffect(() => {
+    if (categories) return;
+    let active = true;
+    fetchFeaturedCategories()
+      .then((cats) => {
+        if (!active) return;
+        setTiles(
+          (cats as CategoryWithCount[])
+            .slice(0, 6)
+            .map((c) => ({
+              name: c.name,
+              slug: c.slug,
+              image: c.image || CATEGORY_FALLBACK_IMAGE,
+              productCount: c._count?.products ?? 0,
+            }))
+        );
+      })
+      .catch(() => {
+        if (active) setTiles([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [categories]);
+
+  if (tiles.length === 0) return null;
+
   return (
     <section className={cn('section-divider-top relative overflow-hidden py-20 md:py-28', className)}>
       {/* Editorial watermark */}
@@ -77,7 +103,7 @@ export function FeaturedCategories({
         </div>
 
         <div className="mt-14 grid grid-cols-2 auto-rows-[200px] gap-4 sm:auto-rows-[220px] md:gap-6 lg:grid-cols-6 lg:auto-rows-[220px] xl:auto-rows-[260px]">
-          {categories.map((category, index) => (
+          {tiles.map((category, index) => (
             <motion.div
               key={category.slug}
               initial={{ opacity: 0, y: 40 }}

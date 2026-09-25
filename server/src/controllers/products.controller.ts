@@ -3,17 +3,19 @@ import prisma from '../config/db';
 import { sendSuccess, sendPaginated } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
 import { cacheGet, cacheSet } from '../utils/cache';
+import { parsePagination } from '../utils/pagination';
 
 const PRODUCT_TTL_MS = 15_000;
 const LIST_TTL_MS = 20_000;
 
 export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const { category, search, minPrice, maxPrice, sort, color, size, material, brand, isNew, isBestSeller, isFeatured } = req.query;
+    const { page, limit } = parsePagination(req.query);
+    const { category, search, minPrice, maxPrice, sort, color, size, material, brand, isNew, isBestSeller, isFeatured, isSale } = req.query;
     const where: any = { isActive: true };
-    if (category) where.category = { slug: category as string };
+    // A category page shows this category's own products plus the products of
+    // its child categories (the catalog nests products under subcategories).
+    if (category) where.category = { OR: [{ slug: category }, { parent: { slug: category } }] };
     if (search) where.name = { contains: search as string, mode: 'insensitive' };
     if (minPrice) where.regularPrice = { ...where.regularPrice, gte: parseFloat(minPrice as string) };
     if (maxPrice) where.regularPrice = { ...where.regularPrice, lte: parseFloat(maxPrice as string) };
@@ -22,6 +24,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
     if (isNew === 'true') where.isNew = true;
     if (isBestSeller === 'true') where.isBestSeller = true;
     if (isFeatured === 'true') where.isFeatured = true;
+    if (isSale === 'true') where.salePrice = { not: null };
     if (color) where.variants = { some: { color: color as string, isActive: true } };
     if (size) where.variants = { ...where.variants, some: { ...where.variants?.some, size: size as string, isActive: true } };
 
@@ -34,7 +37,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       default: orderBy.createdAt = 'desc';
     }
 
-    const cacheKey = `products:list:${JSON.stringify({ page, limit, category, search, minPrice, maxPrice, sort, color, size, material, brand, isNew, isBestSeller, isFeatured })}`;
+    const cacheKey = `products:list:${JSON.stringify({ page, limit, category, search, minPrice, maxPrice, sort, color, size, material, brand, isNew, isBestSeller, isFeatured, isSale })}`;
     const cached = cacheGet<{ products: unknown[]; total: number }>(cacheKey);
     if (cached) {
       sendPaginated(res, cached.products, { page, limit, total: cached.total });
@@ -49,7 +52,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
         orderBy,
         include: {
           category: { select: { id: true, name: true, slug: true } },
-          variants: { where: { isActive: true }, select: { id: true, color: true, colorHex: true, size: true, stock: true, priceOverride: true, images: true } },
+          variants: { where: { isActive: true }, select: { id: true, color: true, colorHex: true, size: true, stock: true, priceOverride: true, images: true, isActive: true } },
           _count: { select: { reviews: true } },
         },
       }),

@@ -6,8 +6,11 @@ import React, {
   useReducer,
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   ReactNode,
 } from 'react';
+import { AxiosError } from 'axios';
 import type { WishlistItem, Product } from '@/types';
 import axiosInstance, { getErrorMessage } from '@/services/axios';
 import { useAuth } from '@/context/AuthContext';
@@ -28,12 +31,16 @@ interface WishlistContextType {
   items: WishlistItem[];
   isLoading: boolean;
   error: string | null;
+  wishlistedProductIds: Set<string>;
   isInWishlist: (productId: string, variantId?: string) => boolean;
   addItem: (product: Product, variantId?: string) => Promise<boolean>;
   removeItem: (itemId: string) => Promise<boolean>;
   toggleItem: (product: Product, variantId?: string) => Promise<boolean>;
   refreshWishlist: () => Promise<void>;
 }
+
+const isConflict = (error: unknown): boolean =>
+  error instanceof AxiosError && error.response?.status === 409;
 
 const WishlistContext = createContext<WishlistContextType | undefined>(
   undefined
@@ -85,6 +92,11 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(wishlistReducer, initialState);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
+  // Live ref so toggleItem can read the latest items without being recreated
+  // on every wishlist change (keeps the context value / memoized cards stable).
+  const itemsRef = useRef<WishlistItem[]>(state.items);
+  itemsRef.current = state.items;
+
   const refreshWishlist = useCallback(async () => {
     // The wishlist endpoint is auth-protected. Skip it for guests so every
     // page load doesn't fire a 401 that used to bounce users to /login.
@@ -110,10 +122,13 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
   const isInWishlist = useCallback(
     (productId: string, variantId?: string): boolean => {
+      if (variantId == null) {
+        return state.items.some((item) => item.productId === productId);
+      }
       return state.items.some(
         (item) =>
           item.productId === productId &&
-          (variantId ? item.variantId === variantId : true)
+          (item.variantId ?? null) === variantId
       );
     },
     [state.items]
@@ -130,6 +145,12 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'ADD_ITEM', payload: response.data.data });
         return true;
       } catch (error) {
+        // 409 means the item is already saved (e.g. a stale optimistic UI or
+        // a guest that signed in twice). Treat it as success and resync.
+        if (isConflict(error)) {
+          await refreshWishlist();
+          return true;
+        }
         dispatch({
           type: 'SET_ERROR',
           payload: getErrorMessage(error),
@@ -137,36 +158,48 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    []
+    [refreshWishlist]
   );
 
-  const removeItem = useCallback(async (itemId: string) => {
-    dispatch({ type: 'REMOVE_ITEM', payload: itemId });
-    try {
-      await axiosInstance.delete(`/wishlist/${itemId}`);
-      return true;
-    } catch (error) {
-      refreshWishlist();
-      dispatch({
-        type: 'SET_ERROR',
-        payload: getErrorMessage(error),
-      });
-      return false;
-    }
-  }, [refreshWishlist]);
+  const removeItem = useCallback(
+    async (itemId: string) => {
+      dispatch({ type: 'REMOVE_ITEM', payload: itemId });
+      try {
+        await axiosInstance.delete(`/wishlist/${itemId}`);
+        return true;
+      } catch (error) {
+        await refreshWishlist();
+        dispatch({
+          type: 'SET_ERROR',
+          payload: getErrorMessage(error),
+        });
+        return false;
+      }
+    },
+    [refreshWishlist]
+  );
 
   const toggleItem = useCallback(
     async (product: Product, variantId?: string) => {
-      const existingItem = state.items.find(
+      // The server normalizes an absent variant to null, so compare against
+      // null rather than undefined to avoid double-adding on a re-toggle.
+      const effectiveVariantId = variantId ?? null;
+      const existingItem = itemsRef.current.find(
         (item) =>
-          item.productId === product.id && item.variantId === variantId
+          item.productId === product.id &&
+          (item.variantId ?? null) === effectiveVariantId
       );
       if (existingItem) {
         return removeItem(existingItem.id);
       }
       return addItem(product, variantId);
     },
-    [state.items, addItem, removeItem]
+    [addItem, removeItem]
+  );
+
+  const wishlistedProductIds = useMemo(
+    () => new Set(state.items.map((item) => item.productId)),
+    [state.items]
   );
 
   // Derived loading: show skeletons while the session or actual wishlist data
@@ -176,21 +209,33 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     authLoading ||
     (isAuthenticated && !state.hasLoaded);
 
+  const value = useMemo(
+    () => ({
+      items: state.items,
+      isLoading,
+      error: state.error,
+      wishlistedProductIds,
+      isInWishlist,
+      addItem,
+      removeItem,
+      toggleItem,
+      refreshWishlist,
+    }),
+    [
+      state.items,
+      state.error,
+      isLoading,
+      wishlistedProductIds,
+      isInWishlist,
+      addItem,
+      removeItem,
+      toggleItem,
+      refreshWishlist,
+    ]
+  );
+
   return (
-    <WishlistContext.Provider
-      value={{
-        items: state.items,
-        isLoading,
-        error: state.error,
-        isInWishlist,
-        addItem,
-        removeItem,
-        toggleItem,
-        refreshWishlist,
-      }}
-    >
-      {children}
-    </WishlistContext.Provider>
+    <WishlistContext.Provider value={value}>{children}</WishlistContext.Provider>
   );
 }
 

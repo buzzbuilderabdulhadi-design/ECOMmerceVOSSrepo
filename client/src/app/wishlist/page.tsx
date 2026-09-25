@@ -7,14 +7,55 @@ import { PageTransition } from '@/components/animations/PageTransition';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ErrorState } from '@/components/shared/ErrorState';
 import { TextReveal } from '@/components/animations/TextReveal';
 import { WishlistCard } from '@/components/wishlist/WishlistCard';
 import { useWishlist } from '@/context/WishlistContext';
 import { useAuth } from '@/context/AuthContext';
 
 export default function WishlistPage() {
-  const { items, isLoading, removeItem } = useWishlist();
+  const { items, isLoading, error, removeItem, refreshWishlist } = useWishlist();
   const { isAuthenticated } = useAuth();
+
+  const body = isLoading ? (
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-sage-light/20" />
+      ))}
+    </div>
+  ) : error ? (
+    <ErrorState
+      title="Could not load your wishlist"
+      message={error}
+      onRetry={() => void refreshWishlist()}
+    />
+  ) : items.length === 0 ? (
+    !isAuthenticated ? (
+      <EmptyState
+        type="wishlist"
+        title="Sign in to view your wishlist"
+        description="Save items you love to your wishlist and come back to them anytime."
+        actionLabel="Sign In"
+        actionHref="/login?redirect=%2Fwishlist"
+      />
+    ) : (
+      <EmptyState
+        type="wishlist"
+        title="Your wishlist is empty"
+        description="Save items you love to your wishlist and come back to them anytime."
+        actionLabel="Explore Products"
+        actionHref="/shop"
+      />
+    )
+  ) : (
+    <StaggerChildren className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      {items.map((item) => (
+        <StaggerItem key={item.id}>
+          <WishlistCard item={item} onRemove={removeItem} />
+        </StaggerItem>
+      ))}
+    </StaggerChildren>
+  );
 
   return (
     <PageTransition>
@@ -36,39 +77,7 @@ export default function WishlistPage() {
         </section>
 
         <div className="mx-auto max-w-[1400px] px-4 py-10 sm:px-8 lg:px-12">
-          {isLoading ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-sage-light/20" />
-              ))}
-            </div>
-          ) : items.length === 0 ? (
-            !isAuthenticated ? (
-              <EmptyState
-                type="wishlist"
-                title="Sign in to view your wishlist"
-                description="Save items you love to your wishlist and come back to them anytime."
-                actionLabel="Sign In"
-                actionHref="/login"
-              />
-            ) : (
-              <EmptyState
-                type="wishlist"
-                title="Your wishlist is empty"
-                description="Save items you love to your wishlist and come back to them anytime."
-                actionLabel="Explore Products"
-                actionHref="/shop"
-              />
-            )
-          ) : (
-            <StaggerChildren className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-              {items.map((item) => (
-                <StaggerItem key={item.id}>
-                  <WishlistCard item={item} onRemove={removeItem} />
-                </StaggerItem>
-              ))}
-            </StaggerChildren>
-          )}
+          {body}
         </div>
         <Footer />
       </main>

@@ -10,7 +10,7 @@ import React, {
   ReactNode,
 } from 'react';
 import type { Cart, CartItem, Product } from '@/types';
-import axiosInstance, { getErrorMessage, getClientSessionId, removeClientSessionId } from '@/services/axios';
+import axiosInstance, { getErrorMessage, removeClientSessionId, peekClientSessionId } from '@/services/axios';
 import { useAuth } from '@/context/AuthContext';
 
 // ============================================================
@@ -191,7 +191,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // guest carts separate from the merged account cart.
       (async () => {
         try {
-          if (getClientSessionId()) {
+          // Only merge when a real guest session exists (peek, don't create).
+          // Using the id getter here made this fire on every authenticated
+          // page load by minting a fresh id each time the guard was checked.
+          if (peekClientSessionId()) {
             await axiosInstance.post('/cart/merge');
             removeClientSessionId();
           }

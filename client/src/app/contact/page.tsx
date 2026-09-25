@@ -8,30 +8,31 @@ import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
+import { submitContactMessage } from '@/services/contact';
 
 // ============================================================
 // Contact Page — Customer support and inquiries
 // ============================================================
 
 const contactInfo = [
-  { icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', label: 'Email', value: 'hello@zoyagoods.com' },
-  { icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z', label: 'Phone', value: '+1 (555) 000-0000' },
-  { icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z', label: 'Address', value: '123 Luxury Row, Milan, Italy' },
+  { icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', label: 'Email', value: 'care@zoyagoods.com' },
+  { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: 'Response Time', value: 'Within 24 hours on business days' },
+  { icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z', label: 'Location', value: 'Online boutique — worldwide shipping' },
   { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Hours', value: 'Mon–Fri, 9:00 AM – 6:00 PM EST' },
 ];
 
 export default function ContactPage() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', subject: '', message: '' });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
-    setSent(false);
+    if (status !== 'idle') setStatus('idle');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Partial<Record<keyof typeof form, string>> = {};
     if (!form.firstName.trim()) errs.firstName = 'First name is required';
@@ -42,12 +43,14 @@ export default function ContactPage() {
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    const subject = encodeURIComponent(`[ZOYA GOODS Contact] ${form.subject}`);
-    const body = encodeURIComponent(
-      `${form.firstName} ${form.lastName}\n${form.email}\n\n${form.message}`
-    );
-    window.location.href = `mailto:hello@zoyagoods.com?subject=${subject}&body=${body}`;
-    setSent(true);
+    setStatus('sending');
+    try {
+      await submitContactMessage(form);
+      setStatus('sent');
+      setForm({ firstName: '', lastName: '', email: '', subject: '', message: '' });
+    } catch {
+      setStatus('error');
+    }
   };
 
   return (
@@ -87,9 +90,16 @@ export default function ContactPage() {
                     aria-describedby={errors.message ? 'contact-message-error' : undefined}
                   />
                   {errors.message && <p id="contact-message-error" className="mt-1 text-xs text-red-600" role="alert">{errors.message}</p>}
-                  {sent && <p className="mt-1 text-xs text-sage-dark">Your email client should open with your message pre-filled.</p>}
+                  {status === 'sent' && (
+                    <p className="mt-1 text-xs text-sage-dark" role="status">Thank you — your message has been sent. We&apos;ll reply as soon as possible.</p>
+                  )}
+                  {status === 'error' && (
+                    <p className="mt-1 text-xs text-red-600" role="alert">Something went wrong sending your message. Please try again in a moment.</p>
+                  )}
                 </div>
-                <Button variant="walnut" size="lg" fullWidth type="submit">Send Message</Button>
+                <Button variant="walnut" size="lg" fullWidth type="submit" disabled={status === 'sending'}>
+                  {status === 'sending' ? 'Sending…' : 'Send Message'}
+                </Button>
               </form>
             </ScrollReveal>
 

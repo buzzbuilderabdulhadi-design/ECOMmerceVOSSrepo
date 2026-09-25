@@ -127,9 +127,11 @@ export default function AdminProductDetailPage() {
       };
       if (isNew) {
         const res = await adminApi.createProduct(data);
+        toast.success('Product created');
         router.push(`/admin/products/${res.data?.id || ''}`);
       } else {
         await adminApi.updateProduct(params.id as string, data);
+        toast.success('Product updated');
       }
     } catch (err) { toast.error(getErrorMessage(err) || 'Failed to save product'); } finally { setSaving(false); setSavingDraft(false); }
   };

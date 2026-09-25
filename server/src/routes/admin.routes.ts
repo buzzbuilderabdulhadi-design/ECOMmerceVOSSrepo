@@ -1,5 +1,9 @@
 import { Router } from 'express';
 import multer from 'multer';
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import { authenticate, authorizeAdmin } from '../middleware/auth.middleware';
 import { ApiError } from '../utils/apiError';
 import {
@@ -37,6 +41,9 @@ import {
   getReviews,
   updateReview,
   deleteReview,
+  getQuestions,
+  answerQuestion,
+  deleteQuestion,
   getCoupons,
   getCoupon,
   createCoupon,
@@ -79,6 +86,8 @@ import {
   customerIdParam,
   updateReviewSchema,
   reviewIdParam,
+  answerQuestionSchema,
+  questionIdParam,
   createCouponSchema,
   updateCouponSchema,
   couponIdParam,
@@ -108,9 +117,21 @@ const fileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
   }
 };
 
+const UPLOAD_TEMP_DIR = path.join(os.tmpdir(), 'zoya-uploads');
+
+// Recreate the temp dir on every request. OS temp dirs get wiped by the
+// system (Windows storage sense, etc.) and multer only mkdirs once at boot,
+// so a cleaned-out dir would break all uploads until the server restarts.
 const upload = multer({
-  dest: 'uploads/',
-  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      fs.mkdir(UPLOAD_TEMP_DIR, { recursive: true }, (err) => cb(err || null, UPLOAD_TEMP_DIR));
+    },
+    filename: (_req, _file, cb) => {
+      cb(null, crypto.randomBytes(16).toString('hex'));
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter,
 });
 
@@ -165,8 +186,12 @@ router.delete('/customers/:id', validate(customerIdParam), deleteCustomer);
 
 // Reviews
 router.get('/reviews', getReviews);
-router.put('/reviews/:id', validate(updateReviewSchema), updateReview);
-router.delete('/reviews/:id', validate(reviewIdParam), deleteReview);
+  router.put('/reviews/:id', validate(updateReviewSchema), updateReview);
+  router.delete('/reviews/:id', validate(reviewIdParam), deleteReview);
+
+  router.get('/questions', getQuestions);
+  router.put('/questions/:id/answer', validate(answerQuestionSchema), answerQuestion);
+  router.delete('/questions/:id', validate(questionIdParam), deleteQuestion);
 
 // Coupons
 router.get('/coupons', getCoupons);

@@ -28,3 +28,8 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   newPassword: z.string().min(8).max(128),
 });
+
+export const googleCallbackSchema = z.object({
+  code: z.string().min(1),
+  state: z.string().min(1),
+});

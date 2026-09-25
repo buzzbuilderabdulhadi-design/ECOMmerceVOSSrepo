@@ -22,7 +22,7 @@ export default function TermsPage() {
           </div>
         </section>
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 prose-zoya">
-          <p>Last updated: January 2024</p>
+          <p>Last updated: September 2026</p>
           <h2>Acceptance of Terms</h2>
           <p>By accessing and using the ZOYA GOODS website, you agree to be bound by these Terms of Service. If you do not agree, please do not use our services.</p>
           <h2>Products & Pricing</h2>

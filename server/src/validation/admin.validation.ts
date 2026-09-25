@@ -25,6 +25,7 @@ export const orderIdParam = z.object({ params: z.object({ id: objectId('order id
 export const customerIdParam = z.object({ params: z.object({ id: objectId('customer id') }) });
 export const couponIdParam = z.object({ params: z.object({ id: objectId('coupon id') }) });
 export const reviewIdParam = z.object({ params: z.object({ id: objectId('review id') }) });
+export const questionIdParam = z.object({ params: z.object({ id: objectId('question id') }) });
 
 // --- Products ---
 /** Optional fields shared by create + update. Required keys are defined per-schema. */
@@ -249,6 +250,17 @@ export const updateReviewSchema = z.object({
 });
 
 // --- Coupons ---
+export const answerQuestionSchema = z.object({
+  params: z.object({ id: objectId('question id') }),
+  body: z
+    .object({
+      answer: z.string().trim().min(1).max(2000),
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'At least one field must be provided',
+    }),
+});
+
 export const createCouponSchema = z.object({
   body: z
     .object({

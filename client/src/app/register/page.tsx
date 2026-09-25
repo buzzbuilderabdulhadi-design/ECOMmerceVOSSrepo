@@ -4,11 +4,13 @@ import React, { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { PageTransition } from '@/components/animations/PageTransition';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { GoogleButton } from '@/components/ui/GoogleButton';
 import { useAuth } from '@/context/AuthContext';
 
 export default function RegisterPage() {
@@ -30,6 +32,7 @@ export default function RegisterPage() {
     if (password.length < 8) { setLocalError('Password must be at least 8 characters'); return; }
     try {
       await register({ name: `${firstName} ${lastName}`, email, password });
+      toast.success(`Welcome to ZOYA GOODS, ${firstName.trim() || 'friend'}`);
       router.push('/');
     } catch (err: any) {
       setLocalError(err.message || 'Registration failed');
@@ -68,7 +71,7 @@ export default function RegisterPage() {
                   <Input label="Last Name" placeholder="Doe" required value={lastName} onChange={e => setLastName(e.target.value)} />
                 </div>
                 <Input label="Email" type="email" placeholder="john@example.com" required value={email} onChange={e => setEmail(e.target.value)} />
-                <Input label="Password" type="password" placeholder="Create a password" required value={password} onChange={e => setPassword(e.target.value)} />
+                <Input label="Password" type="password" placeholder="Create a password" helperText="At least 8 characters" required value={password} onChange={e => setPassword(e.target.value)} />
                 <Input label="Confirm Password" type="password" placeholder="Confirm your password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
 
                 <label className="flex items-start gap-2">
@@ -80,9 +83,16 @@ export default function RegisterPage() {
                   </span>
                 </label>
 
-                <Button variant="primary" size="lg" fullWidth isLoading={isLoading}>
+                <Button variant="primary" size="lg" fullWidth isLoading={isLoading} type="submit">
                   Create Account
                 </Button>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-sage-light/30" /></div>
+                  <div className="relative flex justify-center text-sm"><span className="bg-white px-4 text-slate">Or sign up with</span></div>
+                </div>
+
+                <GoogleButton label="Sign up with Google" />
 
                 <p className="text-center text-sm text-slate">
                   Already have an account?{' '}

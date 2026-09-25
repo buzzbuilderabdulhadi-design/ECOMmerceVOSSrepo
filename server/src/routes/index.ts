@@ -13,6 +13,7 @@ import userRoutes from './users.routes';
 import questionRoutes from './questions.routes';
 import mediaRoutes from './media.routes';
 import checkoutRoutes from './checkout.routes';
+import contactRoutes from './contact.routes';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/addresses', addressRoutes);
 router.use('/users', userRoutes);
 router.use('/questions', questionRoutes);
 router.use('/media', mediaRoutes);
+router.use('/contact', contactRoutes);
 
 export default router;

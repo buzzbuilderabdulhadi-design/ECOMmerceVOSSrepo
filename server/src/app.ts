@@ -35,11 +35,15 @@ app.use(helmet({
 }));
 
 // CORS
+// The client's axios instance sends a custom `x-session-id` header on every
+// request (guest-cart scoping) plus `Authorization` for logged-in calls. A
+// non-safelisted header forces the browser to CORS-preflight each request, so
+// it MUST be listed here or every browser call is blocked before it starts.
 app.use(cors({
   origin: config.client.url,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id'],
 }));
 
 // Compression
@@ -47,6 +51,42 @@ app.use(compression());
 
 // Cookie parser
 app.use(cookieParser());
+
+// ============================================================
+// Rate Limiting
+//
+// Mounted BEFORE webhooks so the raw-body endpoints are also rate limited
+// (they are public, signature-verified, and externally reachable). Static
+// /uploads assets intentionally stay unlimited — they are plain image files.
+// ============================================================
+
+// Public API limiter — sized for launch traffic (default 1000 / 15 min).
+const limiter = rateLimit({
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.publicMax,
+  message: {
+    success: false,
+    error: 'Too many requests, please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', limiter);
+
+// Stricter rate limit for auth routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  message: {
+    success: false,
+    error: 'Too many authentication attempts, please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+// Auth routes live under /api/v1/auth, so the limiter must be mounted on the
+// same path — mounting on /api/auth never matched anything.
+app.use('/api/v1/auth', authLimiter);
 
 // Stripe webhook MUST receive the raw body before any JSON parsing so the
 // signature can be verified against the exact bytes Stripe signed.
@@ -81,36 +121,6 @@ app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), {
   dotfiles: 'ignore',
   fallthrough: true,
 }));
-
-// ============================================================
-// Rate Limiting
-// ============================================================
-
-// Public API limiter — sized for launch traffic (default 1000 / 15 min).
-const limiter = rateLimit({
-  windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.publicMax,
-  message: {
-    success: false,
-    error: 'Too many requests, please try again later.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
-
-// Stricter rate limit for auth routes
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
-  message: {
-    success: false,
-    error: 'Too many authentication attempts, please try again later.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/auth', authLimiter);
 
 // ============================================================
 // Health Check
