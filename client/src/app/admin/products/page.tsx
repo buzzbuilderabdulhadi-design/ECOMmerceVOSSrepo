@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/services/axios';
+import { resolveAssetUrl } from '@/lib/assetUrl';
 import { useDebounce } from '@/hooks/useDebounce';
 
 interface Product {
@@ -88,7 +89,7 @@ export default function AdminProductsPage() {
   const toggleSelect = (id: string) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
   const toggleAll = () => setSelected(s => s.length === products.length ? [] : products.map(p => p.id));
 
-  const getImageUrl = (img: Product['images'][0]) => typeof img === 'string' ? img : img?.url || '';
+  const getImageUrl = (img: Product['images'][0]) => resolveAssetUrl(typeof img === 'string' ? img : img?.url || '');
 
   return (
     <div className="space-y-5">

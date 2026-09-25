@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/services/axios';
+import { resolveAssetUrl } from '@/lib/assetUrl';
 import { OrderDetail } from '@/types/admin';
 import { ORDER_TRANSITIONS, isOrderCancellable, OrderStatusValue } from '@/constants/order';
 
@@ -104,7 +105,7 @@ export default function AdminOrderDetailPage() {
               {order.items?.map((item) => (
                 <div key={item.id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
                   <div className="h-14 w-14 flex-shrink-0 rounded-lg bg-sage-light/20 overflow-hidden">
-                    {item.product?.images?.[0] && <img src={typeof item.product.images[0] === 'string' ? item.product.images[0] : item.product.images[0]?.url} alt="" className="h-full w-full object-cover" />}
+                    {item.product?.images?.[0] && <img src={resolveAssetUrl(typeof item.product.images[0] === 'string' ? item.product.images[0] : item.product.images[0]?.url)} alt="" className="h-full w-full object-cover" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-navy truncate">{String(item.product?.name ?? item.productSnapshot?.name ?? 'Product')}</p>
