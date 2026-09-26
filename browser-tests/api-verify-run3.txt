@@ -1,0 +1,302 @@
+
+======================================================================
+API VERIFY RUN  tag=ZG-ADM-1790267511020  ts=2026-09-24T16:31:51.024Z
+Base: http://localhost:5000/api/v1
+======================================================================
+
+A. Authorization gating (no token / bad token)
+  [PASS] 401 no-token /admin/dashboard  -> got 401
+  [PASS] 401 no-token /admin/products  -> got 401
+  [PASS] 401 no-token /admin/orders  -> got 401
+  [PASS] 401 no-token /admin/customers  -> got 401
+  [PASS] 401 no-token /admin/coupons  -> got 401
+  [PASS] 401 no-token /admin/reviews  -> got 401
+  [PASS] 401 invalid-token /admin/dashboard  -> got 401
+
+B. Admin auth lifecycle
+  [PASS] admin login returns session  -> admin@voss.com
+  [PASS] admin user has role ADMIN  -> role=ADMIN
+  [PASS] admin payload has no passwordHash
+  [PASS] GET /auth/me (admin)  -> status=200
+  [PASS] POST /auth/refresh issues new tokens  -> status=200
+
+C. Test customer
+  [PASS] customer registration  -> status=201
+  [PASS] customer registered role CUSTOMER  -> role=CUSTOMER
+
+D. Customer blocked from admin API (403 matrix)
+  [PASS] 403 customer /admin/dashboard  -> got 403
+  [PASS] 403 customer /admin/products  -> got 403
+  [PASS] 403 customer /admin/orders  -> got 403
+  [PASS] 403 customer /admin/customers  -> got 403
+  [PASS] 403 customer /admin/coupons  -> got 403
+  [PASS] 403 customer /admin/reviews  -> got 403
+  [PASS] 403 customer /admin/questions  -> got 403
+  [PASS] 403 customer /admin/analytics  -> got 403
+  [PASS] 403 customer /admin/settings  -> got 403
+  [PASS] 403 customer /admin/media  -> got 403
+  [PASS] 403 customer POST /admin/products  -> got 403
+
+E. Dashboard + analytics
+  [PASS] 200 /admin/dashboard  -> status=200
+  [PASS] dashboard totals are real finite numbers  -> orders=10, products=52, revenue=608.47
+  [PASS] 200 /admin/analytics  -> status=200
+  [PASS] 200 /admin/analytics/sales  -> status=200
+  [PASS] 200 /admin/analytics/orders  -> status=200
+  [PASS] 200 /admin/analytics/products  -> status=200
+  [PASS] 200 /admin/analytics/customers  -> status=200
+
+F. Categories CRUD
+  [PASS] create category  -> status=201
+  [PASS] create child category  -> status=201
+  [PASS] category list includes created  -> count=2
+  [PASS] update category  -> status=200
+  [PASS] get single category
+  [PASS] circular parent rejected  -> got 400 A category cannot be moved under its own descendant
+  [PASS] malformed ObjectId -> 400  -> got 400
+
+G. Products CRUD
+  [PASS] create product  -> status=201
+  [PASS] product salePrice>regularPrice rejected  -> got 400
+  [PASS] product bad categoryId rejected  -> got 400
+  [PASS] empty product update rejected  -> got 400
+  [PASS] admin get product  -> status=200
+  [PASS] admin product search finds SKU  -> status=200
+  [PASS] storefront product reachable by slug  -> status=200 slug=zg-adm-1790267511020-product
+  [PASS] update product (price/stock)  -> status=200
+  [PASS] storefront reflects price update via cache invalidation  -> salePrice=90
+  [PASS] storefront reflects stock update  -> stock=60
+  [PASS] deactivate product  -> status=200
+  [PASS] deactivated product not fetchable on storefront  -> got 200 isActive=false
+  [PASS] reactivated product visible again  -> status=200
+
+H. Variants CRUD
+  [PASS] create variant  -> status=201
+  [PASS] create second variant (no SKU -> auto-generated)  -> status=201
+  [PASS] duplicate variant SKU rejected  -> got 409
+  [PASS] storefront exposes variants  -> count=2
+  [PASS] update variant price/stock  -> status=200
+  [PASS] storefront reflects variant stock/price update
+  [PASS] delete unused variant  -> status=200
+  [PASS] deleted variant gone from storefront
+  [PASS] variant delete rejects wrong product  -> got 400
+
+I. Coupons CRUD + validation
+  [PASS] create PERCENTAGE coupon  -> status=201
+  [PASS] create FIXED coupon  -> status=201
+  [PASS] coupon percentage>100 rejected  -> got 400
+  [PASS] coupon list contains both  -> status=200
+  [PASS] validate 10% coupon on $200  -> status=200 discount=20
+  [PASS] discount capped by maxDiscount ($25)  -> discount=25
+  [PASS] min order amount enforced  -> got 400
+  [PASS] unknown coupon rejected  -> got 404
+  [PASS] deactivate coupon  -> status=200
+  [PASS] inactive coupon rejected on validate  -> got 400
+  [PASS] reactivated coupon validates again  -> status=200
+  [PASS] admin get single coupon  -> status=200
+
+J. Customer -> admin order flow (BANK_TRANSFER)
+  [PASS] checkout/methods includes BANK_TRANSFER  -> status=200 methods=["STRIPE","PAYPAL","BANK_TRANSFER","PAYONEER"]
+  [PASS] customer creates shipping address  -> status=201
+  [PASS] customer adds product (with variant) to cart  -> status=200
+  [PASS] customer applies coupon to cart  -> status=200
+  [PASS] cart reflects variant price (server-side pricing)  -> variant.priceOverride=92
+  [PASS] create order (BANK_TRANSFER) with coupon  -> status=201 number=ZG-MUFR2CLC-0PA2 paymentStatus=AWAITING_VERIFICATION
+  [PASS] order totals correct (server-priced, incl shipping+tax)  -> subtotal=184 discount=18.4 tax=13.25 shippingCost=15 total=193.85
+  [PASS] order carries coupon reference  -> ZG-ADM-1790267511020-PCT
+  [PASS] order paymentReference is order number  -> ZG-MUFR2CLC-0PA2
+  [PASS] idempotency: repeat checkout returns same order  -> status=200
+  [PASS] variant stock decremented after order  -> stock=23
+  [PASS] over-stock add-to-cart rejected  -> got 400 Only 1 units available for this variant
+  [PASS] empty-cart order rejected  -> got 400 Cart is empty
+  [PASS] admin orders list includes new order  -> total=11
+  [PASS] coupon usedCount incremented by order  -> usedCount=1
+
+K. Admin payment verification
+  [PASS] admin verifies manual payment -> PAID  -> status=200
+  [PASS] payment records verifiedBy + verifiedAt  -> verifiedBy=6aa95ae8e76a462a5026ed8b, at=2026-09-24T16:32:17.530Z
+  [PASS] payment verifiedBy is admin user  -> match=true
+  [PASS] customer order detail reflects PAID  -> status=200
+
+L. Order status transitions + tracking
+  [PASS] PENDING -> CONFIRMED  -> got 200
+  [PASS] CONFIRMED -> PROCESSING  -> got 200
+  [PASS] PROCESSING -> SHIPPED (with tracking)  -> got 200
+  [PASS] invalid transition SHIPPED->PENDING rejected  -> got 400
+  [PASS] customer sees tracking number + SHIPPED
+  [PASS] SHIPPED -> DELIVERED  -> got 200
+  [PASS] PAID/DELIVERED order cannot be cancelled  -> got 400
+  [PASS] customer cannot verify payment (403)  -> got 403
+
+M. Customers (admin)
+  [PASS] admin customer search finds test customer  -> status=200
+  [PASS] admin customer detail (no passwordHash leak)  -> status=200
+  [PASS] admin updates customer name  -> status=200
+
+N. Reviews
+  [PASS] customer submits review (pending)  -> status=201
+  [PASS] duplicate review rejected  -> got 409
+  [PASS] admin review list includes pending review  -> count=6
+  [PASS] admin approves review  -> status=200
+  [PASS] approved review shows on storefront  -> status=200 count=1
+
+O. Product questions
+  [PASS] customer asks question  -> status=201
+  [FAIL] duplicate open question rejected  -> got 201
+  [PASS] admin question list includes it  -> count=2
+  [PASS] admin answers question  -> status=200
+  [PASS] answered question publishes to storefront  -> status=200 count=1
+
+P. Notifications, media upload guard, settings, activity logs
+  [PASS] admin notifications list  -> status=200 count=20
+  [PASS] mark single notification read  -> status=200
+  [PASS] mark all notifications read  -> status=200
+  [PASS] invalid file type rejected on upload  -> got 400 Invalid file type. Allowed: JPEG, PNG, WebP. Received: text/plain (.tx
+  [PASS] valid PNG upload  -> status=201
+  [PASS] media list includes upload  -> status=200
+  [PASS] admin deletes media record  -> status=200
+  [PASS] GET /admin/settings (object map)  -> status=200
+  [PASS] GET /admin/seo  -> status=200
+  [PASS] GET /admin/activity-logs  -> status=200
+
+Q. Regression (seeded data intact)
+  [PASS] product list still returns seeded catalog  -> count=20
+  [PASS] category list returns categories  -> count=37
+  [PASS] orders list returns order data  -> count=11
+  [PASS] customer list returns customers  -> count=19
+
+--- CLEANUP (explicit IDs only) ---
+  cleanup done
+
+=== SUMMARY ===
+  PASS  401 no-token /admin/dashboard   [got 401]
+  PASS  401 no-token /admin/products   [got 401]
+  PASS  401 no-token /admin/orders   [got 401]
+  PASS  401 no-token /admin/customers   [got 401]
+  PASS  401 no-token /admin/coupons   [got 401]
+  PASS  401 no-token /admin/reviews   [got 401]
+  PASS  401 invalid-token /admin/dashboard   [got 401]
+  PASS  admin login returns session   [admin@voss.com]
+  PASS  admin user has role ADMIN   [role=ADMIN]
+  PASS  admin payload has no passwordHash
+  PASS  GET /auth/me (admin)   [status=200]
+  PASS  POST /auth/refresh issues new tokens   [status=200]
+  PASS  customer registration   [status=201]
+  PASS  customer registered role CUSTOMER   [role=CUSTOMER]
+  PASS  403 customer /admin/dashboard   [got 403]
+  PASS  403 customer /admin/products   [got 403]
+  PASS  403 customer /admin/orders   [got 403]
+  PASS  403 customer /admin/customers   [got 403]
+  PASS  403 customer /admin/coupons   [got 403]
+  PASS  403 customer /admin/reviews   [got 403]
+  PASS  403 customer /admin/questions   [got 403]
+  PASS  403 customer /admin/analytics   [got 403]
+  PASS  403 customer /admin/settings   [got 403]
+  PASS  403 customer /admin/media   [got 403]
+  PASS  403 customer POST /admin/products   [got 403]
+  PASS  200 /admin/dashboard   [status=200]
+  PASS  dashboard totals are real finite numbers   [orders=10, products=52, revenue=608.47]
+  PASS  200 /admin/analytics   [status=200]
+  PASS  200 /admin/analytics/sales   [status=200]
+  PASS  200 /admin/analytics/orders   [status=200]
+  PASS  200 /admin/analytics/products   [status=200]
+  PASS  200 /admin/analytics/customers   [status=200]
+  PASS  create category   [status=201]
+  PASS  create child category   [status=201]
+  PASS  category list includes created   [count=2]
+  PASS  update category   [status=200]
+  PASS  get single category
+  PASS  circular parent rejected   [got 400 A category cannot be moved under its own descendant]
+  PASS  malformed ObjectId -> 400   [got 400]
+  PASS  create product   [status=201]
+  PASS  product salePrice>regularPrice rejected   [got 400]
+  PASS  product bad categoryId rejected   [got 400]
+  PASS  empty product update rejected   [got 400]
+  PASS  admin get product   [status=200]
+  PASS  admin product search finds SKU   [status=200]
+  PASS  storefront product reachable by slug   [status=200 slug=zg-adm-1790267511020-product]
+  PASS  update product (price/stock)   [status=200]
+  PASS  storefront reflects price update via cache invalidation   [salePrice=90]
+  PASS  storefront reflects stock update   [stock=60]
+  PASS  deactivate product   [status=200]
+  PASS  deactivated product not fetchable on storefront   [got 200 isActive=false]
+  PASS  reactivated product visible again   [status=200]
+  PASS  create variant   [status=201]
+  PASS  create second variant (no SKU -> auto-generated)   [status=201]
+  PASS  duplicate variant SKU rejected   [got 409]
+  PASS  storefront exposes variants   [count=2]
+  PASS  update variant price/stock   [status=200]
+  PASS  storefront reflects variant stock/price update
+  PASS  delete unused variant   [status=200]
+  PASS  deleted variant gone from storefront
+  PASS  variant delete rejects wrong product   [got 400]
+  PASS  create PERCENTAGE coupon   [status=201]
+  PASS  create FIXED coupon   [status=201]
+  PASS  coupon percentage>100 rejected   [got 400]
+  PASS  coupon list contains both   [status=200]
+  PASS  validate 10% coupon on $200   [status=200 discount=20]
+  PASS  discount capped by maxDiscount ($25)   [discount=25]
+  PASS  min order amount enforced   [got 400]
+  PASS  unknown coupon rejected   [got 404]
+  PASS  deactivate coupon   [status=200]
+  PASS  inactive coupon rejected on validate   [got 400]
+  PASS  reactivated coupon validates again   [status=200]
+  PASS  admin get single coupon   [status=200]
+  PASS  checkout/methods includes BANK_TRANSFER   [status=200 methods=["STRIPE","PAYPAL","BANK_TRANSFER","PAYONEER"]]
+  PASS  customer creates shipping address   [status=201]
+  PASS  customer adds product (with variant) to cart   [status=200]
+  PASS  customer applies coupon to cart   [status=200]
+  PASS  cart reflects variant price (server-side pricing)   [variant.priceOverride=92]
+  PASS  create order (BANK_TRANSFER) with coupon   [status=201 number=ZG-MUFR2CLC-0PA2 paymentStatus=AWAITING_VERIFICATION]
+  PASS  order totals correct (server-priced, incl shipping+tax)   [subtotal=184 discount=18.4 tax=13.25 shippingCost=15 total=193.85]
+  PASS  order carries coupon reference   [ZG-ADM-1790267511020-PCT]
+  PASS  order paymentReference is order number   [ZG-MUFR2CLC-0PA2]
+  PASS  idempotency: repeat checkout returns same order   [status=200]
+  PASS  variant stock decremented after order   [stock=23]
+  PASS  over-stock add-to-cart rejected   [got 400 Only 1 units available for this variant]
+  PASS  empty-cart order rejected   [got 400 Cart is empty]
+  PASS  admin orders list includes new order   [total=11]
+  PASS  coupon usedCount incremented by order   [usedCount=1]
+  PASS  admin verifies manual payment -> PAID   [status=200]
+  PASS  payment records verifiedBy + verifiedAt   [verifiedBy=6aa95ae8e76a462a5026ed8b, at=2026-09-24T16:32:17.530Z]
+  PASS  payment verifiedBy is admin user   [match=true]
+  PASS  customer order detail reflects PAID   [status=200]
+  PASS  PENDING -> CONFIRMED   [got 200]
+  PASS  CONFIRMED -> PROCESSING   [got 200]
+  PASS  PROCESSING -> SHIPPED (with tracking)   [got 200]
+  PASS  invalid transition SHIPPED->PENDING rejected   [got 400]
+  PASS  customer sees tracking number + SHIPPED
+  PASS  SHIPPED -> DELIVERED   [got 200]
+  PASS  PAID/DELIVERED order cannot be cancelled   [got 400]
+  PASS  customer cannot verify payment (403)   [got 403]
+  PASS  admin customer search finds test customer   [status=200]
+  PASS  admin customer detail (no passwordHash leak)   [status=200]
+  PASS  admin updates customer name   [status=200]
+  PASS  customer submits review (pending)   [status=201]
+  PASS  duplicate review rejected   [got 409]
+  PASS  admin review list includes pending review   [count=6]
+  PASS  admin approves review   [status=200]
+  PASS  approved review shows on storefront   [status=200 count=1]
+  PASS  customer asks question   [status=201]
+  FAIL  duplicate open question rejected   [got 201]
+  PASS  admin question list includes it   [count=2]
+  PASS  admin answers question   [status=200]
+  PASS  answered question publishes to storefront   [status=200 count=1]
+  PASS  admin notifications list   [status=200 count=20]
+  PASS  mark single notification read   [status=200]
+  PASS  mark all notifications read   [status=200]
+  PASS  invalid file type rejected on upload   [got 400 Invalid file type. Allowed: JPEG, PNG, WebP. Received: text/plain (.tx]
+  PASS  valid PNG upload   [status=201]
+  PASS  media list includes upload   [status=200]
+  PASS  admin deletes media record   [status=200]
+  PASS  GET /admin/settings (object map)   [status=200]
+  PASS  GET /admin/seo   [status=200]
+  PASS  GET /admin/activity-logs   [status=200]
+  PASS  product list still returns seeded catalog   [count=20]
+  PASS  category list returns categories   [count=37]
+  PASS  orders list returns order data   [count=11]
+  PASS  customer list returns customers   [count=19]
+
+TOTAL: 126 passed / 1 failed (127 checks)
+
+>>> API VERIFY FAIL <<<

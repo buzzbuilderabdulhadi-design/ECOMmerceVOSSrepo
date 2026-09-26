@@ -1,0 +1,20 @@
+const { chromium } = require('playwright-core');
+const path = require('path');
+(async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const consoleMsgs = [];
+  const errors = [];
+  const failedReqs = [];
+  page.on('console', m => consoleMsgs.push(`[${m.type()}] ${m.text()}`));
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('requestfailed', r => failedReqs.push(`${r.url()} => ${r.failure()?.errorText}`));
+  await page.goto('http://localhost:3000', { waitUntil: 'networkidle', timeout: 60000 });
+  await page.screenshot({ path: path.join(__dirname, 'home.png'), fullPage: true });
+  console.log('TITLE:', await page.title());
+  console.log('URL:', page.url());
+  console.log('CONSOLE:', consoleMsgs.filter(m => !m.startsWith('[log]')).slice(0, 20));
+  console.log('ERRORS:', errors.slice(0, 10));
+  console.log('FAILEDREQS:', failedReqs.slice(0, 10));
+  await browser.close();
+})().catch(e => { console.error('FAIL: ' + e.message); process.exit(1); });
