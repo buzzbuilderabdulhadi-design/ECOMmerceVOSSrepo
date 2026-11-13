@@ -1,6 +1,8 @@
 {
   "dependencies": {
-    "mongodb": "^7.6.0"
+    "mongodb": "^7.6.0",
+    "pngjs": "^7.0.0",
+    "potrace": "^2.1.8"
   },
   "devDependencies": {
     "playwright-core": "^1.63.0"

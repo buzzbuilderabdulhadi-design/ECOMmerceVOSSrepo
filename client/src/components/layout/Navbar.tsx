@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef, useSyncExternalStore, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
@@ -11,10 +11,10 @@ import { useWishlist } from '@/context/WishlistContext';
 import { useAuth } from '@/context/AuthContext';
 import { NAV_CATEGORIES } from '@/data/navigation';
 import { MegaMenu } from '@/components/layout/MegaMenu';
+import { ZoyaGoodsLogo } from '@/components/shared/ZoyaGoodsLogo';
 
 export interface NavbarProps {
   className?: string;
-  variant?: 'dark' | 'light';
 }
 
 const popularSearches = [
@@ -30,6 +30,29 @@ const EASE = [0.25, 0.1, 0.25, 1] as const;
 
 const emptySubscribe = () => () => {};
 
+/**
+ * Keeps the search fields in step with the active `?search=` query. Submitting a
+ * search navigates to `/shop?search=…`, so the field has to read the value back
+ * out of the URL or a shared/deep-linked search looks like nothing happened.
+ * Rendered inside a Suspense boundary because the navbar is statically
+ * prerendered on most routes.
+ */
+function SearchQuerySync({ onSync }: { onSync: (query: string) => void }) {
+  const searchParams = useSearchParams();
+  const query = searchParams.get('search') ?? '';
+  const appliedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Only push into the fields when the URL value actually changed, so an
+    // unrelated navigation never wipes what the shopper is typing.
+    if (appliedRef.current === query) return;
+    appliedRef.current = query;
+    onSync(query);
+  }, [query, onSync]);
+
+  return null;
+}
+
 export function Navbar({ className }: NavbarProps) {
   const { itemCount } = useCart();
   const { items: wishlistItems } = useWishlist();
@@ -39,6 +62,8 @@ export function Navbar({ className }: NavbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [inlineQuery, setInlineQuery] = useState('');
+  const [isScrolled, setIsScrolled] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
   const mounted = useSyncExternalStore(
@@ -51,6 +76,7 @@ export function Navbar({ className }: NavbarProps) {
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mobileCloseRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const inlineSearchRef = useRef<HTMLInputElement>(null);
 
   const trapFocus = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Tab') return;
@@ -69,20 +95,49 @@ export function Navbar({ className }: NavbarProps) {
     }
   };
 
-  const submitSearch = () => {
-    const query = searchQuery.trim();
+  const goToSearch = (raw: string) => {
+    const query = raw.trim();
+    if (!query) return;
     setIsSearchOpen(false);
     setSearchQuery('');
-    if (query) {
-      router.push(`/shop?search=${encodeURIComponent(query)}`);
-    }
+    setInlineQuery('');
+    router.push(`/shop?search=${encodeURIComponent(query)}`);
   };
 
-  const signOut = () => {
-    logout();
+  const submitSearch = () => goToSearch(searchQuery);
+
+  const submitInlineSearch = () => goToSearch(inlineQuery);
+
+  const syncQueryFromUrl = useCallback((query: string) => {
+    setSearchQuery(query);
+    setInlineQuery(query);
+  }, []);
+
+  const signOut = async () => {
+    await logout();
     setAccountOpen(false);
     router.push('/');
   };
+
+  // The bar stays pinned and simply changes material: solid espresso at the top
+  // of the page (so it reads cleanly over the hero) easing into a transparent
+  // frosted layer once the page scrolls.
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        setIsScrolled(window.scrollY > 24);
+        frame = 0;
+      });
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
@@ -100,6 +155,22 @@ export function Navbar({ className }: NavbarProps) {
 
   useEffect(() => {
     if (isSearchOpen) searchInputRef.current?.focus();
+  }, [isSearchOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (e.key === '/' && !isTyping && !isSearchOpen) {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [isSearchOpen]);
 
   const isCategoryActive = (label: string) => {
@@ -161,18 +232,23 @@ export function Navbar({ className }: NavbarProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="bg-gradient-night fixed inset-0 z-[90] flex flex-col grain"
+              className="bg-cinematic-deep fixed inset-0 z-[90] flex flex-col grain"
               role="dialog"
               aria-modal="true"
               aria-label="Search"
               onKeyDown={trapFocus}
             >
               <div className="flex items-center justify-between px-6 py-5 sm:px-12">
-                <span className="font-display text-xl tracking-[0.3em] text-ivory">ZOYA GOODS</span>
+                <ZoyaGoodsLogo
+                  variant="white"
+                  aria-hidden
+                  alt=""
+                  className="h-auto w-[176px]"
+                />
                 <button
                   type="button"
                   onClick={() => setIsSearchOpen(false)}
-                  className="rounded-full border border-cream/20 p-3 text-ivory transition-all hover:scale-105 hover:border-sage-light/60 hover:text-ivory focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-light"
+                  className="rounded-full border border-bone/20 p-3 text-bone transition-all hover:scale-105 hover:border-bone/60 hover:text-porcelain focus:outline-none focus-visible:ring-2 focus-visible:ring-clay"
                   aria-label="Close search"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -188,7 +264,7 @@ export function Navbar({ className }: NavbarProps) {
                   transition={{ delay: 0.15, duration: 0.6 }}
                   className="w-full max-w-2xl"
                 >
-                  <label className="text-[11px] uppercase tracking-[0.35em] text-sage-light">Search</label>
+                  <label className="eyebrow eyebrow-bright">Search</label>
                   <div className="relative mt-4">
                     <input
                       ref={searchInputRef}
@@ -202,14 +278,14 @@ export function Navbar({ className }: NavbarProps) {
                         }
                       }}
                       placeholder="What are you looking for?"
-                      className="w-full border-b border-cream/25 bg-transparent pb-4 pr-12 font-display text-3xl font-light text-ivory placeholder-ivory/80 focus:border-sage-light focus:outline-none sm:text-5xl"
+                      className="w-full border-b border-bone/25 bg-transparent pb-4 pr-12 font-display text-3xl font-light text-porcelain placeholder-bone/40 focus:border-bone focus:outline-none sm:text-5xl"
                     />
                     <button
                       type="button"
                       onClick={submitSearch}
                       disabled={!searchQuery.trim()}
                       aria-label="Submit search"
-                      className="absolute right-0 top-1/2 -translate-y-1/2 text-sage-light transition-colors hover:text-gold disabled:pointer-events-none disabled:opacity-40"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 text-clay transition-colors hover:text-porcelain disabled:pointer-events-none disabled:opacity-40"
                     >
                       <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -218,14 +294,14 @@ export function Navbar({ className }: NavbarProps) {
                   </div>
 
                   <div className="mt-10">
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-sage-light">Popular</p>
+                    <p className="eyebrow eyebrow-bright">Popular</p>
                     <div className="mt-4 flex flex-wrap gap-3">
                       {popularSearches.map((term) => (
                         <Link
                           key={term}
                           href={`/shop?search=${encodeURIComponent(term)}`}
                           onClick={() => setIsSearchOpen(false)}
-                          className="rounded-full border border-cream/15 px-5 py-2 text-xs text-ivory transition-all hover:border-sage-light/60 hover:text-sage-light"
+                          className="rounded-full border border-bone/15 px-5 py-2 text-xs text-bone transition-all hover:border-bone/60 hover:text-porcelain"
                         >
                           {term}
                         </Link>
@@ -235,9 +311,9 @@ export function Navbar({ className }: NavbarProps) {
                 </motion.div>
               </div>
 
-              <div className="flex items-center justify-center gap-8 py-8 text-[10px] uppercase tracking-[0.2em] text-sage-light">
+              <div className="flex items-center justify-center gap-8 py-8 text-[10px] uppercase tracking-[0.2em] text-clay">
                 <span>Press Esc</span>
-                <span className="text-sage-light">·</span>
+                <span className="text-clay/60">·</span>
                 <span>to close</span>
               </div>
             </motion.div>
@@ -256,19 +332,24 @@ export function Navbar({ className }: NavbarProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="bg-gradient-night fixed inset-0 z-[80] flex flex-col grain lg:hidden"
+              className="bg-cinematic-deep fixed inset-0 z-[80] flex flex-col grain lg:hidden"
               role="dialog"
               aria-modal="true"
               aria-label="Menu"
               onKeyDown={trapFocus}
             >
               <div className="flex items-center justify-between px-6 py-5">
-                <span className="font-display text-xl tracking-[0.3em] text-ivory">ZOYA GOODS</span>
+                <ZoyaGoodsLogo
+                  variant="white"
+                  aria-hidden
+                  alt=""
+                  className="h-auto w-[176px]"
+                />
                 <button
                   ref={mobileCloseRef}
                   type="button"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="rounded-full border border-cream/20 p-3 text-ivory hover:border-sage-light/60 hover:text-ivory focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-light"
+                  className="rounded-full border border-bone/20 p-3 text-bone hover:border-bone/60 hover:text-porcelain focus:outline-none focus-visible:ring-2 focus-visible:ring-clay"
                   aria-label="Close menu"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -277,8 +358,29 @@ export function Navbar({ className }: NavbarProps) {
                 </button>
               </div>
 
+              <div className="border-b border-bone/10 px-6 pb-6">
+                <button
+                  type="button"
+                  onClick={() => { setIsMobileMenuOpen(false); setIsSearchOpen(true); }}
+                  className="flex w-full items-center gap-3 border-b border-bone/20 pb-3 text-left"
+                >
+                  <svg className="h-4 w-4 flex-shrink-0 text-clay" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <span className="eyebrow eyebrow-bright">Search the collection</span>
+                </button>
+              </div>
+
               <nav className="flex flex-1 flex-col justify-center overflow-y-auto px-8 py-4">
                 <div className="space-y-1">
+                  <Link
+                    href="/shop"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="group mb-2 flex w-full items-center gap-4 text-left"
+                  >
+                    <span className="text-xs text-clay">00</span>
+                    <span className="flex-1 font-display text-3xl font-light text-porcelain">Shop</span>
+                  </Link>
                   {NAV_CATEGORIES.map((item, i) => {
                     const isOpen = openMobileCategory === item.label;
                     return (
@@ -294,18 +396,13 @@ export function Navbar({ className }: NavbarProps) {
                           aria-expanded={isOpen}
                           className="group flex w-full items-center gap-4 py-3 text-left"
                         >
-                          <span className="text-xs text-sage-light">0{i + 1}</span>
-                          <span
-                            className={cn(
-                              'flex-1 font-display text-3xl font-light text-ivory transition-colors group-hover:text-sage-light',
-                              item.accent && 'text-walnut-light group-hover:text-walnut-light'
-                            )}
-                          >
+                          <span className="text-xs text-clay">0{i + 1}</span>
+                          <span className="flex-1 font-display text-3xl font-light text-porcelain transition-colors group-hover:text-bone">
                             {item.label}
                           </span>
                           <svg
                             className={cn(
-                              'h-4 w-4 text-sage-light transition-transform duration-300',
+                              'h-4 w-4 text-clay transition-transform duration-300',
                               isOpen && 'rotate-180'
                             )}
                             fill="none"
@@ -325,7 +422,7 @@ export function Navbar({ className }: NavbarProps) {
                               transition={{ duration: 0.32, ease: EASE }}
                               className="overflow-hidden"
                             >
-                              <div className="ml-8 mt-1 space-y-0.5 border-l border-cream/10 pb-3 pl-6">
+                              <div className="ml-8 mt-1 space-y-0.5 border-l border-bone/10 pb-3 pl-6">
                                 {item.subcategories.map((sub) => (
                                   <Link
                                     key={sub.href}
@@ -333,16 +430,16 @@ export function Navbar({ className }: NavbarProps) {
                                     onClick={() => setIsMobileMenuOpen(false)}
                                     className="group/sub flex items-center justify-between py-2"
                                   >
-                                    <span className="text-sm text-ivory/75 transition-colors group-hover/sub:text-sage-light">
+                                    <span className="text-sm text-bone/70 transition-colors group-hover/sub:text-porcelain">
                                       {sub.label}
                                     </span>
-                                    <span className="h-1.5 w-1.5 rounded-full bg-sage opacity-0 transition-opacity duration-300 group-hover/sub:opacity-100" />
+                                    <span className="h-1.5 w-1.5 rounded-full bg-cinnamon opacity-0 transition-opacity duration-300 group-hover/sub:opacity-100" />
                                   </Link>
                                 ))}
                                 <Link
                                   href={item.href}
                                   onClick={() => setIsMobileMenuOpen(false)}
-                                  className="group/view mt-2 flex items-center gap-2 py-2 text-[11px] font-medium uppercase tracking-[0.2em] text-sage-light"
+                                  className="group/view mt-2 flex items-center gap-2 py-2 text-[11px] font-medium uppercase tracking-[0.2em] text-clay"
                                 >
                                   View All {item.label}
                                   <svg
@@ -368,17 +465,17 @@ export function Navbar({ className }: NavbarProps) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="flex items-center justify-center gap-8 border-t border-cream/10 py-6"
+                className="flex items-center justify-center gap-8 border-t border-bone/10 py-6"
               >
-                <Link href="/wishlist" onClick={() => setIsMobileMenuOpen(false)} className="text-xs uppercase tracking-[0.2em] text-ivory">Wishlist</Link>
+                <Link href="/wishlist" onClick={() => setIsMobileMenuOpen(false)} className="text-xs uppercase tracking-[0.2em] text-bone">Wishlist</Link>
                 <Link
                   href={isAuthenticated ? '/dashboard' : '/login'}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-xs uppercase tracking-[0.2em] text-ivory"
+                  className="text-xs uppercase tracking-[0.2em] text-bone"
                 >
                   {isAuthenticated ? 'Account' : 'Sign In'}
                 </Link>
-                <Link href="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-xs uppercase tracking-[0.2em] text-ivory">Contact</Link>
+                <Link href="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-xs uppercase tracking-[0.2em] text-bone">Contact</Link>
               </motion.div>
             </motion.div>
           )}
@@ -391,35 +488,45 @@ export function Navbar({ className }: NavbarProps) {
     <>
       <header
         className={cn(
-          'sticky top-0 z-50 bg-cream/85 backdrop-blur-xl shadow-lg shadow-navy/5 transition-all duration-500',
+          'sticky top-0 z-50 transition-[background-color,backdrop-filter,box-shadow] duration-700 ease-out',
+          isScrolled
+            ? 'border-b border-bone/10 bg-onyx/55 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.9)] backdrop-blur-xl'
+            : 'border-b border-transparent bg-onyx/90 backdrop-blur-md',
           className
         )}
+        data-scrolled={isScrolled}
       >
-        {/* Top announcement bar */}
-        <div className="flex items-center justify-center gap-3 overflow-hidden bg-walnut px-4 py-2">
-          <span className="h-1 w-1 flex-shrink-0 rounded-full bg-sage-light animate-pulse-gold" />
-          <p className="min-w-0 truncate text-[11px] font-medium tracking-[0.12em] text-ivory uppercase">
+        {/* Top announcement bar — the long line is hidden on narrow screens
+            rather than truncated, so no glyph is ever cut mid-word. */}
+        <div className="flex h-9 items-center justify-center gap-3 overflow-hidden bg-espresso px-4">
+          <span className="h-1 w-1 flex-shrink-0 rounded-full bg-mist/70" />
+          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-bone/80 sm:hidden">
+            Free worldwide shipping over $200
+          </p>
+          <p className="hidden text-[11px] font-medium uppercase tracking-[0.12em] text-bone/80 sm:block">
             Complimentary worldwide shipping on orders over $200
           </p>
-          <span className="hidden flex-shrink-0 text-[10px] uppercase tracking-[0.2em] text-ivory sm:block">ZOYA GOODS&nbsp;{new Date().getFullYear()}</span>
+          <span className="hidden flex-shrink-0 text-[10px] uppercase tracking-[0.2em] text-clay sm:block">
+            ZOYA GOODS&nbsp;{new Date().getFullYear()}
+          </span>
         </div>
 
         {/* Main bar */}
-        <div className="border-b border-navy/5">
+        <div>
           <div
-            className="relative mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12"
+            className="relative mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12"
             onBlur={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                 closeDropdownNow();
               }
             }}
           >
-            <div className="flex h-[72px] items-center justify-between">
+            <div className="flex h-[84px] items-center justify-between gap-4 xl:h-[104px]">
               {/* Mobile menu button */}
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="inline-flex items-center justify-center rounded-full p-3 text-navy transition-colors hover:bg-navy/5 lg:hidden"
+                className="inline-flex items-center justify-center rounded-full p-3 text-bone transition-colors hover:bg-bone/10 xl:hidden"
                 aria-label="Toggle menu"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -432,18 +539,32 @@ export function Navbar({ className }: NavbarProps) {
               </button>
 
               {/* Logo */}
-              <Link href="/" className="group relative flex items-center">
-                <span className="font-display text-[26px] font-medium tracking-[0.3em] text-navy transition-colors duration-300">
-                  ZOYA GOODS
-                </span>
-                <span className="absolute -right-4 top-0.5 h-1.5 w-1.5 rounded-full bg-sage transition-transform duration-300 group-hover:scale-150" />
+              <Link href="/" className="group relative flex shrink-0 items-center">
+                <ZoyaGoodsLogo
+                  variant="white"
+                  alt="ZOYA GOODS"
+                  className="h-auto w-[152px] sm:w-[176px] xl:w-[220px]"
+                />
+                <span className="absolute -right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-cinnamon transition-transform duration-300 group-hover:scale-150" />
               </Link>
 
               {/* Desktop nav */}
               <nav
-                className="relative hidden items-center gap-8 lg:flex"
+                className="relative hidden shrink-0 items-center gap-4 xl:flex"
                 onMouseLeave={closeDropdown}
               >
+                <Link
+                  href="/shop"
+                  onClick={closeDropdownNow}
+                  className={cn(
+                    'group/link relative text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors duration-300 link-underline',
+                    pathname === '/shop'
+                      ? 'link-underline-active text-porcelain'
+                      : 'text-bone/75 hover:text-porcelain'
+                  )}
+                >
+                  Shop
+                </Link>
                 {NAV_CATEGORIES.map((item) => {
                   const active = isCategoryActive(item.label);
                   const isOpen = openCategory === item.label;
@@ -459,9 +580,8 @@ export function Navbar({ className }: NavbarProps) {
                       className={cn(
                         'group/link relative flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors duration-300',
                         active || isOpen
-                          ? 'link-underline-active link-underline text-walnut'
-                          : 'link-underline text-navy hover:text-walnut',
-                        item.accent && 'text-walnut hover:text-walnut'
+                          ? 'link-underline-active link-underline text-porcelain'
+                          : 'link-underline text-bone/75 hover:text-porcelain'
                       )}
                     >
                       {item.label}
@@ -477,7 +597,7 @@ export function Navbar({ className }: NavbarProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                       {item.accent && (
-                        <span className="absolute -top-1 right-0 h-1 w-1 rounded-full bg-gold" />
+                        <span className="absolute -top-1 right-0 h-1 w-1 rounded-full bg-cinnamon" />
                       )}
                     </Link>
                   );
@@ -485,11 +605,42 @@ export function Navbar({ className }: NavbarProps) {
               </nav>
 
               {/* Actions */}
-              <div className="flex items-center gap-1 text-navy sm:gap-2">
+              <div className="flex shrink-0 items-center gap-1 text-bone sm:gap-2">
+                {/* Inline search — desktop only; smaller breakpoints use the
+                    icon button which opens the full search overlay. */}
+                <form
+                  role="search"
+                  onSubmit={(e) => { e.preventDefault(); submitInlineSearch(); }}
+                  className="mr-2 hidden shrink-0 items-center gap-2 rounded-full border border-bone/15 bg-onyx/40 px-4 transition-colors duration-500 focus-within:border-bone/50 focus-within:bg-onyx/70 2xl:flex"
+                >
+                  <svg className="h-4 w-4 flex-shrink-0 text-clay" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    ref={inlineSearchRef}
+                    type="search"
+                    value={inlineQuery}
+                    onChange={(e) => setInlineQuery(e.target.value)}
+                    placeholder="Search"
+                    aria-label="Search the collection"
+                    className="h-10 w-28 bg-transparent text-xs tracking-[0.08em] text-porcelain placeholder-bone/40 focus:outline-none 2xl:w-32"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsSearchOpen(true)}
+                    aria-label="Open full search"
+                    className="text-clay transition-colors hover:text-porcelain"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 6v4m0 4v4m4-8H9m8 0l-3-3m3 3l-3 3M6 8v8m0-8l3 3m-3-3l3-3" />
+                    </svg>
+                  </button>
+                </form>
+
                 <button
                   type="button"
                   onClick={() => setIsSearchOpen(true)}
-                  className="rounded-full p-3 transition-all hover:scale-105 hover:bg-navy/5 active:scale-95"
+                  className="rounded-full p-3 transition-all hover:scale-105 hover:bg-bone/10 active:scale-95 2xl:hidden"
                   aria-label="Search"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -499,7 +650,7 @@ export function Navbar({ className }: NavbarProps) {
 
                 <Link
                   href="/wishlist"
-                  className="relative hidden rounded-full p-3 transition-all hover:scale-105 active:scale-95 sm:inline-flex"
+                  className="relative hidden rounded-full p-3 transition-all hover:scale-105 hover:bg-bone/10 active:scale-95 sm:inline-flex"
                   aria-label="Wishlist"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -510,7 +661,7 @@ export function Navbar({ className }: NavbarProps) {
                       key={wishlistItems.length}
                       initial={{ scale: 0.5, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                      className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-bone text-[10px] font-bold text-onyx"
                     >
                       {wishlistItems.length > 99 ? '99+' : wishlistItems.length}
                     </motion.span>
@@ -519,7 +670,7 @@ export function Navbar({ className }: NavbarProps) {
 
                 <Link
                   href="/cart"
-                  className="relative rounded-full p-3 transition-all hover:scale-105 active:scale-95"
+                  className="relative rounded-full p-3 transition-all hover:scale-105 hover:bg-bone/10 active:scale-95"
                   aria-label="Open cart"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -530,7 +681,7 @@ export function Navbar({ className }: NavbarProps) {
                       key={itemCount}
                       initial={{ scale: 0.5, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-walnut text-[10px] font-bold text-ivory"
+                      className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-bone text-[10px] font-bold text-onyx"
                     >
                       {itemCount > 99 ? '99+' : itemCount}
                     </motion.span>
@@ -540,7 +691,7 @@ export function Navbar({ className }: NavbarProps) {
                 {authLoading ? (
                   <span
                     aria-hidden
-                    className="hidden h-9 w-9 animate-pulse rounded-full bg-navy/5 sm:block"
+                    className="hidden h-9 w-9 animate-pulse rounded-full bg-bone/10 sm:block"
                   />
                 ) : isAuthenticated ? (
                   <div ref={accountRef} className="relative hidden sm:block">
@@ -550,14 +701,14 @@ export function Navbar({ className }: NavbarProps) {
                       aria-haspopup="menu"
                       aria-expanded={accountOpen}
                       aria-label="Account menu"
-                      className="flex items-center gap-1.5 rounded-full p-2 transition-all hover:bg-navy/5 active:scale-95"
+                      className="flex items-center gap-1.5 rounded-full p-2 transition-all hover:bg-bone/10 active:scale-95"
                     >
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-ivory">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy-soft text-[11px] font-semibold text-bone">
                         {((user?.name || 'A').trim().charAt(0) || 'A').toUpperCase()}
                       </span>
                       <svg
                         className={cn(
-                          'h-3 w-3 text-navy transition-transform duration-200',
+                          'h-3 w-3 text-clay transition-transform duration-200',
                           accountOpen && 'rotate-180'
                         )}
                         fill="none"
@@ -575,13 +726,13 @@ export function Navbar({ className }: NavbarProps) {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -6 }}
                           transition={{ duration: 0.15 }}
-                          className="absolute right-0 top-full z-[70] mt-2 w-60 overflow-hidden rounded-2xl border border-sage-light/40 bg-white shadow-xl shadow-navy/10"
+                          className="glass-cream absolute right-0 top-full z-[70] mt-2 w-60 overflow-hidden rounded-2xl shadow-[0_28px_60px_-24px_rgba(0,0,0,0.9)]"
                         >
-                          <div className="border-b border-sage-light/30 px-4 py-3">
-                            <p className="truncate text-sm font-semibold text-navy">
+                          <div className="border-b border-bone/10 px-4 py-3">
+                            <p className="truncate text-sm font-semibold text-porcelain">
                               {user?.name || 'My Account'}
                             </p>
-                            <p className="truncate text-xs text-slate">{user?.email}</p>
+                            <p className="truncate text-xs text-clay">{user?.email}</p>
                           </div>
                           <div className="py-1.5">
                             {[
@@ -594,17 +745,17 @@ export function Navbar({ className }: NavbarProps) {
                                 key={item.href}
                                 href={item.href}
                                 onClick={() => setAccountOpen(false)}
-                                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-navy transition-colors hover:bg-navy/5"
+                                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-bone transition-colors hover:bg-bone/5 hover:text-porcelain"
                               >
                                 {item.label}
                               </Link>
                             ))}
                           </div>
-                          <div className="border-t border-sage-light/30 py-1.5">
+                          <div className="border-t border-bone/10 py-1.5">
                             <button
                               type="button"
                               onClick={signOut}
-                              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
+                              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-red-300 transition-colors hover:bg-red-500/10"
                             >
                               Sign Out
                             </button>
@@ -617,7 +768,7 @@ export function Navbar({ className }: NavbarProps) {
                   <>
                     <Link
                       href="/login"
-                      className="hidden rounded-full p-3 transition-all hover:scale-105 active:scale-95 sm:inline-flex"
+                      className="hidden rounded-full p-3 transition-all hover:scale-105 hover:bg-bone/10 active:scale-95 sm:inline-flex"
                       aria-label="Sign in"
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -626,7 +777,7 @@ export function Navbar({ className }: NavbarProps) {
                     </Link>
                     <Link
                       href="/login"
-                      className="hidden text-[11px] font-semibold uppercase tracking-[0.16em] text-navy transition-colors hover:text-walnut md:inline-flex"
+                      className="hidden text-[11px] font-semibold uppercase tracking-[0.16em] text-bone/80 transition-colors hover:text-porcelain md:inline-flex 2xl:hidden"
                     >
                       Sign In
                     </Link>
@@ -635,8 +786,8 @@ export function Navbar({ className }: NavbarProps) {
               </div>
             </div>
 
-            {/* Desktop mega menu */}
-            <div className="hidden lg:block">
+            {/* Desktop mega menu — matches the xl nav trigger above */}
+            <div className="hidden xl:block">
               <AnimatePresence>
                 {activeCategory && (
                   <MegaMenu
@@ -654,6 +805,9 @@ export function Navbar({ className }: NavbarProps) {
 
       {searchOverlay}
       {mobileMenuOverlay}
+      <Suspense fallback={null}>
+        <SearchQuerySync onSync={syncQueryFromUrl} />
+      </Suspense>
     </>
   );
 }

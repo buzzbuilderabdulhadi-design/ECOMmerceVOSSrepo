@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 export interface ColorOption {
@@ -60,10 +61,13 @@ export function ColorSwatch({
             title={color.name}
           >
             {color.image ? (
-              <img
+              <Image
                 src={color.image}
                 alt={color.name}
-                className="h-full w-full rounded-full object-cover"
+                fill
+                unoptimized
+                sizes="48px"
+                className="rounded-full object-cover"
               />
             ) : (
               <span

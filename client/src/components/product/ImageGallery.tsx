@@ -19,14 +19,17 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
   const imageRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
 
-  // When a new product's image set arrives, reset any broken-image flags from
-  // the previous product.
-  useEffect(() => {
-    setFailed({});
-    setSelectedIndex(0);
-    setIsZoomed(false);
-    setIsFullscreen(false);
-  }, [images]);
+  // Resetting when a new product's image set arrives is state adjustment keyed on
+// a prop, so it happens during render rather than in an effect — an effect would
+// paint one frame of the previous product's selection and broken-image flags.
+const [prevImages, setPrevImages] = useState(images);
+if (prevImages !== images) {
+  setPrevImages(images);
+  setFailed({});
+  setSelectedIndex(0);
+  setIsZoomed(false);
+  setIsFullscreen(false);
+}
 
   const markFailed = useCallback((index: number) => {
     setFailed((prev) => (prev[index] ? prev : { ...prev, [index]: true }));
@@ -113,7 +116,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
         tabIndex={0}
         aria-label={`${alt} image ${selectedIndex + 1} of ${images.length}. Press Enter to open fullscreen.`}
         className={cn(
-          'relative aspect-square overflow-hidden rounded-2xl bg-cream focus:outline-none focus-visible:ring-2 focus-visible:ring-gold',
+          'relative aspect-square overflow-hidden rounded-2xl bg-cream focus:outline-none focus-visible:ring-2 focus-visible:ring-navy-soft',
           selectedFailed && 'cursor-default',
           isZoomed && 'cursor-zoom-out',
           !isZoomed && !selectedFailed && 'cursor-zoom-in'
@@ -145,7 +148,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-              className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 shadow-md backdrop-blur-sm transition-all hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 shadow-md backdrop-blur-sm transition-all hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-navy-soft"
               aria-label="Previous image"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -155,7 +158,7 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleNext(); }}
-              className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 shadow-md backdrop-blur-sm transition-all hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 shadow-md backdrop-blur-sm transition-all hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-navy-soft"
               aria-label="Next image"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -185,9 +188,9 @@ export function ImageGallery({ images, alt, className }: ImageGalleryProps) {
               aria-label={`View image ${index + 1}`}
               aria-pressed={index === selectedIndex}
               className={cn(
-                'relative h-20 w-20 flex-shrink-0 snap-start overflow-hidden rounded-lg border-2 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold',
+                'relative h-20 w-20 flex-shrink-0 snap-start overflow-hidden rounded-lg border-2 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy-soft',
                 index === selectedIndex
-                  ? 'border-gold ring-1 ring-gold'
+                  ? 'border-navy-mid ring-1 ring-navy-mid'
                   : 'border-sage-light/30 hover:border-navy/50'
               )}
             >

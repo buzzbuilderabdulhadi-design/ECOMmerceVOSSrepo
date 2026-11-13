@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
 import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
+import { serverGet } from '@/lib/serverApi';
 
 type Props = { params: Promise<{ slug: string }> };
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 interface CategoryMeta {
   id: string;
@@ -14,24 +13,7 @@ interface CategoryMeta {
 }
 
 async function getCategoryMeta(slug: string): Promise<CategoryMeta | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
-    try {
-      const res = await fetch(`${API_BASE_URL}/categories/${slug}`, {
-        cache: 'force-cache',
-        next: { revalidate: 60 },
-        signal: controller.signal,
-      });
-      if (!res.ok) return null;
-      const json = await res.json();
-      return json?.data ?? null;
-    } finally {
-      clearTimeout(timeout);
-    }
-  } catch {
-    return null;
-  }
+  return serverGet<CategoryMeta>(`/categories/${slug}`, 60);
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

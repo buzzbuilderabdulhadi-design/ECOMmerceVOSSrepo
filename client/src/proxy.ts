@@ -4,9 +4,11 @@ import type { NextRequest } from 'next/server';
 /**
  * Proxy for admin routes (formerly middleware).
  *
- * Because auth tokens are stored in localStorage (not cookies), this proxy
- * cannot verify JWT validity. It provides URL-based access control as a
- * defense-in-depth layer alongside the client-side auth guard in admin/layout.tsx.
+ * Sessions are now HttpOnly cookies set by the API, which this proxy can read
+ * on the server but client-side JavaScript cannot forge. The proxy still does
+ * not verify JWT validity, so it is only a defense-in-depth redirect layer;
+ * the real access boundary is `authenticate` + `authorizeAdmin` on the API
+ * (plus the client-side guard in admin/layout.tsx).
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -20,8 +22,8 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // For all other /admin/* routes, check for an auth token cookie
-  // (set by the client after login). If absent, redirect to login.
+  // For all other /admin/* routes, check for the HttpOnly session cookie set
+  // by the API on login. If absent, redirect to login.
   const hasToken = request.cookies.get('voss_access_token')?.value;
 
   if (!hasToken) {

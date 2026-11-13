@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { AppProvider } from "@/context/AppProvider";
-import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import {
   DEFAULT_DESCRIPTION,
   DEFAULT_OG_IMAGE,
@@ -22,12 +21,15 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  // Only used in the admin console and checkout totals — don't let it claim one
+  // of the limited preload slots on the storefront.
+  preload: false,
 });
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600"],
   style: ["normal", "italic"],
   display: "swap",
 });
@@ -86,7 +88,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#112C47",
+  themeColor: "#05070A",
 };
 
 export default function RootLayout({
@@ -109,28 +111,27 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
         />
         <AppProvider>
-          <LoadingScreen />
           {children}
           <Toaster
             position="bottom-right"
             toastOptions={{
               duration: 4000,
               style: {
-                background: "#112C47",
-                color: "#F5F0E6",
+                background: "#0B111C",
+                color: "#F5F5F2",
                 borderRadius: "0.5rem",
                 fontSize: "0.875rem",
               },
               success: {
                 iconTheme: {
-                  primary: "#C4A86A",
-                  secondary: "#112C47",
+                  primary: "#D5D9E0",
+                  secondary: "#0B111C",
                 },
               },
               error: {
                 iconTheme: {
                   primary: "#ef4444",
-                  secondary: "#fafafa",
+                  secondary: "#05070A",
                 },
               },
             }}

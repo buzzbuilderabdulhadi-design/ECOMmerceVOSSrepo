@@ -13,7 +13,7 @@ export default function NotFoundPage() {
       <div className="relative flex min-h-[calc(100vh-200px)] flex-col items-center justify-center px-4 text-center overflow-hidden">
         <div className="absolute inset-0 bg-gradient-warm" />
         <div className="absolute inset-0 opacity-20" style={{
-          backgroundImage: `radial-gradient(circle at 50% 50%, rgba(138, 154, 123, 0.15) 0%, transparent 60%)`,
+          backgroundImage: `radial-gradient(circle at 50% 50%, rgba(15, 27, 51, 0.07) 0%, transparent 60%)`,
         }} />
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}

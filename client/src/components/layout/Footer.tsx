@@ -4,8 +4,8 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { NewsletterForm } from '@/components/ui/NewsletterForm';
 import { StaggerChildren, StaggerItem } from '@/components/animations/FadeIn';
+import { ZoyaGoodsLogo } from '@/components/shared/ZoyaGoodsLogo';
 
 interface FooterLink {
   label: string;
@@ -63,12 +63,12 @@ const socialLinks = [
 const contactItems = [
   {
     icon: (
-      <svg className="mt-0.5 h-4 w-4 shrink-0 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="mt-0.5 h-4 w-4 shrink-0 text-clay" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
     content: (
-      <span className="text-sm leading-relaxed text-ivory">
+      <span className="text-sm leading-relaxed text-porcelain">
         Online boutique
         <br />
         Worldwide shipping
@@ -77,24 +77,24 @@ const contactItems = [
   },
   {
     icon: (
-      <svg className="mt-0.5 h-4 w-4 shrink-0 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="mt-0.5 h-4 w-4 shrink-0 text-clay" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
       </svg>
     ),
     content: (
-      <a href="mailto:care@zoyagoods.com" className="text-sm text-ivory transition-colors duration-300 hover:text-gold">
+      <a href="mailto:care@zoyagoods.com" className="text-sm text-porcelain transition-colors duration-300 hover:text-clay">
         care@zoyagoods.com
       </a>
     ),
   },
   {
     icon: (
-      <svg className="mt-0.5 h-4 w-4 shrink-0 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="mt-0.5 h-4 w-4 shrink-0 text-clay" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
     content: (
-      <span className="text-sm leading-relaxed text-ivory">
+      <span className="text-sm leading-relaxed text-porcelain">
         Mon–Sat: 10am – 7pm ET
       </span>
     ),
@@ -105,61 +105,52 @@ const paymentMethods = ['VISA', 'Mastercard', 'AMEX', 'PayPal', 'Apple Pay'];
 
 export function Footer({ className }: FooterProps) {
   return (
-    <footer className={cn('relative overflow-hidden bg-gradient-footer grain', className)}>
-      {/* Giant watermark */}
-      <span className="pointer-events-none absolute -bottom-10 left-1/2 -translate-x-1/2 select-none font-display text-[24rem] font-light leading-none text-ivory/[0.06] lg:text-[36rem]">
-        ZOYA GOODS
+    <footer className={cn('grain bg-gradient-footer relative w-full max-w-full overflow-hidden', className)}>
+      {/*
+        Watermark. Sized with clamp() against the viewport so the full
+        wordmark always fits inside the 1400px grid — at a fixed 36rem the
+        text was wider than its own box and got sliced mid-word.
+      */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-8 flex justify-center overflow-hidden select-none"
+      >
+        <span className="whitespace-nowrap font-display text-[clamp(3.5rem,12vw,11rem)] font-light leading-none text-porcelain/[0.07]">
+          ZOYA GOODS
+        </span>
       </span>
 
-      {/* Gold hairline across the very top */}
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
+      {/* Cinnamon hairline across the very top */}
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cinnamon/70 to-transparent" />
 
       <StaggerChildren className="relative z-10" staggerDelay={0.08}>
-        {/* ============ Newsletter strip ============ */}
-        <StaggerItem>
-          <div className="border-b border-cream/10">
-            <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-8 lg:px-12 lg:py-20">
-              <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16">
-                <div>
-                  <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-sage-light">
-                    <span className="inline-block h-px w-10 bg-walnut-light" />
-                    Join the ZOYA GOODS Circle
-                  </p>
-                  <h3 className="mt-5 font-display text-4xl font-light leading-[1.08] text-ivory sm:text-5xl">
-                    The Journal is where <span className="display-italic text-gold">style begins</span>
-                  </h3>
-                  <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-ivory">
-                    Subscribe to receive exclusive offers, early access to new collections, and luxury style inspiration.
-                  </p>
-                </div>
-                <div className="lg:justify-self-end lg:w-full lg:max-w-md">
-                  <NewsletterForm variant="dark" />
-                  <p className="mt-3 text-[10px] uppercase tracking-[0.25em] text-sage-light">
-                    No spam. Unsubscribe anytime.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </StaggerItem>
+        {/*
+          The newsletter lives in its own warm-beige band directly above this
+          footer (see NewsletterSection), so the page carries exactly one
+          opt-in form. Everything else the footer owns — brand, quick links,
+          categories, customer service, company, social, contact, payments —
+          stays below.
+        */}
 
         {/* ============ Main columns ============ */}
         <StaggerItem>
-          <div className="mx-auto max-w-[1440px] px-4 py-16 sm:px-8 lg:px-12 lg:py-20">
+          <div className="mx-auto max-w-[1400px] px-5 py-16 sm:px-8 lg:px-12 lg:py-20">
             <div className="grid grid-cols-12 gap-x-8 gap-y-14">
               {/* Brand + contact */}
               <div className="col-span-12 md:col-span-6 xl:col-span-4">
-                <Link href="/" className="group inline-flex items-baseline gap-2.5">
-                  <span className="font-display text-[28px] font-medium leading-none tracking-[0.3em] text-ivory transition-colors duration-300 group-hover:text-gold">
-                    ZOYA GOODS
-                  </span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-gold transition-transform duration-300 group-hover:scale-150" />
+                <Link href="/" className="group relative inline-flex items-center">
+                  <ZoyaGoodsLogo
+                    variant="white"
+                    alt="ZOYA GOODS"
+                    className="h-auto w-[220px] sm:w-[252px] xl:w-[272px]"
+                  />
+                  <span className="absolute -right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-mist transition-transform duration-300 group-hover:scale-150" />
                 </Link>
-                <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.35em] text-sage-light">
+                <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.35em] text-bone/55">
                   Luxury Fashion House
                 </p>
 
-                <p className="mt-6 max-w-xs text-sm leading-relaxed text-ivory">
+                <p className="mt-6 max-w-xs text-sm leading-relaxed text-porcelain">
                   Curating the finest luxury fashion from around the world. Timeless elegance, modern sophistication — since 1991.
                 </p>
 
@@ -170,7 +161,7 @@ export function Footer({ className }: FooterProps) {
                       href={social.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group flex h-10 w-10 items-center justify-center rounded-full border border-cream/20 text-ivory transition-all duration-300 hover:-translate-y-0.5 hover:border-gold/70 hover:bg-gold/10 hover:text-gold active:scale-95"
+                      className="group flex h-10 w-10 items-center justify-center rounded-full border border-bone/20 text-porcelain transition-all duration-300 hover:-translate-y-0.5 hover:border-bone/60 hover:bg-navy-soft/25 hover:text-bone active:scale-95"
                       aria-label={social.label}
                     >
                       <svg className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" fill="currentColor" viewBox="0 0 24 24">
@@ -181,7 +172,7 @@ export function Footer({ className }: FooterProps) {
                 </div>
 
                 {/* Contact */}
-                <div className="mt-8 space-y-5 border-t border-cream/10 pt-8">
+                <div className="mt-8 space-y-5 border-t border-bone/10 pt-8">
                   {contactItems.map((item, i) => (
                     <div key={i} className="flex items-start gap-3.5">
                       {item.icon}
@@ -210,23 +201,23 @@ export function Footer({ className }: FooterProps) {
 
         {/* ============ Bottom bar ============ */}
         <StaggerItem>
-          <div className="relative border-t border-cream/10">
-            <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/50 to-transparent" />
-            <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-8 lg:px-12">
+          <div className="relative border-t border-bone/10">
+            <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cinnamon/60 to-transparent" />
+            <div className="mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-12">
               <div className="flex flex-col items-center justify-between gap-7 lg:flex-row">
                 <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-6">
-                  <p className="text-xs text-sage-light">
+                  <p className="text-xs text-bone/55">
                     &copy; {new Date().getFullYear()} ZOYA GOODS. All rights reserved.
                   </p>
-                  <span className="hidden h-3 w-px bg-cream/20 sm:block" />
+                  <span className="hidden h-3 w-px bg-bone/20 sm:block" />
                   <div className="flex items-center gap-5">
-                    <Link href="/privacy" className="link-underline link-underline-walnut text-xs text-ivory transition-colors duration-300 hover:text-gold">
+                    <Link href="/privacy" className="link-underline link-underline-cream text-xs text-porcelain transition-colors duration-300 hover:text-clay">
                       Privacy
                     </Link>
-                    <Link href="/terms" className="link-underline link-underline-walnut text-xs text-ivory transition-colors duration-300 hover:text-gold">
+                    <Link href="/terms" className="link-underline link-underline-cream text-xs text-porcelain transition-colors duration-300 hover:text-clay">
                       Terms
                     </Link>
-                    <Link href="/cookies" className="link-underline link-underline-walnut text-xs text-ivory transition-colors duration-300 hover:text-gold">
+                    <Link href="/cookies" className="link-underline link-underline-cream text-xs text-porcelain transition-colors duration-300 hover:text-clay">
                       Cookies
                     </Link>
                   </div>
@@ -252,8 +243,8 @@ export function Footer({ className }: FooterProps) {
 function FooterColumnBlock({ title, links }: { title: string; links: FooterLink[] }) {
   return (
     <div>
-      <h4 className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-gold">
-        <span className="inline-block h-px w-6 bg-walnut-light" />
+      <h4 className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-clay">
+        <span className="inline-block h-px w-6 bg-cinnamon" />
         {title}
       </h4>
       <ul className="mt-7 space-y-3.5">
@@ -261,9 +252,9 @@ function FooterColumnBlock({ title, links }: { title: string; links: FooterLink[
           <li key={link.href}>
             <Link
               href={link.href}
-              className="group/link link-underline link-underline-walnut inline-flex items-center text-sm text-ivory transition-colors duration-300 hover:text-gold"
+              className="group/link link-underline link-underline-cream inline-flex items-center text-sm text-porcelain transition-colors duration-300 hover:text-clay"
             >
-              <span className="inline-block w-0 overflow-hidden whitespace-nowrap align-middle text-gold transition-all duration-300 group-hover/link:w-3">
+              <span className="inline-block w-0 overflow-hidden whitespace-nowrap align-middle text-clay transition-all duration-300 group-hover/link:w-3">
                 {'\u203a'}
               </span>
               <span className="inline-block align-middle">{link.label}</span>
@@ -277,7 +268,7 @@ function FooterColumnBlock({ title, links }: { title: string; links: FooterLink[
 
 function PaymentChip({ mark }: { mark: string }) {
   return (
-    <span className="inline-flex h-8 items-center gap-2 rounded-md border border-cream/15 bg-cream/[0.05] px-3 text-[9px] font-semibold tracking-widest text-ivory transition-all duration-300 hover:-translate-y-0.5 hover:border-gold/60 hover:text-gold">
+    <span className="inline-flex h-8 items-center gap-2 rounded-md border border-bone/15 bg-bone/[0.05] px-3 text-[9px] font-semibold tracking-widest text-porcelain transition-all duration-300 hover:-translate-y-0.5 hover:border-mist hover:text-mist">
       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h2m-2 3h2m-2-3h2m-2-3h2m4 6h2" />
         <rect x="3" y="5" width="18" height="14" rx="2" strokeWidth={1.5} />
@@ -308,7 +299,7 @@ function BackToTopButton() {
           whileHover={{ y: -3 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="group fixed bottom-[76px] right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-cream/20 bg-navy/85 text-ivory shadow-xl shadow-black/30 backdrop-blur-md transition-colors duration-300 hover:border-gold/70 hover:text-gold lg:bottom-6"
+          className="group fixed bottom-[76px] right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-bone/20 bg-onyx/85 text-porcelain shadow-xl shadow-black/30 backdrop-blur-md transition-colors duration-300 hover:border-bone/60 hover:text-bone lg:bottom-6"
           aria-label="Back to top"
         >
           <svg className="h-5 w-5 transition-transform duration-300 group-hover:-translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

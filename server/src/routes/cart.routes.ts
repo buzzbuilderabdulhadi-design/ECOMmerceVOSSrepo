@@ -8,6 +8,12 @@ import {
   applyCouponSchema,
 } from '../validation/cart.validation';
 import {
+  cartReadLimiter,
+  cartMutationLimiter,
+  cartMergeLimiter,
+  couponLimiter,
+} from '../middleware/rateLimit.middleware';
+import {
   getCart,
   addToCart,
   updateCartItem,
@@ -20,15 +26,16 @@ import {
 
 const router = Router();
 
-router.get('/', optionalAuth, getCart);
-router.post('/items', optionalAuth, validate(addToCartSchema), addToCart);
-router.put('/items/:itemId', optionalAuth, validate(updateCartItemSchema), updateCartItem);
-router.delete('/items/:itemId', optionalAuth, validate(removeCartItemSchema), removeCartItem);
-router.delete('/', optionalAuth, clearCart);
+router.get('/', cartReadLimiter, optionalAuth, getCart);
+router.post('/items', cartMutationLimiter, optionalAuth, validate(addToCartSchema), addToCart);
+router.put('/items/:itemId', cartMutationLimiter, optionalAuth, validate(updateCartItemSchema), updateCartItem);
+router.delete('/items/:itemId', cartMutationLimiter, optionalAuth, validate(removeCartItemSchema), removeCartItem);
+router.delete('/', cartMutationLimiter, optionalAuth, clearCart);
 
-router.post('/merge', optionalAuth, mergeGuestCart);
+// Merging rewrites both carts — much stricter than an ordinary add.
+router.post('/merge', cartMergeLimiter, optionalAuth, mergeGuestCart);
 
-router.post('/coupon', optionalAuth, validate(applyCouponSchema), applyCouponToCart);
-router.delete('/coupon', optionalAuth, removeCouponFromCart);
+router.post('/coupon', couponLimiter, optionalAuth, validate(applyCouponSchema), applyCouponToCart);
+router.delete('/coupon', couponLimiter, optionalAuth, removeCouponFromCart);
 
 export default router;

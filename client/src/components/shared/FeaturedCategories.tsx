@@ -7,7 +7,6 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { TextReveal } from '@/components/animations/TextReveal';
-import { Parallax } from '@/components/animations/Parallax';
 import { fetchFeaturedCategories } from '@/services';
 import type { Category } from '@/types';
 
@@ -21,27 +20,20 @@ interface CategoryItem {
 interface FeaturedCategoriesProps {
   categories?: CategoryItem[];
   title?: string;
+  eyebrow?: string;
   description?: string;
   className?: string;
 }
 
 const CATEGORY_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=900&q=85';
 
-const spanClasses = [
-  'col-span-2 lg:col-span-3 lg:row-span-2',
-  'lg:col-span-2',
-  'lg:col-span-1',
-  'lg:col-span-2',
-  'lg:col-span-1',
-  'col-span-2 lg:col-span-3',
-];
-
 type CategoryWithCount = Category & { _count?: { products: number } };
 
 export function FeaturedCategories({
   categories,
   title = 'Shop by Category',
-  description = 'Explore our curated collections of premium jackets and luxury outerwear.',
+  eyebrow = 'The Collections',
+  description = 'Every silhouette we make, arranged by the way you actually dress — from everyday cotton to the pieces that only come out after dark.',
   className,
 }: FeaturedCategoriesProps) {
   const [tiles, setTiles] = useState<CategoryItem[]>(categories ?? []);
@@ -54,7 +46,7 @@ export function FeaturedCategories({
         if (!active) return;
         setTiles(
           (cats as CategoryWithCount[])
-            .slice(0, 6)
+            .slice(0, 8)
             .map((c) => ({
               name: c.name,
               slug: c.slug,
@@ -74,83 +66,96 @@ export function FeaturedCategories({
   if (tiles.length === 0) return null;
 
   return (
-    <section className={cn('section-divider-top relative overflow-hidden py-20 md:py-28', className)}>
-      {/* Editorial watermark */}
-      <Parallax amount={120}>
-        <span className="display-outline pointer-events-none absolute -right-8 top-8 select-none font-display text-[11rem] leading-none opacity-60">
-          Collections
-        </span>
-      </Parallax>
-
-      <div className="relative mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12">
+    <section
+      id="shop-by-category"
+      className={cn('bg-warm-beige scroll-mt-32 overflow-hidden py-20 text-onyx md:py-28 lg:py-32', className)}
+    >
+      <div className="relative mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
         <div className="grid gap-8 lg:grid-cols-2 lg:items-end">
           <div>
-            <p className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.35em] text-sage-dark">
-              <span className="inline-block h-px w-10 bg-sage" />
-              Collections
+            <p className="eyebrow flex items-center gap-3 text-navy-soft">
+              <span className="inline-block h-px w-10 bg-navy-soft/70" />
+              {eyebrow}
             </p>
             <TextReveal
               as="h2"
               text={title}
-              className="mt-4 font-display text-4xl font-light text-navy sm:text-5xl lg:text-6xl"
+              className="display-1 mt-5 font-display font-light text-onyx"
             />
           </div>
-          <ScrollReveal delay={0.15} className="lg:justify-self-end">
-            <p className="max-w-md text-sm leading-relaxed text-slate sm:text-base lg:text-right">
-              {description}
-            </p>
+          <ScrollReveal delay={0.15} className="lg:justify-self-end lg:text-right">
+            <p className="max-w-md text-sm leading-relaxed text-cocoa sm:text-base">{description}</p>
+            <Link
+              href="/shop"
+              className="link-underline mt-6 inline-flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.25em] text-onyx transition-colors hover:text-navy-mid lg:ml-auto"
+            >
+              View everything
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </Link>
           </ScrollReveal>
         </div>
 
-        <div className="mt-14 grid grid-cols-2 auto-rows-[200px] gap-4 sm:auto-rows-[220px] md:gap-6 lg:grid-cols-6 lg:auto-rows-[220px] xl:auto-rows-[260px]">
+        {/*
+          Uniform campaign tiles. The tile height is a minimum, not a fixed
+          value, and the caption sits in normal flow below the media, so a
+          long category name grows the tile instead of being clipped.
+        */}
+        <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-5">
           {tiles.map((category, index) => (
             <motion.div
               key={category.slug}
-              initial={{ opacity: 0, y: 40 }}
+              initial={{ opacity: 0, y: 32 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-60px' }}
-              transition={{ duration: 0.7, delay: (index % 3) * 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-              className={cn(spanClasses[index % spanClasses.length])}
+              transition={{ duration: 0.65, delay: (index % 4) * 0.07, ease: [0.22, 1, 0.36, 1] }}
             >
               <Link
                 href={`/category/${category.slug}`}
-                className="group relative block h-full w-full overflow-hidden"
+                className="group relative flex min-h-[280px] flex-col justify-end overflow-hidden sm:min-h-[340px] lg:min-h-[400px]"
               >
-                <Image
-                  src={category.image}
-                  alt={category.name}
-                  fill
-                  className="object-cover transition-transform duration-1000 ease-out group-hover:scale-110"
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                {/* Media — clipped independently of the caption */}
+                <span className="absolute inset-0 overflow-hidden">
+                  <Image
+                    src={category.image}
+                    alt={category.name}
+                    fill
+                    className="img-cover zoom-child"
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  />
+                </span>
+
+                {/* Readability scrim, deepened subtly on hover */}
+                <span
+                  aria-hidden
+                  className="absolute inset-0 bg-gradient-to-t from-onyx/90 via-onyx/35 to-onyx/15 transition-opacity duration-700 group-hover:from-onyx group-hover:via-onyx/45"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-navy/85 via-navy/25 to-navy/15" />
-                <div className="absolute inset-0 bg-navy/20 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
 
-                {/* Sage hairline grows on hover */}
-                <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-sage-light transition-all duration-700 group-hover:w-full" />
-
-                {/* Index */}
-                <span className="absolute right-4 top-3 font-display text-4xl font-light text-ivory transition-colors duration-500 group-hover:text-sage-light">
+                <span
+                  aria-hidden
+                  className="absolute right-4 top-4 font-display text-2xl font-light text-bone/45 transition-colors duration-500 group-hover:text-bone/80"
+                >
                   {String(index + 1).padStart(2, '0')}
                 </span>
 
-                {/* Label */}
-                <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6">
-                  <p className="font-display text-2xl font-light leading-tight text-ivory sm:text-[1.6rem]">
+                {/* Caption in normal flow — grows the tile, never clipped */}
+                <span className="relative z-10 block p-5 sm:p-6">
+                  <span className="block font-display text-xl font-light leading-snug text-porcelain sm:text-2xl">
                     {category.name}
-                  </p>
-                  <div className="mt-2 flex items-center gap-3">
-                    <span className="text-[11px] uppercase tracking-[0.2em] text-ivory">
-                      {category.productCount ?? ''} {category.productCount ? 'Pieces' : ''}
+                  </span>
+                  <span className="mt-2 flex items-center gap-3">
+                    {typeof category.productCount === 'number' && category.productCount > 0 && (
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-bone/70">
+                        {category.productCount} {category.productCount === 1 ? 'Piece' : 'Pieces'}
+                      </span>
+                    )}
+                    <span className="h-px w-8 bg-bone/40 transition-all duration-500 group-hover:w-14" />
+                    <span className="translate-x-0 text-[10px] uppercase tracking-[0.2em] text-bone/80 transition-all duration-500 group-hover:translate-x-1 group-hover:text-bone">
+                      Shop
                     </span>
-                    <span className="h-px w-8 bg-sage-light/70 transition-all duration-500 group-hover:w-14" />
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-cream/30 text-ivory transition-all duration-300 group-hover:border-sage-light group-hover:bg-sage-light group-hover:text-navy">
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                      </svg>
-                    </span>
-                  </div>
-                </div>
+                  </span>
+                </span>
               </Link>
             </motion.div>
           ))}

@@ -13,11 +13,12 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/a
 export { API_BASE_URL };
 
 const SESSION_STORAGE_KEY = 'zoya_session_id';
+const AUTH_MARKER_COOKIE = 'voss_auth';
+const CSRF_COOKIE = 'voss_csrf';
 
 // Endpoints whose 401/403 is a business/auth error — NEVER an expired-session
 // signal. Triggering the refresh queue for these re-submits the failed request
-// with a rotated token (e.g. a wrong-password /auth/login while an old session
-// still exists) and burns a refresh-token rotation for nothing.
+// after a rotation and burns a refresh-token rotation for nothing.
 const NO_REFRESH_ENDPOINTS = [
   '/auth/login',
   '/auth/register',
@@ -30,6 +31,18 @@ const NO_REFRESH_ENDPOINTS = [
 
 export function shouldSkipRefresh(url: string): boolean {
   return NO_REFRESH_ENDPOINTS.some((endpoint) => url.includes(endpoint));
+}
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
+export function hasAuthMarker(): boolean {
+  return readCookie(AUTH_MARKER_COOKIE) === '1';
 }
 
 /**
@@ -52,10 +65,7 @@ export function getClientSessionId(): string {
 
 /**
  * Returns the existing guest session id WITHOUT creating one. Used to detect
- * whether a real guest session (and therefore a guest cart to merge) exists —
- * the getter above must not be used for that check because it generates a new
- * id on the spot, which made the post-login cart merge fire on EVERY
- * authenticated page load instead of only right after a guest session.
+ * whether a real guest session (and therefore a guest cart to merge) exists.
  */
 export function peekClientSessionId(): string | null {
   if (typeof window === 'undefined') return null;
@@ -70,34 +80,43 @@ export function removeClientSessionId(): void {
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
+  // Browser sessions live in HttpOnly cookies set by the API. Credentials must
+  // be sent on both same-site and cross-site deployments.
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
 // ============================================================
-// Request Interceptor — Attach JWT Token + Guest Session ID
+// Request Interceptor — Guest Session ID + CSRF token
 // ============================================================
 
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Check if running in browser (Next.js SSR safety)
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('voss_token');
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
+      const authenticated = hasAuthMarker();
+
+      // Double-submit CSRF token for cookie-authenticated mutations.
+      if (
+        config.headers &&
+        config.method &&
+        !['get', 'head', 'options'].includes(config.method.toLowerCase())
+      ) {
+        const csrfToken = readCookie(CSRF_COOKIE);
+        if (csrfToken) config.headers['x-csrf-token'] = csrfToken;
       }
+
       // Attach the guest session id so guest carts and the post-login merge
       // work. A new id is minted ONLY for unauthenticated cart/wishlist
-      // traffic — minting here on every request was the bug: after the merge
-      // removed the id, the very next authenticated GET /cart re-created it,
-      // so a /cart/merge storm fired on every page load. Authenticated
-      // requests never mint.
-      let sessionId: string | null = null;
-      const existingSession: string | null = peekClientSessionId();
-      if (existingSession) {
-        sessionId = existingSession;
-      } else if (!token && config.url && (config.url.startsWith('/cart') || config.url.startsWith('/wishlist'))) {
+      // traffic — never for authenticated requests.
+      let sessionId: string | null = peekClientSessionId();
+      if (
+        !sessionId &&
+        !authenticated &&
+        config.url &&
+        (config.url.startsWith('/cart') || config.url.startsWith('/wishlist'))
+      ) {
         sessionId = getClientSessionId();
       }
       if (sessionId && config.headers) {
@@ -112,7 +131,7 @@ axiosInstance.interceptors.request.use(
 );
 
 // ============================================================
-// Response Interceptor — Handle Auth Errors & Token Refresh
+// Response Interceptor — Handle Auth Errors & Cookie Refresh
 // ============================================================
 
 let isRefreshing = false;
@@ -121,16 +140,26 @@ let failedQueue: Array<{
   reject: (reason: unknown) => void;
 }> = [];
 
-const processQueue = (error: AxiosError | null, token: string | null = null) => {
+const processQueue = (error: AxiosError | null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve(token);
+      prom.resolve(null);
     }
   });
   failedQueue = [];
 };
+
+function legacyCleanup(): void {
+  try {
+    localStorage.removeItem('voss_token');
+    localStorage.removeItem('voss_refresh_token');
+    localStorage.removeItem('voss_user');
+  } catch {
+    // Ignore storage failures.
+  }
+}
 
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => {
@@ -141,24 +170,15 @@ axiosInstance.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // If 401 and not already retrying
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // A 401 returned by an auth endpoint (login/register/refresh/…) is a
-      // business failure — e.g. "Invalid email or password" — never an
-      // expired-session signal. Do not enter the refresh/retry queue.
       const failedUrl = originalRequest.url || '';
       if (shouldSkipRefresh(failedUrl)) {
         return Promise.reject(error);
       }
 
-      // A 401 on a request that never sent an access token is simply an
-      // unauthenticated request (e.g. the wishlist fetch for a guest).
-      // Do NOT attempt a token refresh or force-navigate to /login here —
-      // that redirect caused an endless /login reload loop because global
-      // providers (wishlist) hit protected endpoints on every page load.
-      // Let the caller handle the rejection instead.
-      const sentToken = originalRequest.headers?.Authorization;
-      if (!sentToken) {
+      // Only a browser that believes it is signed in should attempt a refresh.
+      // Unauthenticated guest requests (e.g. wishlist) simply reject.
+      if (!hasAuthMarker()) {
         return Promise.reject(error);
       }
 
@@ -166,12 +186,7 @@ axiosInstance.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-            }
-            return axiosInstance(originalRequest);
-          })
+          .then(() => axiosInstance(originalRequest))
           .catch((err) => Promise.reject(err));
       }
 
@@ -179,37 +194,27 @@ axiosInstance.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem('voss_refresh_token');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-
-        const response = await axios.post(
+        const csrfToken = readCookie(CSRF_COOKIE);
+        await axios.post(
           `${API_BASE_URL}/auth/refresh`,
-          { refreshToken }
+          {},
+          {
+            withCredentials: true,
+            headers: csrfToken ? { 'x-csrf-token': csrfToken } : undefined,
+          }
         );
 
-        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-        localStorage.setItem('voss_refresh_token', newRefreshToken);
-        localStorage.setItem('voss_token', accessToken);
-
-        processQueue(null, accessToken);
-
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        }
+        processQueue(null);
         return axiosInstance(originalRequest);
       } catch (refreshError) {
-        processQueue(refreshError as AxiosError, null);
-        // Clear auth data
-        localStorage.removeItem('voss_token');
-        localStorage.removeItem('voss_refresh_token');
-        localStorage.removeItem('voss_user');
-        document.cookie = 'voss_access_token=; path=/; max-age=0';
+        processQueue(refreshError as AxiosError);
+        legacyCleanup();
 
-        // Redirect to login if in browser
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          const path = window.location.pathname;
+          if (!path.startsWith('/login') && !path.startsWith('/admin/login')) {
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(refreshError);
       } finally {
@@ -244,4 +249,3 @@ export const getErrorMessage = (error: unknown): string => {
 };
 
 export default axiosInstance;
-

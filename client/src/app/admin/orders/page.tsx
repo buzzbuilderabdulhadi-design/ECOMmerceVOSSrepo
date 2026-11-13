@@ -43,7 +43,7 @@ export default function AdminOrdersPage() {
     } catch (err) { toast.error(getErrorMessage(err) || 'Failed to load orders'); } finally { setLoading(false); }
   }, [status, paymentStatus, debouncedSearch]);
 
-  useEffect(() => { fetchOrders(1); }, [fetchOrders]);
+  useEffect(() => { void Promise.resolve().then(() => fetchOrders(1)); }, [fetchOrders]);
 
   return (
     <div className="space-y-5">

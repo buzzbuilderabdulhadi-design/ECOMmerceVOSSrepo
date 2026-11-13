@@ -1,5 +1,5 @@
 import axiosInstance from './axios';
-import type { Product } from '@/types';
+import type { Product, ProductDetail } from '@/types';
 
 interface PaginationMeta {
   page: number;
@@ -21,14 +21,14 @@ export const fetchProducts = async (params?: Record<string, string>): Promise<Pa
 // Module-level in-flight dedupe keyed by slug: the product page effect, dev
 // StrictMode double-mounts, and any co-mounted consumer share one request for
 // the same product instead of firing duplicates. Clears as soon as it settles.
-const productRequests = new Map<string, Promise<Product>>();
+const productRequests = new Map<string, Promise<ProductDetail>>();
 
-export const fetchProduct = (slug: string): Promise<Product> => {
+export const fetchProduct = (slug: string): Promise<ProductDetail> => {
   let request = productRequests.get(slug);
   if (!request) {
     request = axiosInstance
       .get(`/products/${slug}`)
-      .then((response) => response.data.data as Product)
+      .then((response) => response.data.data as ProductDetail)
       .finally(() => {
         productRequests.delete(slug);
       });

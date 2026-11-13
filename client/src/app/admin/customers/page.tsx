@@ -27,7 +27,7 @@ export default function AdminCustomersPage() {
     } catch (err) { toast.error(getErrorMessage(err) || 'Failed to load customers'); } finally { setLoading(false); }
   }, [debouncedSearch]);
 
-  useEffect(() => { fetchCustomers(1); }, [fetchCustomers]);
+  useEffect(() => { void Promise.resolve().then(() => fetchCustomers(1)); }, [fetchCustomers]);
 
   return (
     <div className="space-y-5">

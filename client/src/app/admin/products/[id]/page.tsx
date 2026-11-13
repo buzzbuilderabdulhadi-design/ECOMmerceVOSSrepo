@@ -10,6 +10,7 @@ import { getErrorMessage } from '@/services/axios';
 import { Category } from '@/types';
 import Modal from '@/components/admin/Modal';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
+import Image from 'next/image';
 
 interface ProductVariant {
   id: string;
@@ -523,7 +524,7 @@ export default function AdminProductDetailPage() {
                   const url = typeof img === 'string' ? img : img.url;
                   return (
                     <div key={i} className="group relative aspect-square rounded-lg border border-sage-light/30 overflow-hidden">
-                      <img src={url} alt="" className="h-full w-full object-cover" />
+                      <Image src={url} alt="" fill unoptimized sizes="(max-width: 768px) 33vw, 160px" className="object-cover" />
                       <button onClick={() => removeImage(i)}
                         className="absolute top-1 right-1 h-6 w-6 rounded-full bg-red-600/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs">
                         &times;

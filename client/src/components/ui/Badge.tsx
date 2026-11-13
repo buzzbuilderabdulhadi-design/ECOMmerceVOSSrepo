@@ -4,17 +4,17 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = {
-  default: 'bg-cream-dark text-navy',
-  primary: 'bg-navy text-ivory',
-  success: 'bg-sage-light/50 text-sage-dark',
-  warning: 'bg-walnut/10 text-walnut',
-  danger: 'bg-red-100 text-red-800',
-  info: 'bg-navy-light/10 text-navy-light',
-  premium: 'bg-gradient-to-r from-gold/90 to-gold text-navy',
-  exclusive: 'bg-gradient-to-r from-walnut-light to-walnut text-ivory',
-  new: 'bg-sage-dark text-white',
-  'best-seller': 'bg-walnut text-ivory',
-  sale: 'bg-red-600 text-white',
+  default: 'bg-beige text-onyx',
+  primary: 'bg-onyx text-bone',
+  success: 'bg-cocoa/15 text-cocoa',
+  warning: 'bg-navy-mid/12 text-navy-mid',
+  danger: 'bg-red-100 text-red-900',
+  info: 'bg-cocoa/10 text-cocoa',
+  premium: 'bg-navy-mid text-bone',
+  exclusive: 'bg-cocoa text-bone',
+  new: 'bg-cocoa text-bone',
+  'best-seller': 'bg-espresso text-bone',
+  sale: 'bg-red-700 text-white',
 };
 
 const badgeSizes = {
@@ -51,17 +51,17 @@ export function Badge({
         <span
           className={cn(
             'h-1.5 w-1.5 rounded-full',
-            variant === 'default' && 'bg-cream-dark',
-            variant === 'primary' && 'bg-white',
-            variant === 'success' && 'bg-sage-dark',
-            variant === 'warning' && 'bg-walnut',
+            variant === 'default' && 'bg-cocoa',
+            variant === 'primary' && 'bg-bone',
+            variant === 'success' && 'bg-cocoa',
+            variant === 'warning' && 'bg-navy-mid',
             variant === 'danger' && 'bg-red-500',
-            variant === 'info' && 'bg-navy-light',
-            variant === 'premium' && 'bg-gold',
-            variant === 'exclusive' && 'bg-walnut-light',
-            variant === 'new' && 'bg-sage-dark',
-            variant === 'best-seller' && 'bg-walnut-light',
-            variant === 'sale' && 'bg-red-600'
+            variant === 'info' && 'bg-cocoa',
+            variant === 'premium' && 'bg-bone',
+            variant === 'exclusive' && 'bg-bone',
+            variant === 'new' && 'bg-bone',
+            variant === 'best-seller' && 'bg-bone',
+            variant === 'sale' && 'bg-white'
           )}
         />
       )}

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import adminApi from '@/services/admin';
+import { ZoyaGoodsLogo } from '@/components/shared/ZoyaGoodsLogo';
 
 const navSections = [
   {
@@ -101,8 +102,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     } catch {}
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/admin/login');
   };
 
@@ -113,8 +114,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   }, [isLoginPage, isLoading, isAuthenticated, user, router]);
 
   if (isLoginPage) {
-    if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-navy"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" /></div>;
-    if (isAuthenticated && user?.role === 'ADMIN') return <div className="min-h-screen flex items-center justify-center bg-navy"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gold border-t-transparent" /></div>;
+    if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-navy"><div className="h-8 w-8 animate-spin rounded-full border-2 border-mist border-t-transparent" /></div>;
+    if (isAuthenticated && user?.role === 'ADMIN') return <div className="min-h-screen flex items-center justify-center bg-navy"><div className="h-8 w-8 animate-spin rounded-full border-2 border-mist border-t-transparent" /></div>;
     return (
       <>
         <meta name="robots" content="noindex, nofollow" />
@@ -156,9 +157,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b border-sage-light/30 px-4">
           <Link href="/admin" className="flex items-center gap-2">
-            <span className={cn('font-display text-xl font-bold tracking-wider text-navy transition-all', !sidebarOpen && 'lg:text-lg')}>
-              {sidebarOpen ? 'ZOYA GOODS' : 'Z'}
-            </span>
+            {sidebarOpen ? (
+              <ZoyaGoodsLogo
+                variant="black"
+                alt="ZOYA GOODS"
+                className="h-8 w-auto"
+              />
+            ) : (
+              <span className={cn('font-display text-xl font-bold tracking-wider text-navy transition-all lg:text-lg')}>
+                Z
+              </span>
+            )}
             {sidebarOpen && (
               <span className="hidden lg:inline-block text-[10px] uppercase tracking-[0.2em] text-walnut font-medium">
                 Admin
@@ -213,7 +222,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                       )}
                       title={!sidebarOpen ? item.label : undefined}
                     >
-                      <svg className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-gold' : 'text-slate group-hover:text-navy')} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-navy-mid' : 'text-slate group-hover:text-navy')} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
                       </svg>
                       {sidebarOpen && <span>{item.label}</span>}

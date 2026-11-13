@@ -34,7 +34,7 @@ export default function AdminDiscountsPage() {
     } catch (err) { toast.error(getErrorMessage(err) || 'Failed to load discounts'); } finally { setLoading(false); }
   }, [debouncedSearch]);
 
-  useEffect(() => { fetchCoupons(1); }, [fetchCoupons]);
+  useEffect(() => { void Promise.resolve().then(() => fetchCoupons(1)); }, [fetchCoupons]);
 
   const openCreate = () => { setEditing(null); setForm({ code: '', type: 'PERCENTAGE', value: 0, isActive: true, expiresAt: '' }); setShowForm(true); };
   const openEdit = (c: Coupon) => { setEditing(c); setForm({ code: c.code, type: c.type, value: c.value, minOrderAmount: c.minOrderAmount, maxUses: c.maxUses, maxDiscount: c.maxDiscount, isActive: c.isActive, expiresAt: c.expiresAt ? new Date(c.expiresAt).toISOString().split('T')[0] : '' }); setShowForm(true); };

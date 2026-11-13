@@ -56,27 +56,34 @@ export function Select({
   const selectedIndex = filteredOptions.findIndex((opt) => opt.value === value);
 
   const handleToggle = useCallback(() => {
-    if (!disabled) {
-      setIsOpen((prev) => !prev);
-      if (!isOpen) {
-        setSearchQuery('');
-      }
+    if (disabled) return;
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    if (nextOpen) {
+      setSearchQuery('');
+      // Highlight the current value, else the first selectable option. Done here
+      // rather than in the open-effect so no state is set from an effect body.
+      setActiveIndex(
+        selectedIndex >= 0
+          ? selectedIndex
+          : options.findIndex((opt) => !opt.disabled)
+      );
     }
-  }, [disabled, isOpen]);
+  }, [disabled, isOpen, selectedIndex, options]);
 
+  // DOM-only concern of an open listbox: move focus and scroll the highlight
+  // into view. State that depends on `isOpen` is set by the toggle above.
   useEffect(() => {
-    if (isOpen) {
-      const initialIndex =
-        selectedIndex >= 0 ? selectedIndex : filteredOptions.findIndex((opt) => !opt.disabled);
-      setActiveIndex(initialIndex);
-      if (searchable && searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-      requestAnimationFrame(() => {
-        listboxRef.current?.querySelector<HTMLElement>(`[data-index="${initialIndex}"]`)?.scrollIntoView?.({ block: 'nearest' });
-      });
+    if (!isOpen) return;
+    if (searchable && searchInputRef.current) {
+      searchInputRef.current.focus();
     }
-  }, [isOpen, searchable, selectedIndex, filteredOptions]);
+    requestAnimationFrame(() => {
+      listboxRef.current
+        ?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)
+        ?.scrollIntoView?.({ block: 'nearest' });
+    });
+  }, [isOpen, searchable, activeIndex]);
 
   const handleSelect = useCallback(
     (optionValue: string) => {
@@ -237,6 +244,7 @@ export function Select({
           !disabled && 'hover:border-navy/50',
           isOpen && 'border-navy/30 ring-1 ring-sage/20'
         )}
+        role="combobox"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-invalid={!!error}

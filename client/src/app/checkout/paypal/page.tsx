@@ -52,7 +52,7 @@ function CaptureContent() {
 
   useEffect(() => {
     if (orderId && token) {
-      runCapture();
+      void Promise.resolve().then(runCapture);
     }
   }, [orderId, token, runCapture]);
 
@@ -71,7 +71,7 @@ function CaptureContent() {
                 </div>
                 <h2 className="font-display text-3xl font-light text-navy">Confirming Payment</h2>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
-                  We're verifying your payment with PayPal. This usually takes just a moment.
+                  We&rsquo;re verifying your payment with PayPal. This usually takes just a moment.
                 </p>
               </>
             )}

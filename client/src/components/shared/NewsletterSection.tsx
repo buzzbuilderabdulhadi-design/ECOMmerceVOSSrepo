@@ -5,66 +5,79 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { NewsletterForm } from '@/components/ui/NewsletterForm';
 import { TextReveal } from '@/components/animations/TextReveal';
-import { Parallax } from '@/components/animations/Parallax';
 
 interface NewsletterSectionProps {
   title?: string;
   description?: string;
   className?: string;
-  variant?: 'default' | 'dark' | 'cream';
+  variant?: 'beige' | 'dark';
 }
 
+/**
+ * Newsletter band. Sits directly above the espresso footer so the two read as
+ * a single stacked block, with exactly one opt-in form on the page.
+ */
 export function NewsletterSection({
-  title = 'Join the ZOYA GOODS Community',
-  description = 'Subscribe to receive exclusive offers, early access to new collections, and luxury style inspiration.',
+  title = 'Join the ZOYA GOODS Circle',
+  description = 'Receive early access to new collections, private offers and notes from the studio — sent sparingly.',
   className,
-  variant = 'default',
+  variant = 'beige',
 }: NewsletterSectionProps) {
   const isDark = variant === 'dark';
 
   return (
-    <section className={cn('relative overflow-hidden py-20 md:py-28', isDark && 'bg-gradient-night grain', className)}>
-      {/* Editorial watermark */}
-      <Parallax amount={90}>
-        <span className={cn(
-          'pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 select-none font-display text-[9rem] font-light leading-none sm:text-[16rem]',
-          isDark ? 'text-cream/[0.05]' : 'text-navy/[0.04]'
-        )}>
-          ZOYA GOODS
-        </span>
-      </Parallax>
+    <section
+      className={cn(
+        'relative overflow-hidden py-20 md:py-28',
+        isDark ? 'bg-cinematic text-porcelain' : 'bg-warm-beige text-onyx',
+        className
+      )}
+    >
+      <div className="relative mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
+        <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+          <motion.div
+            initial={{ opacity: 0, y: 26 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <p className={cn('eyebrow flex items-center gap-3', isDark ? 'text-beige' : 'text-navy-mid')}>
+              <span className={cn('inline-block h-px w-10', isDark ? 'bg-beige/60' : 'bg-navy-soft/70')} />
+              Stay Connected
+            </p>
+            <TextReveal
+              as="h2"
+              text={title}
+              className={cn('display-2 mt-5 font-display font-light', isDark ? 'text-porcelain' : 'text-onyx')}
+            />
+            <p
+              className={cn(
+                'mt-5 max-w-lg text-sm leading-relaxed sm:text-base',
+                isDark ? 'text-bone/70' : 'text-cocoa'
+              )}
+            >
+              {description}
+            </p>
+          </motion.div>
 
-      <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-8 lg:px-12">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          <p className={cn('flex items-center justify-center gap-3 text-[11px] font-medium uppercase tracking-[0.35em]', isDark ? 'text-sage-light' : 'text-sage-dark')}>
-            <span className="inline-block h-px w-10 bg-sage" />
-            Stay Connected
-            <span className="inline-block h-px w-10 bg-sage" />
-          </p>
-
-          <TextReveal
-            as="h2"
-            text={title}
-            className={cn('mt-5 font-display text-4xl font-light leading-tight sm:text-5xl', isDark ? 'text-ivory' : 'text-navy')}
-          />
-
-          <p className={cn('mx-auto mt-5 max-w-xl text-sm leading-relaxed sm:text-base', isDark ? 'text-ivory' : 'text-slate')}>
-            {description}
-          </p>
-
-          <div className="mx-auto mt-10 max-w-xl">
+          <motion.div
+            initial={{ opacity: 0, y: 26 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ duration: 0.7, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+            className="lg:w-full"
+          >
             <NewsletterForm variant={isDark ? 'dark' : 'banner'} />
-          </div>
-
-          <p className="mt-5 text-[10px] uppercase tracking-[0.25em] text-slate">
-            No spam. Unsubscribe anytime.
-          </p>
-        </motion.div>
+            <p
+              className={cn(
+                'mt-3 text-[10px] uppercase tracking-[0.25em]',
+                isDark ? 'text-bone/70' : 'text-cocoa/80'
+              )}
+            >
+              No spam. Unsubscribe anytime.
+            </p>
+          </motion.div>
+        </div>
       </div>
     </section>
   );

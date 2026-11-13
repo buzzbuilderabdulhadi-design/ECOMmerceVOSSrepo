@@ -36,7 +36,7 @@ export default function AdminHomepageContentPage() {
   }, []);
 
   useEffect(() => {
-    loadContent();
+    void Promise.resolve().then(loadContent);
   }, [loadContent]);
 
   const stringifyValue = (value: unknown): string => {

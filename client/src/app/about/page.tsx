@@ -57,7 +57,7 @@ export default function AboutPage() {
             <Image src="https://images.unsplash.com/photo-1551028719-00167b16eac5?w=1920&q=80" alt="ZOYA GOODS Heritage" fill className="object-cover opacity-40" sizes="100vw" priority />
           </div>
           <div className="absolute inset-0 bg-gradient-to-r from-walnut/80 via-walnut/50 to-walnut/20" />
-          <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'About' }]} onDark />
             <h1 className="mt-6 text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
               Our Story
@@ -70,7 +70,7 @@ export default function AboutPage() {
 
         {/* Brand Story */}
         <ScrollReveal>
-          <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 md:py-24">
+          <section className="mx-auto max-w-[1400px] px-5 py-16 sm:px-8 lg:px-12 md:py-24">
             <div className="grid gap-12 md:grid-cols-2 md:items-center">
               <div>
                 <h2 className="text-3xl font-bold tracking-tight text-walnut sm:text-4xl">
@@ -91,7 +91,7 @@ export default function AboutPage() {
 
         {/* Milestones */}
         <section className="bg-cream py-16 md:py-24">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
             <ScrollReveal>
               <h2 className="text-3xl font-bold tracking-tight text-walnut sm:text-4xl text-center">Our Journey</h2>
             </ScrollReveal>
@@ -114,7 +114,7 @@ export default function AboutPage() {
         </section>
 
         {/* Values */}
-        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 md:py-24">
+        <section className="mx-auto max-w-[1400px] px-5 py-16 sm:px-8 lg:px-12 md:py-24">
           <ScrollReveal>
             <h2 className="text-3xl font-bold tracking-tight text-walnut sm:text-4xl text-center">What We Stand For</h2>
           </ScrollReveal>

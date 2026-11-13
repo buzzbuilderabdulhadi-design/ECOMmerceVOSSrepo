@@ -16,7 +16,7 @@ export default function ReturnsPage() {
       <main className="min-h-screen">
         <Navbar />
         <section className="bg-cream py-12 md:py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Returns & Refunds' }]} />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-navy sm:text-4xl">Returns & Refunds</h1>
           </div>

@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { authenticate, authorizeAdmin } from '../middleware/auth.middleware';
+import { adminLimiter, uploadLimiter } from '../middleware/rateLimit.middleware';
 import { ApiError } from '../utils/apiError';
 import {
   getDashboard,
@@ -135,9 +136,12 @@ const upload = multer({
   fileFilter,
 });
 
-// All admin routes require authentication + admin role
+// All admin routes require authentication + admin role.
+// Even an authenticated admin is rate-limited: analytics/list endpoints run
+// real aggregation queries, so one runaway pattern must not burn the DB.
 router.use(authenticate);
 router.use(authorizeAdmin);
+router.use(adminLimiter);
 
 // Dashboard
 router.get('/dashboard', getDashboard);
@@ -202,7 +206,7 @@ router.delete('/coupons/:id', validate(couponIdParam), deleteCoupon);
 
 // Media
 router.get('/media', getMedia);
-router.post('/media/upload', upload.single('file'), uploadMedia);
+router.post('/media/upload', uploadLimiter, upload.single('file'), uploadMedia);
 router.delete('/media/:id', validate(idParam), deleteMedia);
 
 // Settings

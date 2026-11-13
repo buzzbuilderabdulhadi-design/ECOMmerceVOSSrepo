@@ -4,25 +4,25 @@ import React, {
   createContext,
   useContext,
   useReducer,
-  useLayoutEffect,
+  useEffect,
   useCallback,
   ReactNode,
 } from 'react';
 import type { User, AuthState, LoginCredentials, RegisterData } from '@/types';
 import axiosInstance, { getErrorMessage } from '@/services/axios';
-import {
-  clearStoredSession,
-  getStoredSession,
-  saveStoredSession,
-} from '@/lib/session';
+import { clearLegacySession } from '@/lib/session';
 
 // ============================================================
 // Auth Context — State Management for Authentication
+//
+// Sessions are owned by the API as HttpOnly cookies. The browser never sees
+// an access or refresh token; React state holds only the public user object
+// needed for navigation and UI.
 // ============================================================
 
 type AuthAction =
   | { type: 'LOGIN_START' }
-  | { type: 'LOGIN_SUCCESS'; payload: { user: User; token: string } }
+  | { type: 'LOGIN_SUCCESS'; payload: { user: User } }
   | { type: 'LOGIN_FAILURE'; payload: string }
   | { type: 'LOGOUT' }
   | { type: 'SET_USER'; payload: User }
@@ -32,7 +32,7 @@ interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   completeGoogleLogin: (code: string, state: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUser: (user: User) => void;
   error: string | null;
   clearError: () => void;
@@ -59,7 +59,7 @@ const authReducer = (
         isLoading: false,
         isAuthenticated: true,
         user: action.payload.user,
-        token: action.payload.token,
+        token: null,
         error: null,
       };
     case 'LOGIN_FAILURE':
@@ -86,45 +86,42 @@ const authReducer = (
   }
 };
 
-function setCookie(name: string, value: string, maxAgeSeconds: number) {
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
-}
-
-function removeCookie(name: string) {
-  document.cookie = `${name}=; path=/; max-age=0`;
-}
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Restore session before the first paint so an existing locally
-  // stored session is recognized immediately (no logged-out flash).
-  // useLayoutEffect is a no-op during server rendering, so this stays
-  // SSR/hydration-safe: the initial render still matches the server.
-  useLayoutEffect(() => {
-    const session = getStoredSession();
+  // Restore the session from the API on first mount. The initial render stays
+  // logged-out (hydration-safe); the loading flag prevents protected pages
+  // from redirecting before the cookie check completes.
+  useEffect(() => {
+    clearLegacySession();
+    let active = true;
 
-    if (session) {
-      setCookie('voss_access_token', session.token, 60 * 60 * 24 * 7);
-      dispatch({ type: 'LOGIN_SUCCESS', payload: session });
-    } else {
-      dispatch({ type: 'LOGOUT' });
-    }
+    axiosInstance
+      .get('/auth/me')
+      .then((response) => {
+        if (!active) return;
+        dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.data.data as User } });
+      })
+      .catch(() => {
+        if (!active) return;
+        dispatch({ type: 'LOGOUT' });
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
     dispatch({ type: 'LOGIN_START' });
     try {
       const response = await axiosInstance.post('/auth/login', credentials);
-      const { user, accessToken, refreshToken } = response.data.data;
-
-      saveStoredSession(user, accessToken);
-      localStorage.setItem('voss_refresh_token', refreshToken);
-      setCookie('voss_access_token', accessToken, 60 * 60 * 24 * 7);
-
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
+      dispatch({
+        type: 'LOGIN_SUCCESS',
+        payload: { user: response.data.data.user as User },
+      });
     } catch (error) {
       const message = getErrorMessage(error);
       dispatch({ type: 'LOGIN_FAILURE', payload: message });
@@ -136,13 +133,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'LOGIN_START' });
     try {
       const response = await axiosInstance.post('/auth/register', data);
-      const { user, accessToken, refreshToken } = response.data.data;
-
-      saveStoredSession(user, accessToken);
-      localStorage.setItem('voss_refresh_token', refreshToken);
-      setCookie('voss_access_token', accessToken, 60 * 60 * 24 * 7);
-
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
+      dispatch({
+        type: 'LOGIN_SUCCESS',
+        payload: { user: response.data.data.user as User },
+      });
     } catch (error) {
       const message = getErrorMessage(error);
       dispatch({ type: 'LOGIN_FAILURE', payload: message });
@@ -151,19 +145,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Completes the Google OAuth authorization-code flow: exchange the code on
-  // the server, then persist the resulting session exactly like register/login
-  // so the auth state, navbar and protected pages behave identically.
+  // the server, which sets the same HttpOnly session cookies as email login.
   const completeGoogleLogin = useCallback(async (code: string, state: string) => {
     dispatch({ type: 'LOGIN_START' });
     try {
       const response = await axiosInstance.post('/auth/google/callback', { code, state });
-      const { user, accessToken, refreshToken } = response.data.data;
-
-      saveStoredSession(user, accessToken);
-      localStorage.setItem('voss_refresh_token', refreshToken);
-      setCookie('voss_access_token', accessToken, 60 * 60 * 24 * 7);
-
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: accessToken } });
+      dispatch({
+        type: 'LOGIN_SUCCESS',
+        payload: { user: response.data.data.user as User },
+      });
     } catch (error) {
       const message = getErrorMessage(error);
       dispatch({ type: 'LOGIN_FAILURE', payload: message });
@@ -171,17 +161,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    clearStoredSession();
-    localStorage.removeItem('voss_refresh_token');
-    removeCookie('voss_access_token');
-    dispatch({ type: 'LOGOUT' });
+  const logout = useCallback(async () => {
+    try {
+      await axiosInstance.post('/auth/logout');
+    } catch {
+      // Even if the server call fails, clear local state and legacy tokens.
+    } finally {
+      clearLegacySession();
+      dispatch({ type: 'LOGOUT' });
+    }
   }, []);
 
   const updateUser = useCallback((user: User) => {
-    saveStoredSession(user, state.token ?? '');
     dispatch({ type: 'SET_USER', payload: user });
-  }, [state.token]);
+  }, []);
 
   const clearError = useCallback(() => {
     dispatch({ type: 'CLEAR_ERROR' });
@@ -212,4 +205,3 @@ export function useAuth(): AuthContextType {
   }
   return context;
 }
-

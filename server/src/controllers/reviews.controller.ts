@@ -85,9 +85,46 @@ export const deleteReview = async (req: Request, res: Response, next: NextFuncti
 export const markReviewHelpful = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const review = await prisma.review.findUnique({ where: { id }, select: { id: true } });
+    const userId = req.user?.userId ?? null;
+    const ip = req.ip ?? 'unknown';
+
+    const review = await prisma.review.findUnique({
+      where: { id },
+      select: { id: true, helpfulCount: true },
+    });
     if (!review) throw ApiError.notFound('Review not found');
-    const updated = await prisma.review.update({ where: { id }, data: { helpfulCount: { increment: 1 } } });
+
+    // One "helpful" vote per review per account, persisted via ActivityLog
+    // (which already carries action/entityId/userId/ipAddress, so no schema
+    // change is needed). Guests are deduplicated per review per IP — multiple
+    // people behind one NAT share the IP, so this is the per-person ceiling
+    // without login.
+    const existing = await prisma.activityLog.findFirst({
+      where: { action: 'REVIEW_HELPFUL', entityId: id, ...(userId ? { userId } : { ipAddress: ip }) },
+      select: { id: true },
+    });
+    if (existing) {
+      sendSuccess(res, { helpfulCount: review.helpfulCount, alreadyVoted: true });
+      return;
+    }
+
+    const updated = await prisma.review.update({
+      where: { id },
+      data: { helpfulCount: { increment: 1 } },
+    });
+    // Record the vote (best-effort; a failed log write must not fail the vote).
+    await prisma.activityLog
+      .create({
+        data: {
+          action: 'REVIEW_HELPFUL',
+          entity: 'Review',
+          entityId: id,
+          userId,
+          ipAddress: ip,
+          metadata: { reviewId: id },
+        },
+      })
+      .catch(() => {});
     sendSuccess(res, { helpfulCount: updated.helpfulCount });
   } catch (error) { next(error); }
 };

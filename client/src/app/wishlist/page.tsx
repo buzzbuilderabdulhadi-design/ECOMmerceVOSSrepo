@@ -59,13 +59,13 @@ export default function WishlistPage() {
 
   return (
     <PageTransition>
-      <main className="min-h-screen">
+      <main className="min-h-screen bg-warm-light">
         <Navbar />
         <section className="relative overflow-hidden pb-4 pt-24 md:pt-36">
-          <span className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[12rem]">
+          <span aria-hidden="true" className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[12rem]">
             Saved
           </span>
-          <div className="relative z-10 mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12">
+          <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Wishlist' }]} />
             <div className="mt-6">
               <TextReveal as="h1" text="My Wishlist" className="font-display text-5xl font-light text-navy sm:text-6xl" />
@@ -76,7 +76,7 @@ export default function WishlistPage() {
           </div>
         </section>
 
-        <div className="mx-auto max-w-[1400px] px-4 py-10 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-[1400px] px-5 py-10 sm:px-8 lg:px-12">
           {body}
         </div>
         <Footer />

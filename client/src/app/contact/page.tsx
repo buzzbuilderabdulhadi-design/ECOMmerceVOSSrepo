@@ -58,14 +58,14 @@ export default function ContactPage() {
       <main className="min-h-screen">
         <Navbar />
         <section className="bg-cream py-12 md:py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Contact' }]} />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-walnut sm:text-4xl">Get in Touch</h1>
             <p className="mt-2 text-base text-slate">We&apos;d love to hear from you. Send us a message and we&apos;ll respond as soon as possible.</p>
           </div>
         </section>
 
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1400px] px-5 py-12 sm:px-8 lg:px-12">
           <div className="grid gap-12 md:grid-cols-2">
             {/* Contact Form */}
             <ScrollReveal direction="left">

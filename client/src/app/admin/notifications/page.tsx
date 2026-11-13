@@ -20,7 +20,7 @@ export default function AdminNotificationsPage() {
     } catch (err) { toast.error(getErrorMessage(err) || 'Failed to load notifications'); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchNotifications(1); }, [fetchNotifications]);
+  useEffect(() => { void Promise.resolve().then(() => fetchNotifications(1)); }, [fetchNotifications]);
 
   const markRead = async (id: string) => {
     try { await adminApi.markNotificationRead(id); setNotifications(ns => ns.map(n => n.id === id ? { ...n, isRead: true } : n)); } catch (err) { toast.error(getErrorMessage(err) || 'Failed to mark notification as read'); }

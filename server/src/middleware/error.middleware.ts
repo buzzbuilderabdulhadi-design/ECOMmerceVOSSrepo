@@ -1,34 +1,78 @@
 import { Request, Response, NextFunction } from 'express';
 import config from '../config';
 import { ApiError } from '../utils/apiError';
+import logger from '../utils/logger';
 
 // ============================================================
 // Global Error Handler Middleware
+//
+// Safety rules enforced here:
+//   * Production clients only ever see safe, generic messages. Stack traces,
+//     raw error messages and internal identifiers are dev-only.
+//   * Prisma/DB, JWT, Multer and Zod errors are mapped to precise, safe
+//     status codes instead of being passed through as 500s.
+//   * Body-parser failures (bad JSON / oversized bodies) map to 400/413.
+//   * Server-side logging keeps the useful detail WITHOUT passwords,
+//     tokens, or payment data (the request body is never logged).
 // ============================================================
 
 export const errorHandler = (
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
-  // Log error in development
-  if (config.env === 'development') {
-    console.error('❌ Error:', err);
-  }
+  const isDev = config.env === 'development';
 
-  // Handle known ApiError
+  // --- Known application error ------------------------------------
   if (err instanceof ApiError) {
+    if (err.statusCode >= 500) {
+      logger.error('Application error', {
+        status: err.statusCode,
+        code: err.code,
+        method: req.method,
+        path: req.originalUrl.split('?')[0],
+      });
+    }
     res.status(err.statusCode).json({
       success: false,
       error: err.message,
       code: err.code,
-      ...(config.env === 'development' && { stack: err.stack }),
+      ...(isDev && { stack: err.stack }),
     });
     return;
   }
 
-  // Handle Prisma errors
+  // --- Body-parser: oversized body → 413, malformed JSON → 400 -------
+  const bodyErr = err as unknown as {
+    type?: string;
+    status?: number;
+    message?: string;
+  };
+  if (bodyErr.type === 'entity.too.large') {
+    logger.warn('Request body too large', { method: req.method, path: req.originalUrl.split('?')[0] });
+    res.status(413).json({
+      success: false,
+      error: 'Request body is too large. Please reduce the payload and try again.',
+      code: 'PAYLOAD_TOO_LARGE',
+    });
+    return;
+  }
+  if (bodyErr.type === 'entity.parse.failed' || bodyErr.type === 'entity.verify.failed') {
+    logger.warn('Malformed request body', {
+      method: req.method,
+      path: req.originalUrl.split('?')[0],
+      ip: req.ip,
+    });
+    res.status(400).json({
+      success: false,
+      error: 'Malformed request body.',
+      code: 'BAD_JSON',
+    });
+    return;
+  }
+
+  // --- Prisma/MongoDB errors -----------------------------------------
   if (err.name === 'PrismaClientKnownRequestError') {
     const prismaErr = err as any;
     let message = 'Database error';
@@ -63,11 +107,14 @@ export const errorHandler = (
         statusCode = 500;
     }
 
+    if (statusCode >= 500) {
+      logger.error('Database error', { code: prismaErr.code, method: req.method, path: req.originalUrl.split('?')[0] });
+    }
     res.status(statusCode).json({
       success: false,
       error: message,
       code: prismaErr.code,
-      ...(config.env === 'development' && { stack: err.stack }),
+      ...(isDev && { stack: err.stack }),
     });
     return;
   }
@@ -77,7 +124,7 @@ export const errorHandler = (
     res.status(400).json({
       success: false,
       error: 'Invalid data provided.',
-      ...(config.env === 'development' && {
+      ...(isDev && {
         details: err.message,
         stack: err.stack,
       }),
@@ -143,14 +190,19 @@ export const errorHandler = (
     return;
   }
 
-  // Default 500 error
+  // --- Default 500 --------------------------------------------------
+  logger.error('Unhandled error', {
+    name: err.name || 'Error',
+    message: err.message,
+    method: req.method,
+    path: req.originalUrl.split('?')[0],
+    ...(isDev && { stack: err.stack }),
+  });
+
   res.status(500).json({
     success: false,
-    error:
-      config.env === 'production'
-        ? 'Internal server error'
-        : err.message || 'Internal server error',
-    ...(config.env === 'development' && { stack: err.stack }),
+    error: isDev ? err.message || 'Internal server error' : 'Internal server error',
+    ...(isDev && { stack: err.stack }),
   });
 };
 
@@ -167,4 +219,3 @@ export const notFoundHandler = (
     error: 'Route not found',
   });
 };
-

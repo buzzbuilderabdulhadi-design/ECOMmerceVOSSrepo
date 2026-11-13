@@ -44,7 +44,7 @@ export function Rating({
   };
 
   const filledColor = onDark ? 'text-gold' : 'text-walnut';
-  const emptyColor = onDark ? '#4E5A68' : '#C7BBA4';
+  const emptyColor = onDark ? '#4B5563' : '#D5D9E0';
 
   const handleClick = (starValue: number) => {
     if (interactive && onChange) {

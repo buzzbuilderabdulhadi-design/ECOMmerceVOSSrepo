@@ -82,10 +82,15 @@ export const refreshUserToken = async (token: string) => {
   });
   if (!user) throw ApiError.unauthorized('User not found');
 
-  // If a session hash is recorded it must match the presented token. A
-  // mismatch means this token was rotated already (or revoked) — treat it as
-  // compromise and clear the stored session.
-  if (user.refreshTokenHash && user.refreshTokenHash !== hashToken(token)) {
+  // Fail CLOSED: a refresh token is only accepted while it matches the
+  // session hash stored for this user. If there is NO stored hash the session
+  // was logged out, revoked, or had its password reset — presenting an old
+  // (still signature-valid) token must never resurrect it. A mismatch means
+  // the token was rotated already (replay/theft): clear the stored session.
+  if (!user.refreshTokenHash) {
+    throw ApiError.unauthorized('Refresh token is no longer valid');
+  }
+  if (user.refreshTokenHash !== hashToken(token)) {
     await prisma.user
       .update({ where: { id: user.id }, data: { refreshTokenHash: null } })
       .catch(() => {});
@@ -139,6 +144,18 @@ export const changePassword = async (userId: string, currentPassword: string, ne
   if (!isValid) throw ApiError.badRequest('Current password is incorrect');
   const passwordHash = await hashPassword(newPassword);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash, refreshTokenHash: null } });
+};
+
+/**
+ * Server-side logout: forget the stored refresh-token hash so any refresh
+ * token already issued for this session can no longer be exchanged (the
+ * client also clears its local copy, but local cleanup alone is not
+ * revocation). Access tokens still expire on their own short-ish lifetime.
+ */
+export const logoutUser = async (userId: string): Promise<void> => {
+  await prisma.user
+    .update({ where: { id: userId }, data: { refreshTokenHash: null } })
+    .catch(() => {});
 };
 
 // ============================================================

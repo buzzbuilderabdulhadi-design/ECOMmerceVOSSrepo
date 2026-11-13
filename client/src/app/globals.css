@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #F5F0E6;
-  --foreground: #2E2E2E;
+  /* The document base stays a light paper tone on purpose. Pages that are
+     built light (shop, product, cart, checkout, dashboard, admin, policy)
+     inherit it; the storefront home page paints its own near-black canvas
+     over it with `bg-onyx`, so the site never loses its dark anchor without
+     darkening text that was authored to sit on white. */
+  --background: #F7F7F5;
+  --foreground: #05070A;
+
+  /* Height of the sticky navbar: 36px announcement + 72px main bar + 1px
+     border. Measured at 109px at 390/768/1024/1440, so there is deliberately
+     no breakpoint override - the bar does not change height on mobile. */
+  --zg-nav-h: 109px;
 }
 
 @theme inline {
@@ -12,43 +22,405 @@
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-cormorant);
 
-  --color-cream: #F5F0E6;
-  --color-cream-dark: #E8E0D0;
-  --color-beige: #E8E0D0;
-  --color-ivory: #F7F4ED;
-  --color-charcoal: #2E2E2E;
-  --color-slate: #5F6368;
-  --color-sage: #8A9A7B;
-  --color-sage-light: #D0DCC5;
-  --color-sage-dark: #55684A;
-  --color-navy: #16324F;
-  --color-navy-light: #2C3B5C;
-  --color-walnut: #8B5E3C;
-  --color-walnut-light: #8A6A52;
-  --color-gold: #C4A86A;
+  /* ---------------------------------------------------------
+     ZOYA GOODS brand palette — black, white, deep navy.
+
+     The ramp runs near-black -> black -> navy -> secondary navy
+     for every dark surface, and paper -> soft white -> white ->
+     light gray for every light surface. Gray exists only as a
+     secondary-text / hairline tone.
+
+     Canonical values
+       near black     #05070A
+       black          #000000
+       dark navy      #071225
+       navy           #0F1B33
+       secondary navy #182A4A
+       white          #FFFFFF
+       soft white     #F5F5F2
+       light gray     #D5D9E0
+       muted gray     #AEB4C0
+       dark border    #1D2738
+       light border   #D9DDE3
+     --------------------------------------------------------- */
+
+  /* --- Dark ramp -------------------------------------------------- */
+  --color-near-black: #05070A;
+  --color-ink: #000000;
+  --color-midnight: #071225;
+  --color-navy-ink: #0B111C;
+  --color-navy-mid: #0F1B33;
+  --color-navy-soft: #182A4A;
+  --color-line-dark: #1D2738;
+
+  /* --- Light ramp ------------------------------------------------- */
+  --color-paper: #F7F7F5;
+  --color-soft-white: #F5F5F2;
+  --color-mist: #D5D9E0;
+  --color-line-light: #D9DDE3;
+
+  /* --- Neutral text tones ---------------------------------------- */
+  --color-muted: #AEB4C0;
+
+  /* ---------------------------------------------------------
+     Semantic aliases.
+
+     These are the names the interface actually consumes. Each one
+     keeps its original LIGHT/DARK polarity so that a `text-*` class
+     keeps reading correctly no matter which surface it lands on:
+     light names stay light (for dark sections), dark names stay
+     dark (for white editorial sections), and the accent tones are
+     split by role — navy on light surfaces, gray on dark ones.
+     --------------------------------------------------------- */
+
+  /* Dark surfaces: near black -> black -> navy -> secondary navy */
+  --color-onyx: var(--color-near-black);
+  --color-espresso: var(--color-midnight);
+  --color-brown: var(--color-navy-mid);
+  --color-cocoa: var(--color-navy-soft);
+
+  /* Light surfaces: paper -> soft white -> white -> light gray */
+  --color-warm-light: var(--color-paper);
+  --color-warm-beige: #FFFFFF;
+  --color-porcelain: var(--color-soft-white);
+  --color-cream: var(--color-soft-white);
+  --color-bone: #FFFFFF;
+  --color-lightbeige: var(--color-soft-white);
+  --color-beige: var(--color-mist);
+  --color-cream-dark: var(--color-mist);
+
+  /* Secondary text: near-black body copy, muted gray on dark sections */
+  --color-charcoal: var(--color-navy-mid);
+  --color-slate: #4B5563;
+  --color-clay: var(--color-muted);
+  --color-cinnamon: var(--color-mist);
+
+  /* Accents that must hold up on dark surfaces */
+  --color-caramel: var(--color-navy-soft);
+  --color-gold: var(--color-mist);
+
+  /* ---------------------------------------------------------
+     Legacy names are kept as ALIASES so the many interior pages
+     that still say bg-navy / text-ivory / border-gold pick up the
+     new palette automatically instead of being edited one by one.
+     --------------------------------------------------------- */
+  --color-navy: var(--color-near-black);
+  --color-navy-light: var(--color-navy-mid);
+  --color-ivory: #FFFFFF;
+  --color-walnut: var(--color-navy-mid);
+  --color-walnut-light: var(--color-navy-soft);
+  --color-sage: var(--color-navy-soft);
+  --color-sage-light: var(--color-line-light);
+  --color-sage-dark: var(--color-navy-mid);
 }
 
+/* ================================================================
+   Everything below is hand-written CSS, wrapped in `@layer components`.
+
+   Tailwind v4 emits its utilities inside `@layer utilities`, and unlayered
+   CSS beats every layer. Leaving these rules unlayered made them silently
+   override utilities — `.eyebrow { color }` beat `text-beige`, and the
+   heading line-height beat `leading-snug`, which clipped wrapped product
+   names. Wrapping restores the intended order:
+   theme < base < components < utilities.
+   ================================================================ */
+
+@layer components {
 html {
   scroll-behavior: smooth;
+  max-width: 100%;
+  /* `clip` (not `hidden`) — `overflow-x: hidden` would turn the
+     scrolling element into a scroll container and silently break
+     `position: sticky` on the navbar. */
+  overflow-x: clip;
+  scroll-padding-top: 7rem;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  letter-spacing: 0.01em;
+  letter-spacing: 0.005em;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 
 /* ============================================================
    Premium display typography
    ============================================================ */
 
-h1, h2, h3, .font-display {
+/* Headings get tight, deliberate display leading. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+/* The .font-display utility only changes face and weight. It must NOT
+   force tight leading, because it is also used on multi-line running
+   text (product names, prices, links) where 1.08 makes wrapped lines
+   collide and causes hidden/clamped boxes to cut descenders. Those
+   elements declare their own leading. */
+.font-display {
   font-family: var(--font-display);
   font-weight: 500;
 }
+
+p, li {
+  text-wrap: pretty;
+}
+
+/* Capped display sizes so large type can never break the layout. */
+.display-hero {
+  font-size: clamp(2.5rem, 7.2vw, 6rem);
+  line-height: 0.98;
+  letter-spacing: -0.015em;
+}
+
+.display-1 {
+  font-size: clamp(2.1rem, 5.2vw, 4.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+}
+
+.display-2 {
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  line-height: 1.1;
+  letter-spacing: -0.005em;
+}
+
+.display-3 {
+  font-size: clamp(1.25rem, 2.2vw, 1.75rem);
+  line-height: 1.2;
+}
+
+/* Small uppercase label above a heading. */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  /* Default is the navy accent, because a bare `.eyebrow` almost always sits
+     on a light editorial surface. Dark surfaces opt into `.eyebrow-bright`. */
+  color: var(--color-navy-soft);
+}
+
+.eyebrow::before {
+  content: '';
+  width: 1.75rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.eyebrow-bright { color: var(--color-beige); }
+.eyebrow-dark { color: var(--color-onyx); }
+.eyebrow-muted { color: var(--color-muted); }
+
+/* ============================================================
+   LAYOUT — one alignment system for the whole site
+   ============================================================ */
+
+/* The single content container. Every major section on every page
+   aligns to this, which removes inconsistent left edges. */
+.shell {
+  width: 100%;
+  max-width: 1400px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+@media (min-width: 640px) {
+  .shell { padding-inline: 32px; }
+}
+
+@media (min-width: 1024px) {
+  .shell { padding-inline: 48px; }
+}
+
+.shell-narrow {
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+@media (min-width: 640px) {
+  .shell-narrow { padding-inline: 32px; }
+}
+
+@media (min-width: 1024px) {
+  .shell-narrow { padding-inline: 48px; }
+}
+
+/* Offset for content that sits directly under the sticky navbar. */
+.under-nav {
+  padding-top: var(--zg-nav-h);
+}
+
+/* Vertical rhythm */
+.section { padding-block: 64px; }
+@media (min-width: 768px)  { .section { padding-block: 96px; } }
+@media (min-width: 1280px) { .section { padding-block: 128px; } }
+
+.section-sm { padding-block: 48px; }
+@media (min-width: 768px)  { .section-sm { padding-block: 72px; } }
+@media (min-width: 1280px) { .section-sm { padding-block: 96px; } }
+
+/* ============================================================
+   REVEAL MASKS — padding + negative margin so descenders and
+   ascenders are never clipped by the overflow box.
+   ============================================================ */
+
+.reveal-box {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.22em;
+  margin-bottom: -0.22em;
+}
+
+.reveal-box-block {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.28em;
+  padding-top: 0.14em;
+  margin-bottom: -0.28em;
+  margin-top: -0.14em;
+}
+
+/* ============================================================
+   IMAGERY
+   ============================================================ */
+
+.img-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Parent for the slow, restrained image zoom. */
+.zoom-parent { overflow: hidden; }
+.zoom-parent > img,
+.zoom-parent > .img-cover {
+  transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.zoom-parent:hover > img,
+.zoom-parent:hover > .img-cover {
+  transform: scale(1.05);
+}
+
+/* ============================================================
+   PRODUCT IMAGE
+   ------------------------------------------------------------
+   Product images are fully static. There is intentionally NO
+   cross-fade, NO second frame, NO scale/zoom and NO opacity or
+   transform transition here: the rendered image is identical
+   before, during and after hover.
+   ============================================================ */
+
+/* ============================================================
+   SURFACES
+   Light surfaces are the editorial counterweight to the dark
+   fashion sections; dark surfaces step through near-black ->
+   black -> navy -> secondary navy.
+   ============================================================ */
+
+.surface-light {
+  background: linear-gradient(180deg, #F7F7F5 0%, #FFFFFF 100%);
+}
+
+.surface-beige {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F5F5F2 100%);
+}
+
+.surface-bone {
+  background: linear-gradient(180deg, #F7F7F5 0%, #FFFFFF 100%);
+}
+
+.surface-warm {
+  background: linear-gradient(135deg, #F7F7F5 0%, #FFFFFF 30%, #F7F7F5 60%, #F5F5F2 100%);
+}
+
+.surface-dark {
+  background: linear-gradient(135deg, #071225 0%, #0F1B33 45%, #182A4A 100%);
+}
+
+.surface-espresso {
+  background: linear-gradient(180deg, #071225 0%, #05070A 100%);
+}
+
+/* Dark cinematic scrim for hero media */
+.surface-scrim {
+  background: linear-gradient(180deg, rgba(5, 7, 10, 0.76) 0%, rgba(7, 18, 37, 0.52) 45%, rgba(5, 7, 10, 0.9) 100%);
+}
+
+.glass-cream {
+  background: rgba(7, 18, 37, 0.78);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Horizontal scroll rail — the canonical definition is further down; the
+   properties that matter live there so both copies cannot drift. */
+
+.divider { height: 1px; background: rgba(15, 27, 51, 0.14); }
+.divider-light { background: rgba(255, 255, 255, 0.14); }
+
+.overscroll-x-contain { overscroll-behavior-x: contain; }
+
+/* Legacy gradient utilities, re-pointed at the navy palette.
+   `.bg-gradient-luxury` / `.bg-gradient-warm` are defined further down with
+   their original geometry, so they are intentionally not redefined here. */
+.bg-cinematic-deep {
+  background: linear-gradient(180deg, #05070A 0%, #071225 55%, #05070A 100%);
+}
+
+.bg-cinematic-vignette {
+  background: radial-gradient(ellipse at center, rgba(5, 7, 10, 0) 30%, rgba(5, 7, 10, 0.72) 100%);
+}
+
+/* Deep navy editorial surface — used for the lookbook and the dark
+   newsletter band. */
+.bg-cinematic {
+  background: linear-gradient(155deg, #071225 0%, #0B1730 45%, #0F1B33 100%);
+}
+
+/* Softer navy variant — the brand-story surface. */
+.bg-cinematic-soft {
+  background: linear-gradient(180deg, #0F1B33 0%, #0A1526 55%, #071225 100%);
+}
+
+/* ============================================================
+   ACCESSIBILITY
+   ============================================================ */
+
+*:focus-visible {
+  outline: 2px solid var(--color-navy-soft);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-navy-mid);
+  color: var(--color-bone);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--color-soft-white); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-navy-soft);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-navy-mid); }
 
 .display-italic {
   font-style: italic;
@@ -56,18 +428,18 @@ h1, h2, h3, .font-display {
 
 /* Oversized editorial display text */
 .display-outline {
-  -webkit-text-stroke: 1px rgba(22, 50, 79, 0.4);
+  -webkit-text-stroke: 1px rgba(5, 7, 10, 0.28);
   color: transparent;
 }
 
 .display-outline-light {
-  -webkit-text-stroke: 1px rgba(247, 244, 237, 0.3);
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.3);
   color: transparent;
 }
 
 /* Understated accent gradient text */
 .text-accent-gradient {
-  background: linear-gradient(100deg, #16324F 0%, #2C3B5C 45%, #8B5E3C 100%);
+  background: linear-gradient(100deg, #05070A 0%, #0F1B33 45%, #182A4A 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -150,7 +522,7 @@ h1, h2, h3, .font-display {
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, #D0DCC5 25%, #E8E0D0 50%, #D0DCC5 75%);
+  background: linear-gradient(90deg, #F5F5F2 25%, #F5F5F2 50%, #F5F5F2 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -225,15 +597,15 @@ h1, h2, h3, .font-display {
 }
 
 .hairline-b {
-  border-bottom: 1px solid rgba(138, 154, 123, 0.25);
+  border-bottom: 1px solid rgba(24, 42, 74, 0.28);
 }
 
 .hairline-t {
-  border-top: 1px solid rgba(138, 154, 123, 0.25);
+  border-top: 1px solid rgba(24, 42, 74, 0.28);
 }
 
 .hairline-gold {
-  border-bottom: 1px solid rgba(196, 168, 106, 0.4);
+  border-bottom: 1px solid rgba(213, 217, 224, 0.4);
 }
 
 /* ============================================================
@@ -266,12 +638,14 @@ h1, h2, h3, .font-display {
 }
 
 /* Horizontal scroll rail with snap */
-.rail {
-  display: flex;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
+  .rail {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
 .rail::-webkit-scrollbar {
   height: 0;
 }
@@ -280,71 +654,75 @@ h1, h2, h3, .font-display {
 }
 
 /* ============================================================
-   Gradient backgrounds — using only palette colors
+   Gradient backgrounds — black / navy / white only
    ============================================================ */
 
+/* The document canvas. Deliberately a light paper gradient: the light
+   interior pages inherit it, while the storefront paints `bg-onyx` over
+   it. */
 .bg-gradient-luxury {
-  background: linear-gradient(135deg, #F5F0E6 0%, #F7F2E9 30%, #F5F0E6 60%, #E8E0D0 100%);
+  background: linear-gradient(135deg, #F7F7F5 0%, #FFFFFF 30%, #F7F7F5 60%, #F5F5F2 100%);
 }
 
 .bg-gradient-warm {
-  background: linear-gradient(180deg, #F5F0E6 0%, #F7F2E9 50%, #F5F0E6 100%);
+  background: linear-gradient(180deg, #F7F7F5 0%, #FFFFFF 50%, #F7F7F5 100%);
 }
 
 .bg-gradient-cream-sage {
-  background: linear-gradient(135deg, #F5F0E6 0%, #D0DCC5 50%, #F5F0E6 100%);
+  background: linear-gradient(135deg, #F7F7F5 0%, #FFFFFF 50%, #F7F7F5 100%);
 }
 
 .bg-gradient-beige-cream {
-  background: linear-gradient(135deg, #E8E0D0 0%, #F5F0E6 50%, #E8E0D0 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5F5F2 50%, #FFFFFF 100%);
 }
 
 .bg-gradient-navy-sage {
-  background: linear-gradient(135deg, #16324F 0%, #2C3B5C 40%, #6B7D5E 100%);
+  background: linear-gradient(135deg, #05070A 0%, #0F1B33 40%, #182A4A 100%);
 }
 
 .bg-gradient-walnut-cream {
-  background: linear-gradient(135deg, #8B5E3C 0%, #8A6A52 40%, #F5F0E6 100%);
+  background: linear-gradient(135deg, #0F1B33 0%, #0F1B33 40%, #F7F7F5 100%);
 }
 
+/* Hero readability wash — near black over deep navy. */
 .bg-gradient-hero {
   background: linear-gradient(
     135deg,
-    rgba(22, 50, 79, 0.92) 0%,
-    rgba(44, 59, 92, 0.7) 45%,
-    rgba(107, 125, 94, 0.35) 70%,
-    rgba(245, 240, 230, 0.15) 100%
+    rgba(5, 7, 10, 0.94) 0%,
+    rgba(7, 18, 37, 0.78) 45%,
+    rgba(15, 27, 51, 0.42) 70%,
+    rgba(245, 245, 242, 0.14) 100%
   );
 }
 
 .bg-gradient-footer {
-  background: linear-gradient(180deg, #17324D 0%, #1B2A45 50%, #142C47 100%);
+  background: linear-gradient(180deg, #000000 0%, #05070A 55%, #071225 100%);
 }
 
 .bg-gradient-card {
-  background: linear-gradient(180deg, #ffffff 0%, #F5F0E6 40%, #ffffff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #F7F7F5 40%, #ffffff 100%);
 }
 
 .bg-gradient-night {
   background:
-    radial-gradient(ellipse 80% 55% at 22% 18%, rgba(107, 125, 94, 0.12) 0%, transparent 55%),
-    radial-gradient(ellipse 65% 45% at 85% 80%, rgba(138, 154, 123, 0.16) 0%, transparent 55%),
-    linear-gradient(155deg, #1a2438 0%, #16324F 42%, #26324d 100%);
+    radial-gradient(ellipse 80% 55% at 22% 18%, rgba(24, 42, 74, 0.16) 0%, transparent 55%),
+    radial-gradient(ellipse 65% 45% at 85% 80%, rgba(15, 27, 51, 0.28) 0%, transparent 55%),
+    linear-gradient(155deg, #05070A 0%, #05070A 42%, #071225 100%);
 }
 
 /* Glass morphism */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(208, 220, 197, 0.3);
+  border: 1px solid rgba(217, 221, 227, 0.6);
 }
 
 .glass-dark {
-  background: rgba(22, 50, 79, 0.12);
+  background: rgba(5, 7, 10, 0.35);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(208, 220, 197, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 /* Section dividers */
@@ -358,7 +736,7 @@ h1, h2, h3, .font-display {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(138, 154, 123, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(24, 42, 74, 0.32), transparent);
 }
 
 .section-divider-bottom {
@@ -371,7 +749,7 @@ h1, h2, h3, .font-display {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(138, 154, 123, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(24, 42, 74, 0.32), transparent);
 }
 
 /* Text highlight */
@@ -386,7 +764,7 @@ h1, h2, h3, .font-display {
   left: 0;
   right: 0;
   height: 4px;
-  background: rgba(138, 154, 123, 0.35);
+  background: rgba(24, 42, 74, 0.28);
   z-index: -1;
 }
 
@@ -411,9 +789,9 @@ h1, h2, h3, .font-display {
   transform-origin: left;
 }
 
-/* Walnut-tinted underline sweep (for links on dark navy backgrounds) */
+/* Navy-tinted underline sweep (for links on dark surfaces) */
 .link-underline-walnut::after {
-  background: #8B5E3C;
+  background: var(--color-navy-soft);
 }
 
 /* Persistent underline for the active nav link */
@@ -424,12 +802,12 @@ h1, h2, h3, .font-display {
 
 /* Text shadow for large light-on-dark display text */
 .text-shadow-luxe {
-  text-shadow: 0 1px 0 rgba(22, 50, 79, 0.35), 0 2px 28px rgba(22, 50, 79, 0.65);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4), 0 2px 28px rgba(0, 0, 0, 0.7);
 }
 
 /* Focus ring */
 *:focus-visible {
-  outline: 2px solid #8A9A7B;
+  outline: 2px solid var(--color-navy-soft);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -445,16 +823,16 @@ h1, h2, h3, .font-display {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #8A9A7B;
+  background: var(--color-navy-soft);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #6B7D5E;
+  background: var(--color-navy-mid);
 }
 
 ::selection {
-  background: rgba(138, 154, 123, 0.35);
-  color: #16324F;
+  background: rgba(24, 42, 74, 0.28);
+  color: var(--color-onyx);
 }
 
 /* ============================================================
@@ -472,7 +850,7 @@ h1, h2, h3, .font-display {
 
 /* Curtain loading reveal */
 .curtain-panel {
-  background: #16324F;
+  background: #000000;
 }
 
 /* Text reveal word/line masks */
@@ -491,33 +869,52 @@ h1, h2, h3, .font-display {
   to { transform: translateY(0); }
 }
 
-/* Fine input for luxury forms */
+/* Fine input for luxury forms — light editorial variant (no fill, just a
+   navy hairline under the baseline). */
 .input-luxe {
   background: transparent;
   border: 0;
-  border-bottom: 1px solid rgba(138, 154, 123, 0.5);
+  border-bottom: 1px solid rgba(15, 27, 51, 0.35);
   border-radius: 0;
   padding: 0.625rem 0;
   font-size: 0.875rem;
-  color: #2E2E2E;
+  color: var(--color-near-black);
   transition: border-color 0.3s ease;
 }
 .input-luxe::placeholder {
-  color: rgba(46, 46, 46, 0.4);
+  color: rgba(75, 85, 99, 0.65);
 }
 .input-luxe:focus {
   outline: none;
-  border-color: #16324F;
+  border-color: var(--color-navy-mid);
+}
+
+/* Dark variant — filled field on the navy/black surfaces. */
+.input-luxe-dark {
+  background: var(--color-navy-ink);
+  border: 1px solid var(--color-line-dark);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #FFFFFF;
+  transition: border-color 0.3s ease;
+}
+.input-luxe-dark::placeholder {
+  color: var(--color-muted);
+}
+.input-luxe-dark:focus {
+  outline: none;
+  border-color: var(--color-navy-soft);
 }
 
 /* On-brand prose for policy pages */
 .prose-zoya {
   font-size: 0.9375rem;
   line-height: 1.8;
-  color: #5F6368;
+  color: #4B5563;
 }
 .prose-zoya > p:first-child {
-  color: #8B5E3C;
+  color: var(--color-navy-soft);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -526,12 +923,12 @@ h1, h2, h3, .font-display {
 .prose-zoya h2 {
   margin-top: 2.5rem;
   margin-bottom: 0.875rem;
-  color: #16324F;
+  color: var(--color-near-black);
 }
 .prose-zoya h3 {
   margin-top: 2rem;
   margin-bottom: 0.75rem;
-  color: #16324F;
+  color: var(--color-near-black);
 }
 .prose-zoya p {
   margin-bottom: 1.25rem;
@@ -549,16 +946,16 @@ h1, h2, h3, .font-display {
   margin-bottom: 0.5rem;
 }
 .prose-zoya a {
-  color: #6B7D5E;
+  color: var(--color-navy-mid);
   text-decoration: underline;
   text-underline-offset: 3px;
   transition: color 0.2s ease;
 }
 .prose-zoya a:hover {
-  color: #16324F;
+  color: var(--color-near-black);
 }
 .prose-zoya strong {
-  color: #2E2E2E;
+  color: var(--color-navy-mid);
   font-weight: 600;
 }
 
@@ -570,4 +967,5 @@ h1, h2, h3, .font-display {
   .grain::after {
     animation: none !important;
   }
+}
 }

@@ -74,8 +74,8 @@ export function StripeCheckoutProvider({ children }: { children: ReactNode }) {
         appearance: {
           theme: 'stripe',
           variables: {
-            colorPrimary: '#6b8e6b',
-            colorText: '#1f2a44',
+            colorPrimary: '#0F1B33',
+            colorText: '#0B111C',
             borderRadius: '10px',
             fontFamily: 'inherit',
           },

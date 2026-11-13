@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate';
+import { checkoutReadLimiter, paymentActionLimiter } from '../middleware/rateLimit.middleware';
 import {
   capturePayPalOrderSchema,
   createPaymentIntentSchema,
@@ -18,10 +19,10 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/methods', getCheckoutMethods);
-router.get('/preview', previewCheckout);
-router.post('/payment-intent', validate(createPaymentIntentSchema), createOrderPaymentIntent);
-router.post('/paypal/create', validate(createPayPalOrderSchema), createPayPalOrderForCheckout);
-router.post('/paypal/capture', validate(capturePayPalOrderSchema), capturePayPalOrderForCheckout);
+router.get('/methods', checkoutReadLimiter, getCheckoutMethods);
+router.get('/preview', checkoutReadLimiter, previewCheckout);
+router.post('/payment-intent', paymentActionLimiter, validate(createPaymentIntentSchema), createOrderPaymentIntent);
+router.post('/paypal/create', paymentActionLimiter, validate(createPayPalOrderSchema), createPayPalOrderForCheckout);
+router.post('/paypal/capture', paymentActionLimiter, validate(capturePayPalOrderSchema), capturePayPalOrderForCheckout);
 
 export default router;

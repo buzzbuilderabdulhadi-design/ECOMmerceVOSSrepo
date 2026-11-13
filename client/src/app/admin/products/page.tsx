@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/services/axios';
 import { resolveAssetUrl } from '@/lib/assetUrl';
 import { useDebounce } from '@/hooks/useDebounce';
+import Image from 'next/image';
 
 interface Product {
   id: string; name: string; slug: string; sku: string; regularPrice: number; salePrice?: number;
@@ -48,7 +49,7 @@ export default function AdminProductsPage() {
     } catch (err) { setError(getErrorMessage(err) || 'Failed to load products'); } finally { setLoading(false); }
   }, [debouncedSearch, status]);
 
-  useEffect(() => { fetchProducts(1); }, [fetchProducts]);
+  useEffect(() => { void Promise.resolve().then(() => fetchProducts(1)); }, [fetchProducts]);
 
   const handleDelete = async (id: string) => {
     setDeleting(id);
@@ -169,7 +170,14 @@ export default function AdminProductsPage() {
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 flex-shrink-0 rounded-lg bg-sage-light/20 overflow-hidden">
                           {getImageUrl(product.images?.[0]) ? (
-                            <img src={getImageUrl(product.images[0])} alt="" className="h-full w-full object-cover" />
+                            <Image
+                              src={getImageUrl(product.images[0])}
+                              alt=""
+                              fill
+                              unoptimized
+                              sizes="40px"
+                              className="object-cover"
+                            />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-slate/40">
                               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>

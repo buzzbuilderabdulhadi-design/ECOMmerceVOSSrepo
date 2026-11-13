@@ -104,6 +104,18 @@ export interface Product {
   updatedAt: string;
 }
 
+/**
+ * Shape returned by GET /products/:slug. The controller resolves the category,
+ * active variants and approved reviews in parallel and merges them onto the
+ * product, plus aggregate counts used by the detail page.
+ */
+export interface ProductDetail extends Product {
+  category: Category;
+  variants: ProductVariant[];
+  reviews: Review[];
+  _count: { reviews: number; questions: number };
+}
+
 export interface Category {
   id: string;
   name: string;

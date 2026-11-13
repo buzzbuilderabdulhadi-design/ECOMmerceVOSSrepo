@@ -36,7 +36,7 @@ export default function AdminQuestionsPage() {
     }
   }, [status, debouncedSearch]);
 
-  useEffect(() => { fetchQuestions(1); }, [status, debouncedSearch]);
+  useEffect(() => { void Promise.resolve().then(() => fetchQuestions(1)); }, [fetchQuestions]);
 
   const handleAnswer = async (id: string) => {
     if (!answerText.trim()) { toast.error('Please write an answer first'); return; }

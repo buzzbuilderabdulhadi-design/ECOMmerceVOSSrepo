@@ -42,7 +42,7 @@ export default function AdminActivityLogsPage() {
   }, [page, actionFilter, entityFilter]);
 
   useEffect(() => {
-    loadLogs();
+    void Promise.resolve().then(loadLogs);
   }, [loadLogs]);
 
   const handleClear = async () => {

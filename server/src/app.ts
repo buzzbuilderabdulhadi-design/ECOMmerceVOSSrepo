@@ -5,13 +5,21 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
 import config from './config';
-import prisma, { connectDatabase, disconnectDatabase } from './config/db';
+import prisma from './config/db';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { requestGuards, sensitiveNoStore } from './middleware/requestGuards';
+import { csrfProtection } from './middleware/csrf.middleware';
+import { globalApiLimiter } from './middleware/rateLimit.middleware';
 import { stripeWebhook as stripeWebhookHandler } from './controllers/webhooks.controller';
 import { paypalWebhook as paypalWebhookHandler } from './controllers/paypal.webhook';
-import logger from './utils/logger';
+import {
+  isCloudinaryConfigured,
+  isEmailConfigured,
+  isGoogleConfigured,
+  isPaypalConfigured,
+  isStripeConfigured,
+} from './config';
 
 // ============================================================
 // ZOYA GOODS — Express Application Entry Point
@@ -28,10 +36,25 @@ const app = express();
 // header trust when no proxy is present, preventing X-Forwarded-For spoofing).
 app.set('trust proxy', config.trustProxy);
 
-// Security headers
+// Security headers. The JSON API is not an HTML surface, so a deny-by-default
+// CSP is safe here; the storefront has its own CSP (client/next.config.ts).
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false, // Disabled for API — enable if serving HTML
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'none'"],
+      baseUri: ["'none'"],
+      formAction: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  frameguard: { action: 'deny' },
+  hsts: config.env === 'production'
+    ? { maxAge: 31_536_000, includeSubDomains: true, preload: true }
+    : false,
+  crossOriginEmbedderPolicy: false,
 }));
 
 // CORS
@@ -43,7 +66,7 @@ app.use(cors({
   origin: config.client.url,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'x-csrf-token'],
 }));
 
 // Compression
@@ -52,41 +75,38 @@ app.use(compression());
 // Cookie parser
 app.use(cookieParser());
 
+// CSRF protection for cookie-authenticated state-changing requests.
+app.use('/api', csrfProtection);
+
+// ============================================================
+// Request shape guards
+//
+// Cheap URL/query limits, applied before any route handler so an absurd
+// request never reaches the database.
+// ============================================================
+
+app.use('/api', requestGuards);
+
+// Per-user responses must never be stored by shared caches.
+app.use('/api', sensitiveNoStore);
+
 // ============================================================
 // Rate Limiting
+//
+// Two layers:
+//   1. A generous global backstop on /api (below) — catches raw floods from
+//      a single IP across the whole API.
+//   2. Route-specific limiters mounted inside src/routes/* (login, search,
+//      cart mutations, checkout, orders, reviews, contact, admin, uploads…)
+//      with limits tuned per action. See src/middleware/rateLimit.middleware.ts.
 //
 // Mounted BEFORE webhooks so the raw-body endpoints are also rate limited
 // (they are public, signature-verified, and externally reachable). Static
 // /uploads assets intentionally stay unlimited — they are plain image files.
 // ============================================================
 
-// Public API limiter — sized for launch traffic (default 1000 / 15 min).
-const limiter = rateLimit({
-  windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.publicMax,
-  message: {
-    success: false,
-    error: 'Too many requests, please try again later.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
-
-// Stricter rate limit for auth routes
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
-  message: {
-    success: false,
-    error: 'Too many authentication attempts, please try again later.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-// Auth routes live under /api/v1/auth, so the limiter must be mounted on the
-// same path — mounting on /api/auth never matched anything.
-app.use('/api/v1/auth', authLimiter);
+// Global API backstop — sized for launch traffic (default 1000 / 15 min).
+app.use('/api', globalApiLimiter);
 
 // Stripe webhook MUST receive the raw body before any JSON parsing so the
 // signature can be verified against the exact bytes Stripe signed.
@@ -104,9 +124,12 @@ app.post(
   paypalWebhookHandler
 );
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsing.
+// JSON is capped at 1mb (the largest legitimate payload is an admin product
+// or settings save; images are uploaded as multipart, never base64 in JSON).
+// URL-encoded bodies are capped far lower — no legitimate form exceeds it.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // Request logging (development only). Per-request synchronous stdout logging
 // is a known event-loop bottleneck under load, so production skips it and
@@ -143,6 +166,13 @@ app.get('/api/health', async (_req, res) => {
       environment: config.env,
       uptime: process.uptime(),
       database: dbConnected ? 'connected' : 'disconnected',
+      integrations: {
+        email: isEmailConfigured(),
+        cloudinary: isCloudinaryConfigured(),
+        stripe: isStripeConfigured(),
+        paypal: isPaypalConfigured(),
+        google: isGoogleConfigured(),
+      },
     },
   });
 });
@@ -164,59 +194,5 @@ app.use(notFoundHandler);
 
 // Global error handler
 app.use(errorHandler);
-
-// ============================================================
-// Server Initialization
-// ============================================================
-
-async function startServer(): Promise<void> {
-  try {
-    // Connect to database
-    await connectDatabase();
-
-    // Run config validation
-    const { validateConfig } = await import('./config');
-    validateConfig();
-
-    app.listen(config.port, () => {
-      logger.info(`🚀 ZOYA GOODS Server running on port ${config.port}`);
-      logger.info(`🌍 Environment: ${config.env}`);
-      logger.info(`🔗 Client URL: ${config.client.url}`);
-
-      if (config.env === 'development') {
-        logger.info(`📚 API Docs: http://localhost:${config.port}/api/health`);
-      }
-    });
-  } catch (error) {
-    logger.error('Failed to start server:', { error: String(error) });
-    process.exit(1);
-  }
-}
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason: Error) => {
-  logger.error('Unhandled Rejection:', { error: reason.message, stack: reason.stack });
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error: Error) => {
-  logger.error('Uncaught Exception:', { error: error.message, stack: error.stack });
-  process.exit(1);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received. Shutting down gracefully...');
-  await disconnectDatabase();
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received. Shutting down gracefully...');
-  await disconnectDatabase();
-  process.exit(0);
-});
-
-startServer();
 
 export default app;

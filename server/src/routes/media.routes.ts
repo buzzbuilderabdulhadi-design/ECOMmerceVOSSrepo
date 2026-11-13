@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticate, authorizeAdmin } from '../middleware/auth.middleware';
+import { uploadLimiter } from '../middleware/rateLimit.middleware';
 import { uploadFile, uploadMultiple } from '../controllers/media.controller';
+import { ApiError } from '../utils/apiError';
 import multer from 'multer';
 import os from 'os';
 import path from 'path';
@@ -20,7 +22,9 @@ const fileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
   if (ALLOWED_MIME_TYPES.includes(file.mimetype) && ALLOWED_EXTENSIONS.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`Invalid file type. Allowed: JPEG, PNG, WebP. Received: ${file.mimetype} (${ext})`));
+    // A 400 (not a plain Error which would become a generic 500 in
+    // production).
+    cb(ApiError.badRequest(`Invalid file type. Allowed: JPEG, PNG, WebP. Received: ${file.mimetype} (${ext})`));
   }
 };
 
@@ -50,7 +54,9 @@ const router = Router();
 
 // Media uploads are privileged storefront assets. Only admins may upload;
 // a plain customer hitting these routes is rejected before multer runs.
-router.post('/upload', authenticate, authorizeAdmin, upload.single('file'), uploadFile);
-router.post('/upload-multiple', authenticate, authorizeAdmin, upload.array('files', 10), uploadMultiple);
+// The upload limiter is per-admin-user: 40 files / 15 min is generous for a
+// human import batch but blocks a runaway/abusive uploader.
+router.post('/upload', authenticate, authorizeAdmin, uploadLimiter, upload.single('file'), uploadFile);
+router.post('/upload-multiple', authenticate, authorizeAdmin, uploadLimiter, upload.array('files', 10), uploadMultiple);
 
 export default router;

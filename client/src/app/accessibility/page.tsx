@@ -20,7 +20,7 @@ export default function AccessibilityPage() {
             Access
           </span>
           <div className="pointer-events-none absolute -left-32 top-24 h-72 w-72 rounded-full bg-sage/10 blur-[100px]" />
-          <div className="relative z-10 mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12">
+          <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Accessibility' }]} />
             <div className="mt-8 max-w-2xl">
               <p className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-sage-dark">

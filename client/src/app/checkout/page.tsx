@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { PaymentElement } from '@stripe/react-stripe-js';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -11,6 +13,7 @@ import { Input } from '@/components/ui/Input';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { TextReveal } from '@/components/animations/TextReveal';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 import { createAddress } from '@/services/addresses';
 import { createOrder } from '@/services/orders';
 import {
@@ -22,8 +25,9 @@ import {
 import { getErrorMessage } from '@/services/axios';
 import { computeTotals } from '@/lib/pricing';
 import { StripeCheckoutProvider, useStripeElements } from '@/components/checkout/StripeCheckoutProvider';
-import type { CheckoutMethod, CheckoutPreview, PaymentMethod } from '@/types';
-import { cn } from '@/lib/utils';
+import type { Cart, CheckoutMethod, CheckoutPreview, PaymentMethod } from '@/types';
+import { cn, formatPrice } from '@/lib/utils';
+import { ProductImage } from '@/components/product/ProductImage';
 
 type Step = 'shipping' | 'payment' | 'review';
 
@@ -69,6 +73,52 @@ function methodLabel(methods: CheckoutMethod[], id: PaymentMethod | null | undef
   return found?.label ?? FALLBACK_LABELS[id] ?? String(id);
 }
 
+interface ReviewLine {
+  key: string;
+  name: string;
+  slug: string;
+  variant: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  images: string[];
+}
+
+/**
+ * Order lines for the review step. The server preview is authoritative when it
+ * has loaded; until then the cart is mirrored for display only, the same way
+ * `fallbackTotals` mirrors the totals.
+ */
+function buildReviewLines(preview: CheckoutPreview | null, cart: Cart | null | undefined): ReviewLine[] {
+  if (preview?.items?.length) {
+    return preview.items.map((item, i) => ({
+      key: `${item.productId}-${item.variantId ?? 'default'}-${i}`,
+      name: item.name,
+      slug: item.slug,
+      variant: [item.color, item.size].filter(Boolean).join(' / '),
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal: item.lineTotal,
+      images: item.image ? [item.image] : [],
+    }));
+  }
+  return (cart?.items ?? []).map((item) => {
+    const unitPrice =
+      item.variant?.priceOverride ?? item.product?.salePrice ?? item.product?.regularPrice ?? 0;
+    return {
+      key: item.id,
+      name: item.product?.name ?? '',
+      slug: item.product?.slug ?? '',
+      variant: [item.variant?.color, item.variant?.size].filter(Boolean).join(' / '),
+      quantity: item.quantity,
+      unitPrice,
+      lineTotal: unitPrice * item.quantity,
+      images:
+        item.product?.images?.map((i) => (typeof i === 'string' ? i : i.url)).filter(Boolean) || [],
+    };
+  });
+}
+
 export default function CheckoutPage() {
   return (
     <StripeCheckoutProvider>
@@ -78,8 +128,10 @@ export default function CheckoutPage() {
 }
 
 function CheckoutContent() {
+  const router = useRouter();
   const { stripe, elements } = useStripeElements();
   const { cart, subtotal, refreshCart } = useCart();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [step, setStep] = useState<Step>('shipping');
   const [shippingForm, setShippingForm] = useState<ShippingForm>(initialShipping);
   const [shippingErrors, setShippingErrors] = useState<Partial<Record<keyof ShippingForm, string>>>({});
@@ -113,8 +165,19 @@ function CheckoutContent() {
   // Display-only mirror; the server recomputes all totals authoritatively.
   const fallbackTotals = computeTotals(subtotal, discount);
   const totals = preview ? preview.totals : fallbackTotals;
+  const reviewLines = buildReviewLines(preview, cart);
+
+  // Orders are tied to an account, and every checkout endpoint below is
+  // authenticated. Send signed-out visitors to sign in and return them here
+  // instead of leaving them on a checkout that cannot load.
+  React.useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace('/login?redirect=%2Fcheckout');
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   React.useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     let active = true;
     fetchCheckoutPreview()
       .then((data) => {
@@ -129,9 +192,10 @@ function CheckoutContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   React.useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     let active = true;
     fetchCheckoutMethods()
       .then((data) => {
@@ -150,7 +214,7 @@ function CheckoutContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   const updateShipping = (field: keyof ShippingForm, value: string) => {
     setShippingForm((prev) => ({ ...prev, [field]: value }));
@@ -237,7 +301,9 @@ function CheckoutContent() {
           throw new Error('PayPal could not start your payment. Please try again.');
         }
         setPaypalRedirecting(true);
-        window.location.href = paypal.approvalUrl;
+        // Full-page navigation to PayPal's approval URL. assign is deliberate:
+        // it must leave the SPA, which router.push cannot do cross-origin.
+        window.location.assign(paypal.approvalUrl);
         return;
       }
 
@@ -266,16 +332,29 @@ function CheckoutContent() {
     </div>
   ) : null;
 
+  // Hold the page while the session is being resolved or while the signed-out
+  // visitor is on their way to the login page.
+  if (authLoading || !isAuthenticated) {
+    return (
+      <main className="min-h-screen bg-warm-beige">
+        <Navbar />
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-navy/20 border-t-navy" />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <PageTransition>
-      <main className="min-h-screen">
+      <main className="min-h-screen bg-warm-beige">
         <Navbar />
 
         <section className="relative overflow-hidden pb-4 pt-24 md:pt-36">
-          <span className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[12rem]">
+          <span aria-hidden="true" className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[12rem]">
             Order
           </span>
-          <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-8 lg:px-12">
+          <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
             <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Checkout' }]} />
             <div className="mt-6">
               <TextReveal as="h1" text="Checkout" className="font-display text-5xl font-light text-navy sm:text-6xl" />
@@ -283,7 +362,7 @@ function CheckoutContent() {
           </div>
         </section>
 
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-12">
           {/* Progress Steps */}
           <div className="mb-12">
             <div className="flex items-center justify-between">
@@ -558,7 +637,7 @@ function CheckoutContent() {
                     ) : paymentMethod === 'PAYPAL' ? (
                       <div className="rounded-xl border border-sage-light/30 bg-sage-light/10 p-5">
                         <p className="text-sm leading-relaxed text-slate">
-                          You'll be redirected to PayPal to approve the payment securely.
+                          You&rsquo;ll be redirected to PayPal to approve the payment securely.
                           You will return to ZOYA GOODS once the payment is complete.
                         </p>
                         <p className="mt-3 text-xs text-slate">
@@ -639,6 +718,37 @@ function CheckoutContent() {
                           : 'Charged securely when you place the order'}
                       </p>
                     </div>
+                  </div>
+
+                  <div>
+                    <h3 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-sage-dark">
+                      <span className="h-px w-6 bg-sage" /> Order Items
+                    </h3>
+                    <ul className="mt-4">
+                      {reviewLines.map((line) => (
+                        <li key={line.key} className="grid grid-cols-[auto_1fr_auto] items-start gap-4 border-b border-navy/10 py-4 last:border-b-0">
+                          <Link
+                            href={`/products/${line.slug}`}
+                            className="relative h-20 w-16 flex-shrink-0 overflow-hidden bg-bone"
+                          >
+                            <ProductImage images={line.images} alt={line.name} className="h-full w-full" sizes="64px" />
+                          </Link>
+                          <div className="min-w-0">
+                            <Link href={`/products/${line.slug}`} className="block font-display text-lg font-medium text-navy transition-colors hover:text-walnut">
+                              {line.name}
+                            </Link>
+                            {line.variant && <p className="mt-1 text-xs text-slate">{line.variant}</p>}
+                            <p className="mt-1 text-xs text-slate">
+                              Qty: {line.quantity} &middot; {formatPrice(line.unitPrice)} each
+                            </p>
+                          </div>
+                          <p className="font-display text-lg text-navy">{formatPrice(line.lineTotal)}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-3 text-xs text-slate">
+                      {reviewLines.length} {reviewLines.length === 1 ? 'item' : 'items'}
+                    </p>
                   </div>
 
                   <div className="bg-gradient-night grain rounded-2xl p-6 sm:p-8">

@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -14,6 +13,7 @@ import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { TextReveal } from '@/components/animations/TextReveal';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { LoadingState } from '@/components/shared/LoadingState';
+import { ProductImage } from '@/components/product/ProductImage';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useAuth } from '@/context/AuthContext';
@@ -118,10 +118,10 @@ export default function CartPage() {
 
   const header = (
     <section className="relative overflow-hidden pb-6 pt-24 md:pb-10 md:pt-36">
-      <span className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[12rem]">
+      <span aria-hidden="true" className="display-outline pointer-events-none absolute -right-4 top-10 select-none font-display text-[8rem] leading-none opacity-50 sm:text-[12rem]">
         Cart
       </span>
-      <div className="relative z-10 mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12">
+      <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
         <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'Cart' }]} />
         <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
           <TextReveal as="h1" text="Shopping Cart" className="font-display text-5xl font-light text-navy sm:text-6xl" />
@@ -145,10 +145,10 @@ export default function CartPage() {
   if (isLoading && cartItems.length === 0) {
     return (
       <PageTransition>
-        <main className="min-h-screen">
+        <main className="min-h-screen bg-warm-beige">
           <Navbar />
           {header}
-          <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-12">
             <LoadingState variant="cart" />
           </div>
           <Footer />
@@ -162,10 +162,10 @@ export default function CartPage() {
   if (error && !cart) {
     return (
       <PageTransition>
-        <main className="min-h-screen">
+        <main className="min-h-screen bg-warm-beige">
           <Navbar />
           {header}
-          <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-8 lg:px-12 text-center">
+          <div className="mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-12 text-center">
             <div className="mx-auto max-w-lg rounded-2xl border border-red-200 bg-red-50 p-10">
               <svg className="mx-auto h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -183,12 +183,12 @@ export default function CartPage() {
 
   return (
     <PageTransition>
-      <main className="min-h-screen">
+      <main className="min-h-screen bg-warm-beige">
         <Navbar />
         {header}
 
         {cartItems.length === 0 ? (
-          <div className="mx-auto max-w-[1400px] px-4 py-16 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-[1400px] px-5 py-16 sm:px-8 lg:px-12">
             <EmptyState
               type="cart"
               title="Your cart is empty"
@@ -198,7 +198,7 @@ export default function CartPage() {
             />
           </div>
         ) : (
-          <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-12">
             {cart?.couponNotice && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
@@ -206,7 +206,7 @@ export default function CartPage() {
                 className="mb-8 flex items-start gap-3 rounded-2xl border border-amber-300/40 bg-amber-50 px-5 py-4 text-sm text-amber-800"
                 role="status"
               >
-                <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <span>{cart.couponNotice}</span>
@@ -252,8 +252,6 @@ export default function CartPage() {
                     const p = item.product;
                     const v = item.variant;
                     const price = v?.priceOverride ?? p.salePrice ?? p.regularPrice;
-                    const firstImage = p.images?.[0];
-                    const imageUrl = typeof firstImage === 'string' ? firstImage : (firstImage as { url?: string })?.url || '';
                     const flag = cart?.availability?.[item.id];
                     const unavailable = !!flag?.unavailable;
                     const pending = isItemPending(item.id);
@@ -264,8 +262,16 @@ export default function CartPage() {
                           layout
                           className="group grid grid-cols-[auto_1fr] gap-5 border-b border-navy/10 py-7 sm:gap-7"
                         >
-                          <Link href={`/products/${p.slug}`} className="relative h-32 w-24 flex-shrink-0 overflow-hidden sm:h-40 sm:w-32">
-                            <Image src={imageUrl} alt={p.name} fill className="object-cover transition-transform duration-700 group-hover:scale-108" sizes="128px" />
+                          <Link
+                            href={`/products/${p.slug}`}
+                            className="relative h-32 w-24 flex-shrink-0 overflow-hidden bg-bone sm:h-40 sm:w-32"
+                          >
+                            <ProductImage
+                              images={p.images}
+                              alt={p.name}
+                              className="h-full w-full"
+                              sizes="128px"
+                            />
                           </Link>
 
                           <div className="flex flex-col">
@@ -316,7 +322,7 @@ export default function CartPage() {
                               <p
                                 className={unavailable
                                   ? 'mt-3 flex items-center gap-2 text-xs font-medium text-red-600'
-                                  : 'mt-3 flex items-center gap-2 text-xs font-medium text-amber-600'}
+                                  : 'mt-3 flex items-center gap-2 text-xs font-medium text-navy-mid'}
                                 role="status"
                               >
                                 {unavailable ? (
@@ -367,7 +373,7 @@ export default function CartPage() {
                   {/* Coupon */}
                   <div className="mt-7">
                     {cart?.couponCode && cart.discountAmount ? (
-                      <div className="flex items-center justify-between rounded-xl border border-gold/30 bg-gold/10 px-4 py-3">
+                      <div className="flex items-center justify-between rounded-xl border border-navy-soft/50 bg-navy-soft/15 px-4 py-3">
                         <div>
                           <p className="text-xs text-sage-light">Applied coupon</p>
                           <p className="font-display text-lg text-gold">{cart.couponCode}</p>

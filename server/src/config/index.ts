@@ -23,7 +23,20 @@ interface Config {
   client: {
     url: string;
   };
+  cors: {
+    allowedOrigins: string[];
+  };
+  cookie: {
+    domain?: string;
+    secure: boolean;
+    sameSite: 'lax' | 'strict' | 'none';
+  };
   trustProxy: number | boolean | string;
+  redis: {
+    url: string;
+    allowMemoryStore: boolean;
+    connectTimeoutMs: number;
+  };
   cloudinary: {
     name: string;
     apiKey: string;
@@ -33,6 +46,13 @@ interface Config {
     windowMs: number;
     max: number;
     publicMax: number;
+    keyPrefix: string;
+    /**
+     * When the counter store errors, allow the request through. Never enabled
+     * in production: a broken shared store must fail closed, not silently
+     * disable rate limiting across every instance.
+     */
+    passOnStoreError: boolean;
   };
   email: {
     service: string;
@@ -84,6 +104,49 @@ function parseTrustProxy(): number | boolean | string {
   return Number.isFinite(numeric) ? numeric : raw;
 }
 
+/**
+ * Normalize an origin to `scheme://host[:port]`. CSRF origin checks compare
+ * exact normalized origins; paths, trailing slashes and casing never matter.
+ */
+function normalizeOrigin(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return `${url.protocol}//${url.host}`.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Browser origins allowed to make credentialed requests. `CLIENT_URL` is
+ * always allowed; `ALLOWED_ORIGINS` can add extra storefront origins
+ * (comma-separated). Development additionally allows the usual localhost
+ * variants so the Next.js dev server works with either host spelling.
+ */
+function parseAllowedOrigins(clientUrl: string): string[] {
+  const origins = new Set<string>();
+  const clientOrigin = normalizeOrigin(clientUrl);
+  if (clientOrigin) origins.add(clientOrigin);
+
+  for (const raw of (process.env.ALLOWED_ORIGINS || '').split(',')) {
+    const origin = normalizeOrigin(raw);
+    if (origin) origins.add(origin);
+  }
+
+  if ((process.env.NODE_ENV || 'development') !== 'production') {
+    for (const local of ['http://localhost:3000', 'http://127.0.0.1:3000']) {
+      const origin = normalizeOrigin(local);
+      if (origin) origins.add(origin);
+    }
+  }
+
+  return [...origins];
+}
+
+const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+
 const config: Config = {
   env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '5000', 10),
@@ -100,9 +163,31 @@ const config: Config = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
   client: {
-    url: process.env.CLIENT_URL || 'http://localhost:3000',
+    url: clientUrl,
+  },
+  cors: {
+    allowedOrigins: parseAllowedOrigins(clientUrl),
+  },
+  cookie: {
+    // Optional cookie domain. Set `.example.com` when the storefront and API
+    // live on sibling subdomains (store.example.com + api.example.com) so the
+    // Next.js proxy can also see the HttpOnly session marker.
+    domain: process.env.COOKIE_DOMAIN || undefined,
+    // Secure cookies are required in production; allow an explicit override
+    // only for unusual local HTTPS-terminating proxies.
+    secure: process.env.COOKIE_SECURE === 'false' ? false : process.env.NODE_ENV === 'production',
+    // `none` is only valid together with Secure and is required when the
+    // storefront and API are on different registrable domains.
+    sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') || 'lax',
   },
   trustProxy: parseTrustProxy(),
+  redis: {
+    url: process.env.REDIS_URL || '',
+    // Explicit single-instance escape hatch. Never a default: multi-instance
+    // deployments would otherwise silently enforce per-instance limits.
+    allowMemoryStore: process.env.RATE_LIMIT_ALLOW_MEMORY === 'true',
+    connectTimeoutMs: parseInt(process.env.REDIS_CONNECT_TIMEOUT_MS || '5000', 10),
+  },
   cloudinary: {
     name: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || '',
     apiKey: process.env.CLOUDINARY_API_KEY || '',
@@ -114,6 +199,8 @@ const config: Config = {
     // Public API budget. Kept separate from the auth limiter so raising it can
     // never weaken authentication limits (auth stays at 20 / 15 min).
     publicMax: parseInt(process.env.RATE_LIMIT_PUBLIC_MAX || '1000', 10),
+    keyPrefix: process.env.RATE_LIMIT_KEY_PREFIX || 'voss:rl:',
+    passOnStoreError: (process.env.NODE_ENV || 'development') !== 'production',
   },
   email: {
     service: process.env.EMAIL_SERVICE || '',
@@ -200,6 +287,43 @@ export function validateConfig(): void {
       );
     }
 
+    if (!/^https:\/\//i.test(config.client.url)) {
+      throw new Error(
+        'Environment variable CLIENT_URL must be an https:// origin in production so Secure cookies are accepted by browsers.'
+      );
+    }
+
+    if (config.cookie.sameSite === 'none' && !config.cookie.secure) {
+      throw new Error(
+        'COOKIE_SAMESITE=none requires secure cookies. Set COOKIE_SECURE=true (or unset it in production).'
+      );
+    }
+
+    // Shared rate-limit store: in-memory counters are per process, so multiple
+    // app instances would each enforce a separate budget (effectively
+    // multiplying every limit). Production must either point at Redis or
+    // explicitly acknowledge the single-instance trade-off.
+    if (!config.redis.url && !config.redis.allowMemoryStore) {
+      throw new Error(
+        'Environment variable REDIS_URL is required in production so rate limits are shared across app instances. ' +
+        'For a deliberate single-instance deployment, set RATE_LIMIT_ALLOW_MEMORY=true.'
+      );
+    }
+
+    if (config.redis.url && !/^rediss?:\/\//i.test(config.redis.url)) {
+      throw new Error(
+        'Environment variable REDIS_URL must use the redis:// or rediss:// scheme.'
+      );
+    }
+
+    for (const origin of config.cors.allowedOrigins) {
+      if (!/^https:\/\//i.test(origin)) {
+        throw new Error(
+          `Allowed browser origin must use https:// in production: ${origin}`
+        );
+      }
+    }
+
     // Email: a half-configured mailbox silently drops every transactional
     // email at checkout. Require a complete pair (or none at all).
     const hasEmailUser = Boolean(config.email.user);
@@ -250,6 +374,14 @@ export function isPayoneerConfigured(): boolean {
 
 export function isGoogleConfigured(): boolean {
   return Boolean(config.google.clientId && config.google.clientSecret);
+}
+
+export function isEmailConfigured(): boolean {
+  return Boolean(config.email.user && config.email.password);
+}
+
+export function isCloudinaryConfigured(): boolean {
+  return Boolean(config.cloudinary.name && config.cloudinary.apiKey && config.cloudinary.apiSecret);
 }
 
 export function isPaymentMethodConfigured(method: PaymentMethodValue): boolean {

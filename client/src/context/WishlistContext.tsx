@@ -7,7 +7,6 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   ReactNode,
 } from 'react';
 import { AxiosError } from 'axios';
@@ -91,11 +90,6 @@ const wishlistReducer = (
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(wishlistReducer, initialState);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-
-  // Live ref so toggleItem can read the latest items without being recreated
-  // on every wishlist change (keeps the context value / memoized cards stable).
-  const itemsRef = useRef<WishlistItem[]>(state.items);
-  itemsRef.current = state.items;
 
   const refreshWishlist = useCallback(async () => {
     // The wishlist endpoint is auth-protected. Skip it for guests so every
@@ -184,7 +178,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
       // The server normalizes an absent variant to null, so compare against
       // null rather than undefined to avoid double-adding on a re-toggle.
       const effectiveVariantId = variantId ?? null;
-      const existingItem = itemsRef.current.find(
+      const existingItem = state.items.find(
         (item) =>
           item.productId === product.id &&
           (item.variantId ?? null) === effectiveVariantId
@@ -194,7 +188,10 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
       }
       return addItem(product, variantId);
     },
-    [addItem, removeItem]
+    // `state.items` is already a dependency of `isInWishlist` and
+    // `wishlistedProductIds`, so tracking it here does not change when the
+    // context value changes — it only keeps the lookup from going stale.
+    [addItem, removeItem, state.items]
   );
 
   const wishlistedProductIds = useMemo(

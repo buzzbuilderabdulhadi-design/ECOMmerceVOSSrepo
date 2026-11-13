@@ -24,7 +24,7 @@ export default function StatsCard({ label, value, change, changeLabel, icon, cla
       {(change !== undefined || changeLabel) && (
         <div className="mt-1 flex items-center gap-1.5 text-xs">
           {change !== undefined && (
-            <span className={cn('font-semibold', isPositive ? 'text-green-600' : 'text-red-500')}>
+            <span className={cn('font-semibold', isPositive ? 'text-emerald-800' : 'text-red-700')}>
               {isPositive ? '▲' : '▼'} {Math.abs(change)}%
             </span>
           )}

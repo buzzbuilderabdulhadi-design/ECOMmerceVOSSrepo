@@ -59,7 +59,7 @@ export default function AdminSeoPage() {
   }, []);
 
   useEffect(() => {
-    loadEntries();
+    void Promise.resolve().then(loadEntries);
   }, [loadEntries]);
 
   const startEdit = (entry: SeoEntry) => {

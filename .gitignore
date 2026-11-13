@@ -54,3 +54,11 @@ server/src/uploads/
 .cache/
 .tmp/
 
+
+# Test credentials / artifacts (never commit)
+browser-tests/lib/.admin-token.json
+browser-tests/**/.admin-token.json
+browser-tests/**/.admin-*.json
+browser-tests/**/*.png
+browser-tests/**/*.log
+

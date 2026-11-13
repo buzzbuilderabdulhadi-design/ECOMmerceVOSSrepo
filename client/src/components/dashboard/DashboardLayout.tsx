@@ -63,8 +63,8 @@ export function DashboardLayout({ title, subtitle, children }: DashboardLayoutPr
     return pathname.startsWith(href);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     window.location.href = '/';
   };
 
@@ -73,7 +73,7 @@ export function DashboardLayout({ title, subtitle, children }: DashboardLayoutPr
       <main className="min-h-screen bg-cream/40">
         <Navbar />
 
-        <div className="mx-auto max-w-[1400px] px-4 py-12 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-[1400px] px-5 py-12 sm:px-8 lg:px-12">
           <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
             {/* Sidebar */}
             <aside className="hidden lg:block">

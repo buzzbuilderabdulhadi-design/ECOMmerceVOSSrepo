@@ -1,33 +1,107 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import prisma from '../config/db';
-import { registerUser, loginUser, refreshUserToken, changePassword, requestPasswordReset, resetPassword, authenticateWithGoogle } from '../services/auth.service';
+import { registerUser, loginUser, refreshUserToken, changePassword, requestPasswordReset, resetPassword, authenticateWithGoogle, logoutUser } from '../services/auth.service';
 import { sendSuccess, sendCreated, sendMessage } from '../utils/apiResponse';
 import { registerSchema, loginSchema, refreshTokenSchema, changePasswordSchema, forgotPasswordSchema, resetPasswordSchema, googleCallbackSchema } from '../validation/auth.validation';
 import { sendPasswordResetEmail } from '../utils/email';
+import { ApiError } from '../utils/apiError';
+import { isLoginThrottled, recordLoginFailure, clearLoginFailures, maskEmail } from '../utils/loginThrottle';
+import logger from '../utils/logger';
 import config from '../config';
+import {
+  REFRESH_COOKIE,
+  clearAuthCookies,
+  ensureCsrfCookie,
+  setAuthCookies,
+} from '../utils/authCookies';
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = registerSchema.parse(req.body);
     const result = await registerUser(data);
-    sendCreated(res, result, 'Registration successful');
+    setAuthCookies(res, result.accessToken, result.refreshToken);
+    sendCreated(res, { user: result.user }, 'Registration successful');
   } catch (error) { next(error); }
 };
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = loginSchema.parse(req.body);
-    const result = await loginUser(data.email, data.password);
-    sendSuccess(res, result, 'Login successful');
+
+    // Per-account backstop (the IP limiter on this route is the other half).
+    // Checked BEFORE password hashing so a locked account costs no CPU.
+    if (await isLoginThrottled(data.email)) {
+      logger.warn('Login attempt blocked — account temporarily throttled', {
+        account: maskEmail(data.email),
+        ip: req.ip,
+      });
+      throw ApiError.tooMany(
+        'Too many failed sign-in attempts for this account. Please wait a few minutes and try again.'
+      );
+    }
+
+    try {
+      const result = await loginUser(data.email, data.password);
+      try {
+        await clearLoginFailures(data.email);
+      } catch (throttleError) {
+        // A successful login must not fail just because counter cleanup did.
+        logger.error('Failed to clear login throttle', {
+          error: String(throttleError),
+        });
+      }
+      setAuthCookies(res, result.accessToken, result.refreshToken);
+      sendSuccess(res, { user: result.user }, 'Login successful');
+    } catch (error) {
+      // Only genuine credential failures count toward the throttle —
+      // never validation errors or unrelated server faults.
+      if (error instanceof ApiError && error.statusCode === 401) {
+        try {
+          await recordLoginFailure(data.email);
+        } catch (throttleError) {
+          // The shared IP limiter fails closed; log the per-account counter
+          // outage but preserve the real 401 for the caller.
+          logger.error('Failed to record login failure', {
+            error: String(throttleError),
+          });
+        }
+        logger.warn('Failed login attempt', {
+          account: maskEmail(data.email),
+          ip: req.ip,
+        });
+      }
+      throw error;
+    }
   } catch (error) { next(error); }
+};
+
+/**
+ * POST /auth/logout — server-side session revocation.
+ * Clears the stored refresh-token hash so the session can no longer be
+ * refreshed even if a refresh token was copied. (Local token cleanup on the
+ * client alone would not revoke anything.)
+ */
+export const logout = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await logoutUser(req.user!.userId);
+    clearAuthCookies(res);
+    sendMessage(res, 'Logged out');
+  } catch (error) {
+    // Always clear browser credentials, even if revocation hit a DB error.
+    clearAuthCookies(res);
+    next(error);
+  }
 };
 
 export const refresh = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = refreshTokenSchema.parse(req.body);
-    const result = await refreshUserToken(data.refreshToken);
-    sendSuccess(res, result, 'Token refreshed');
+    const data = refreshTokenSchema.parse(req.body ?? {});
+    const token = data.refreshToken || req.cookies?.[REFRESH_COOKIE];
+    if (!token) throw ApiError.unauthorized('No refresh token provided');
+    const result = await refreshUserToken(token);
+    setAuthCookies(res, result.accessToken, result.refreshToken);
+    sendSuccess(res, { refreshed: true }, 'Token refreshed');
   } catch (error) { next(error); }
 };
 
@@ -35,8 +109,10 @@ export const getMe = async (req: Request, res: Response, next: NextFunction) => 
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
-      select: { id: true, name: true, email: true, role: true, avatar: true, phone: true, emailVerified: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, avatar: true, phone: true, emailVerified: true, createdAt: true, updatedAt: true },
     });
+    if (!user) throw ApiError.unauthorized('User not found');
+    ensureCsrfCookie(req, res);
     sendSuccess(res, user);
   } catch (error) { next(error); }
 };
@@ -115,6 +191,7 @@ export const googleCallback = async (req: Request, res: Response, next: NextFunc
   try {
     const { code } = googleCallbackSchema.parse(req.body);
     const result = await authenticateWithGoogle(code);
-    sendSuccess(res, result, 'Google sign-in successful');
+    setAuthCookies(res, result.accessToken, result.refreshToken);
+    sendSuccess(res, { user: result.user }, 'Google sign-in successful');
   } catch (error) { next(error); }
 };

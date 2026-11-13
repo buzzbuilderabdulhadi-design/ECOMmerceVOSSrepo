@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import adminApi from '@/services/admin';
 import { generateSlug } from '@/lib/utils';
 import Modal from '@/components/admin/Modal';
@@ -9,6 +8,7 @@ import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '@/services/axios';
 import { Category as BaseCategory } from '@/types';
+import Image from 'next/image';
 
 interface Category extends BaseCategory {
   _count?: { products: number };
@@ -16,7 +16,6 @@ interface Category extends BaseCategory {
 }
 
 export default function AdminCategoriesPage() {
-  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -30,7 +29,7 @@ export default function AdminCategoriesPage() {
     try { const res = await adminApi.getCategories(); setCategories(res || []); } catch (err) { toast.error(getErrorMessage(err) || 'Failed to load categories'); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { void Promise.resolve().then(fetchCategories); }, [fetchCategories]);
 
   const openCreate = () => { setEditing(null); setForm({ name: '', slug: '', description: '', image: '', displayOrder: 0, isActive: true, parentId: '' }); setShowForm(true); };
   const openEdit = (cat: Category) => { setEditing(cat); setForm({ name: cat.name, slug: cat.slug, description: cat.description || '', image: cat.image || '', displayOrder: cat.displayOrder, isActive: cat.isActive, parentId: cat.parentId || '' }); setShowForm(true); };
@@ -90,7 +89,20 @@ export default function AdminCategoriesPage() {
                     <tr className="hover:bg-sage-light/5">
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          {cat.image && <img src={cat.image} alt="" className="h-8 w-8 rounded-lg object-cover" />}
+                          {cat.image && (
+                            /* unoptimized: the URL is operator-supplied and may
+                               point at the API origin, which is not in
+                               images.remotePatterns. A 32px admin thumbnail
+                               gains nothing from the optimizer. */
+                            <Image
+                              src={cat.image}
+                              alt=""
+                              width={32}
+                              height={32}
+                              unoptimized
+                              className="h-8 w-8 rounded-lg object-cover"
+                            />
+                          )}
                           <span className="text-sm font-medium text-navy">{cat.name}</span>
                         </div>
                       </td>

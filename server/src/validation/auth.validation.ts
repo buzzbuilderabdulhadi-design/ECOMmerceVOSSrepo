@@ -11,8 +11,10 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// Cookie-authenticated browsers send no body; non-browser clients may still
+// present a refresh token explicitly.
 export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1),
+  refreshToken: z.string().min(1).optional(),
 });
 
 export const changePasswordSchema = z.object({

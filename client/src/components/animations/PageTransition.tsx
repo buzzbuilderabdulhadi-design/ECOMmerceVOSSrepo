@@ -49,7 +49,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
         <motion.div
           initial={{ scaleX: 0 }}
           animate={{ scaleX: 1, transition: { duration: 0.9, delay: 0.15, ease: 'easeInOut' } }}
-          className="pointer-events-none fixed top-0 left-0 z-40 h-[2px] w-full origin-left bg-gradient-to-r from-transparent via-gold to-transparent"
+          className="pointer-events-none fixed top-0 left-0 z-40 h-[2px] w-full origin-left bg-gradient-to-r from-transparent via-mist to-transparent"
         />
         {children}
       </motion.div>

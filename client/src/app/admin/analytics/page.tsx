@@ -17,14 +17,17 @@ export default function AdminAnalyticsPage() {
   const [period, setPeriod] = useState('30');
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      adminApi.getSalesAnalytics(parseInt(period)),
-      adminApi.getOrderAnalytics(),
-      adminApi.getProductAnalytics(),
-      adminApi.getCustomerAnalytics(),
-    ]).then(([s, o, p, c]) => { setSales(s); setOrders(o); setProducts(p); setCustomers(c); })
-      .catch(err => toast.error(getErrorMessage(err) || 'Failed to load analytics')).finally(() => setLoading(false));
+    void Promise.resolve().then(() => {
+      setLoading(true);
+      return Promise.all([
+        adminApi.getSalesAnalytics(parseInt(period)),
+        adminApi.getOrderAnalytics(),
+        adminApi.getProductAnalytics(),
+        adminApi.getCustomerAnalytics(),
+      ]).then(([s, o, p, c]) => { setSales(s); setOrders(o); setProducts(p); setCustomers(c); })
+        .catch(err => toast.error(getErrorMessage(err) || 'Failed to load analytics'))
+        .finally(() => setLoading(false));
+    });
   }, [period]);
 
   if (loading) return <div className="space-y-5">{[1,2].map(i => <Skeleton key={i} className="h-48 rounded-xl" />)}</div>;

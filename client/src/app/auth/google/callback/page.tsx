@@ -8,6 +8,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { useAuth } from '@/context/AuthContext';
 import { consumeGoogleState } from '@/lib/google';
+import { getErrorMessage } from '@/services/axios';
 
 function GoogleCallbackContent() {
   const router = useRouter();
@@ -37,8 +38,8 @@ function GoogleCallbackContent() {
       try {
         await completeGoogleLogin(code, state);
         if (!cancelled) router.replace('/dashboard');
-      } catch (err: any) {
-        if (!cancelled) setError(err?.message || 'Google sign-in failed. Please try again.');
+      } catch (err) {
+        if (!cancelled) setError(getErrorMessage(err) || 'Google sign-in failed. Please try again.');
       }
     })();
 

@@ -27,6 +27,48 @@ interface StockReservation {
   quantity: number;
 }
 
+// Customer-facing order projection.
+//
+// Every response sent to the customer — list, detail, create-time and
+// idempotent replay — passes through this `select` so internal fields never
+// reach the client: `internalNotes` (admin commentary), `stripePaymentIntentId`
+// / `stripeClientSecret` (a live card-session secret), `paypalOrderId` /
+// `paypalCaptureId` (server-only references used for webhook verification) and
+// `paymentVerifiedBy` are server-internal. The client only ever needs payment
+// STATE, never payment provider credentials.
+const customerOrderSelect = {
+  id: true,
+  orderNumber: true,
+  userId: true,
+  status: true,
+  subtotal: true,
+  shippingCost: true,
+  tax: true,
+  discount: true,
+  total: true,
+  paymentMethod: true,
+  paymentStatus: true,
+  shippingAddressId: true,
+  notes: true,
+  couponCode: true,
+  paymentReference: true,
+  trackingNumber: true,
+  estimatedDelivery: true,
+  createdAt: true,
+  updatedAt: true,
+  items: {
+    include: {
+      product: {
+        select: { id: true, name: true, slug: true, sku: true, images: true, regularPrice: true, salePrice: true },
+      },
+      variant: {
+        select: { id: true, color: true, colorHex: true, size: true, sku: true, priceOverride: true },
+      },
+    },
+  },
+  shippingAddress: true,
+} as const;
+
 export const createOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { shippingAddressId, notes, couponCode, paymentMethod, idempotencyKey } = req.body;
@@ -70,7 +112,7 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
     if (idempotencyKey) {
       const existing = await prisma.order.findFirst({
         where: { userId, idempotencyKey },
-        include: { items: true, shippingAddress: true },
+        select: customerOrderSelect,
       });
       if (existing) {
         sendSuccess(res, existing, 'Order already placed');
@@ -226,7 +268,7 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
           idempotencyKey: idempotencyKey ?? null,
           items: { create: orderItems },
         },
-        include: { items: true, shippingAddress: true },
+        select: customerOrderSelect,
       });
 
       await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
@@ -308,7 +350,7 @@ export const getOrders = async (req: Request, res: Response, next: NextFunction)
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
     const [orders, total] = await Promise.all([
-      prisma.order.findMany({ where: { userId: req.user!.userId }, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, include: { items: { include: { product: { select: { name: true, slug: true, images: true } } } } } }),
+      prisma.order.findMany({ where: { userId: req.user!.userId }, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' }, select: customerOrderSelect }),
       prisma.order.count({ where: { userId: req.user!.userId } }),
     ]);
     sendPaginated(res, orders, { page, limit, total });
@@ -320,7 +362,7 @@ export const getOrder = async (req: Request, res: Response, next: NextFunction) 
     const id = req.params.id as string;
     const order = await prisma.order.findFirst({
       where: { id, userId: req.user!.userId },
-      include: { items: { include: { product: true, variant: true } }, shippingAddress: true },
+      select: customerOrderSelect,
     });
     if (!order) throw ApiError.notFound('Order not found');
     sendSuccess(res, order);
@@ -347,7 +389,11 @@ export const cancelOrder = async (req: Request, res: Response, next: NextFunctio
       throw ApiError.badRequest('This order cannot be cancelled while it is being paid or already completed.');
     }
 
-    const updated = await prisma.order.update({ where: { id }, data: { status: 'CANCELLED' } });
+    const updated = await prisma.order.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      select: customerOrderSelect,
+    });
     await setOrderPaymentCancelled(id);
     // Put the units and the coupon back: stock was deducted at creation and
     // the coupon's usedCount incremented. Reversing both keeps inventory and

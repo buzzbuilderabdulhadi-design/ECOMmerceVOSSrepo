@@ -24,7 +24,7 @@ export default function SettingsPage() {
     setDeleting(true);
     try {
       await deleteAccount();
-      logout();
+      await logout();
       router.push('/');
       toast.success('Your account has been deleted.');
     } catch (err) {

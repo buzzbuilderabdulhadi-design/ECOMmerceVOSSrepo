@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { GoogleButton } from '@/components/ui/GoogleButton';
 import { useAuth } from '@/context/AuthContext';
+import { getErrorMessage } from '@/services/axios';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -34,19 +35,19 @@ export default function RegisterPage() {
       await register({ name: `${firstName} ${lastName}`, email, password });
       toast.success(`Welcome to ZOYA GOODS, ${firstName.trim() || 'friend'}`);
       router.push('/');
-    } catch (err: any) {
-      setLocalError(err.message || 'Registration failed');
+    } catch (err) {
+      setLocalError(getErrorMessage(err) || 'Registration failed');
     }
   };
 
   return (
     <PageTransition>
-      <main className="min-h-screen">
+      <main className="min-h-screen bg-warm-light">
         <Navbar />
         <div className="relative min-h-[calc(100vh-200px)] flex items-center justify-center px-4 py-20 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-warm" />
           <div className="absolute inset-0 opacity-20" style={{
-            backgroundImage: `radial-gradient(circle at 30% 20%, rgba(138, 154, 123, 0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(196, 168, 106, 0.1) 0%, transparent 50%)`,
+            backgroundImage: `radial-gradient(circle at 30% 20%, rgba(15, 27, 51, 0.07) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(24, 42, 74, 0.09) 0%, transparent 50%)`,
           }} />
           <motion.div
             initial={{ opacity: 0, y: 30 }}

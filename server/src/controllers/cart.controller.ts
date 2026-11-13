@@ -147,18 +147,34 @@ async function finalizeCart(cart: {
   return { ...cart, items, availability, couponNotice, couponCode, discountAmount };
 }
 
+// Guest cart scoping. The session id is client-generated (a UUID or a
+// `zg-session-…` string from the storefront). It is NOT a credential — it
+// merely scopes a guest cart — but accepting arbitrary values lets one caller
+// squat on unbounded storage and craft collisions. Enforce a sane shape.
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
+
+function getGuestSessionId(req: Request): string | null {
+  const raw = req.headers['x-session-id'];
+  if (raw === undefined) return null;
+  const sessionId = Array.isArray(raw) ? raw[0] : raw;
+  if (!sessionId || !SESSION_ID_PATTERN.test(sessionId)) {
+    throw ApiError.badRequest('Invalid session id');
+  }
+  return sessionId;
+}
+
 function getCartWhere(req: Request) {
   const userId = req.user?.userId;
-  const sessionId = req.headers['x-session-id'] as string | undefined;
   if (userId) return { userId };
+  const sessionId = getGuestSessionId(req);
   if (sessionId) return { sessionId };
   return null;
 }
 
 function requireCartWhere(req: Request) {
   const userId = req.user?.userId;
-  const sessionId = req.headers['x-session-id'] as string | undefined;
   if (userId) return { userId };
+  const sessionId = getGuestSessionId(req);
   if (sessionId) return { sessionId };
   throw ApiError.badRequest('Authentication or session required');
 }
@@ -186,13 +202,15 @@ async function verifyOwnership(itemId: string, req: Request) {
   if (!item) throw ApiError.notFound('Cart item not found');
 
   const userId = req.user?.userId;
-  const sessionId = req.headers['x-session-id'] as string | undefined;
+  const sessionId = getGuestSessionId(req);
 
   const belongs =
     (userId && item.cart.userId === userId) ||
     (!userId && sessionId && item.cart.sessionId === sessionId);
 
-  if (!belongs) throw ApiError.forbidden('This item does not belong to your cart');
+  // Match the 404 used by addresses/orders/wishlist: a caller must not be
+  // able to distinguish "another user's item" from "does not exist".
+  if (!belongs) throw ApiError.notFound('Cart item not found');
   return item;
 }
 
@@ -366,8 +384,8 @@ export const removeCouponFromCart = async (req: Request, res: Response, next: Ne
 export const mergeGuestCart = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.userId;
-    const sessionId = req.headers['x-session-id'] as string | undefined;
     if (!userId) throw ApiError.forbidden('Login is required to merge your cart');
+    const sessionId = getGuestSessionId(req);
 
     if (!sessionId) {
       const cart = await ensureCart(req);

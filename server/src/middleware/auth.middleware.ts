@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import config from '../config';
 import prisma from '../config/db';
 import { cacheGet, cacheSet } from '../utils/cache';
+import { ACCESS_COOKIE } from '../utils/authCookies';
+import logger from '../utils/logger';
 
 // Cache "user still exists" for a short window to avoid a DB round-trip on
 // every authenticated request. Deletion takes effect within this TTL.
@@ -39,16 +41,25 @@ export const authenticate = async (
 ): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
+    const bearerToken =
+      authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    // Production browsers authenticate with the HttpOnly session cookie.
+    // Bearer tokens remain accepted for non-browser API clients and for a
+    // transition period; both paths are verified identically.
+    const token = bearerToken || req.cookies?.[ACCESS_COOKIE];
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
+      logger.warn('Authentication failed — no session cookie or bearer token', {
+        method: req.method,
+        path: req.originalUrl.split('?')[0],
+        ip: req.ip,
+      });
       res.status(401).json({
         success: false,
         error: 'Access denied. No token provided.',
       });
       return;
     }
-
-    const token = authHeader.split(' ')[1];
 
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
 
@@ -66,6 +77,11 @@ export const authenticate = async (
       });
 
       if (!user) {
+        logger.warn('Authentication failed — token subject no longer exists', {
+          method: req.method,
+          path: req.originalUrl.split('?')[0],
+          ip: req.ip,
+        });
         res.status(401).json({
           success: false,
           error: 'User not found. Token is invalid.',
@@ -88,6 +104,11 @@ export const authenticate = async (
       return;
     }
     if (error instanceof jwt.JsonWebTokenError) {
+      logger.warn('Authentication failed — invalid token signature', {
+        method: req.method,
+        path: req.originalUrl.split('?')[0],
+        ip: req.ip,
+      });
       res.status(401).json({
         success: false,
         error: 'Invalid token.',
@@ -109,9 +130,11 @@ export const optionalAuth = async (
 ): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
+    const bearerToken =
+      authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    const token = bearerToken || req.cookies?.[ACCESS_COOKIE];
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+    if (token) {
       const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
       req.user = decoded;
     }
@@ -132,6 +155,12 @@ export const authorizeAdmin = (
   next: NextFunction
 ): void => {
   if (!req.user || req.user.role !== 'ADMIN') {
+    logger.warn('Authorization failed — admin role required', {
+      method: req.method,
+      path: req.originalUrl.split('?')[0],
+      userId: req.user?.userId,
+      ip: req.ip,
+    });
     res.status(403).json({
       success: false,
       error: 'Access denied. Admin privileges required.',

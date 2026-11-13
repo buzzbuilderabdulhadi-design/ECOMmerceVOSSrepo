@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
+import { ZoyaGoodsLogo } from '@/components/shared/ZoyaGoodsLogo';
 
 const LOADING_PHRASES = [
   'Preparing Your Luxury Experience...',
@@ -29,57 +30,64 @@ export function LoadingScreenVisual() {
     <div
       role="status"
       aria-label="Loading ZOYA GOODS"
-      className="bg-gradient-night grain fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden"
-      style={{ backgroundColor: '#16324F' }}
+      className="bg-cinematic grain fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden"
+      style={{ backgroundColor: '#05070A' }}
     >
-      {/* Top & bottom gold hairlines */}
+      {/* Top & bottom cinnamon hairlines */}
       <motion.div
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
         transition={{ duration: 0.65, delay: 0.05, ease: 'easeInOut' }}
-        className="absolute left-8 right-8 top-10 h-px origin-left bg-gold/50"
+        className="absolute left-8 right-8 top-10 h-px origin-left bg-cinnamon/60"
       />
       <motion.div
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
         transition={{ duration: 0.65, delay: 0.05, ease: 'easeInOut' }}
-        className="absolute bottom-10 left-8 right-8 h-px origin-right bg-gold/50"
+        className="absolute bottom-10 left-8 right-8 h-px origin-right bg-cinnamon/60"
       />
 
       <div className="flex flex-col items-center text-center">
-        {/* ZOYA GOODS logo — subtle fade-in + scale */}
-        <motion.h1
+        {/* ZOYA GOODS logo — subtle fade-in + scale. Decorative wordmark: the
+            surrounding role="status" region carries the accessible name, so
+            this must not be a heading (it would add a second <h1> mid-load). */}
+        <motion.div
+          aria-hidden
           initial={{ opacity: 0, scale: 0.94 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.55, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
-          className="font-display text-3xl font-light tracking-[0.28em] text-ivory sm:text-5xl md:text-6xl md:tracking-[0.3em] lg:text-7xl"
-          style={{ textShadow: '0 2px 32px rgba(22, 50, 79, 0.6)' }}
+          className="pointer-events-none"
         >
-          ZOYA GOODS
-        </motion.h1>
+          <ZoyaGoodsLogo
+            variant="white"
+            aria-hidden
+            alt=""
+            className="h-auto w-[290px] sm:w-[330px] md:w-[360px]"
+          />
+        </motion.div>
 
-        {/* Gold rule with walnut diamond */}
+        {/* Cinnamon rule with clay diamond */}
         <motion.div
           initial={{ scaleX: 0 }}
           animate={{ scaleX: 1 }}
           transition={{ duration: 0.55, delay: 0.15, ease: 'easeInOut' }}
           className="mt-7 flex w-56 items-center justify-center"
         >
-          <span aria-hidden className="h-px flex-1 bg-gold/70" />
+          <span aria-hidden className="h-px flex-1 bg-cinnamon/80" />
           <span
             aria-hidden
-            className="mx-3 block h-1.5 w-1.5 rotate-45 bg-walnut"
+            className="mx-3 block h-1.5 w-1.5 rotate-45 bg-clay"
           />
-          <span aria-hidden className="h-px flex-1 bg-gold/70" />
+          <span aria-hidden className="h-px flex-1 bg-cinnamon/80" />
         </motion.div>
 
-        {/* Thin gold progress line that fills smoothly */}
-        <div className="mt-7 h-[2px] w-56 overflow-hidden rounded-full bg-white/10">
+        {/* Thin progress line that fills smoothly */}
+        <div className="mt-7 h-[2px] w-56 overflow-hidden rounded-full bg-bone/10">
           <motion.div
             initial={{ scaleX: 0 }}
             animate={{ scaleX: 1 }}
             transition={{ duration: 0.7, delay: 0.1, ease: 'easeInOut' }}
-            className="h-full w-full origin-left rounded-full bg-gradient-to-r from-walnut via-gold to-gold"
+            className="h-full w-full origin-left rounded-full bg-gradient-to-r from-cinnamon via-clay to-porcelain"
           />
         </div>
 
@@ -92,7 +100,7 @@ export function LoadingScreenVisual() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.35, ease: 'easeInOut' }}
-              className="text-[10px] uppercase tracking-[0.38em] text-cream/80"
+              className="text-[10px] uppercase tracking-[0.38em] text-bone/80"
             >
               {LOADING_PHRASES[phraseIndex]}
             </motion.p>

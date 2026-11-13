@@ -6,18 +6,21 @@ import { cn } from '@/lib/utils';
 
 const variants = {
   primary:
-    'bg-navy text-ivory hover:bg-navy-light focus:ring-navy shadow-lg shadow-navy/15',
+    'bg-onyx text-bone hover:bg-navy-mid hover:border-navy-mid focus:ring-navy-soft shadow-sm shadow-black/20',
   secondary:
-    'bg-white text-navy border border-navy/30 hover:bg-navy/5 focus:ring-navy',
+    'bg-porcelain text-onyx border border-cocoa/25 hover:bg-bone hover:border-cocoa/40 focus:ring-navy-soft',
   outline:
-    'bg-transparent text-navy border border-navy/40 hover:border-navy focus:ring-navy',
-  ghost: 'bg-transparent text-navy hover:bg-navy/5 focus:ring-navy',
-  danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-  gold: 'bg-gold text-navy hover:bg-gold/85 focus:ring-gold',
-  walnut: 'bg-walnut text-ivory hover:bg-walnut-light focus:ring-walnut',
-  sage: 'bg-sage text-navy hover:bg-sage-dark hover:text-white focus:ring-sage',
-  light:
-    'bg-cream text-navy hover:bg-white focus:ring-cream shadow-lg shadow-black/10',
+    'bg-transparent text-onyx border border-cocoa/40 hover:border-onyx hover:bg-cocoa/5 focus:ring-navy-soft',
+  ghost: 'bg-transparent text-onyx hover:bg-cocoa/10 focus:ring-navy-soft',
+  danger: 'bg-red-700 text-white hover:bg-red-800 focus:ring-red-600',
+  gold: 'bg-navy-mid text-bone hover:bg-navy-soft focus:ring-navy-soft',
+  walnut: 'bg-navy-mid text-bone hover:bg-navy-soft focus:ring-navy-soft',
+  sage: 'bg-beige text-onyx hover:bg-bone focus:ring-navy-soft',
+  light: 'bg-bone text-onyx hover:bg-porcelain focus:ring-navy-soft shadow-sm shadow-black/10',
+  /* On dark surfaces: light fill, dark text. Hover flips to deep navy. */
+  inverse: 'bg-bone text-onyx hover:bg-navy-mid hover:text-bone focus:ring-beige',
+  /* Transparent on dark surfaces: light outline + light text, navy hover fill */
+  onDark: 'bg-transparent text-bone border border-bone/40 hover:border-navy-mid hover:bg-navy-mid hover:text-bone focus:ring-beige',
 };
 
 const sizes = {
@@ -63,7 +66,7 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
       type,
       children,
       onClick,
-      ...props
+      ...rest
     },
     ref
   ) => {
@@ -102,7 +105,10 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
     };
 
     const sharedClassNames = cn(
-      'relative inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+      /* overflow-hidden is required here: the click ripple is a 20px circle
+         that scales 4x and would otherwise escape the pill. Button text is
+         vertically centred inside a min-height box, so it is never clipped. */
+      'relative inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium tracking-[0.16em] uppercase transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-porcelain disabled:pointer-events-none disabled:opacity-50',
       'group/btn',
       variants[variant],
       sizes[size],
@@ -112,7 +118,7 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
 
     const rippleContent = (
       <>
-        <span className="pointer-events-none absolute bottom-1.5 left-1/2 h-px w-0 -translate-x-1/2 bg-sage/70 transition-all duration-500 group-hover/btn:w-1/2" />
+        <span className="pointer-events-none absolute bottom-1.5 left-1/2 h-px w-0 -translate-x-1/2 bg-current opacity-40 transition-all duration-500 group-hover/btn:w-1/2" />
 
         {isLoading && (
           <svg
@@ -165,6 +171,13 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
     if (href) {
       return (
         <motion.a
+          // ButtonProps is button-shaped; the href variant reinterprets the
+          // passthrough props against the anchor element. The animation/drag
+          // handlers stay omitted because framer-motion claims those names.
+          {...(rest as Omit<
+            React.ComponentPropsWithoutRef<'a'>,
+            'onAnimationStart' | 'onDragStart' | 'onDragEnd' | 'onDrag'
+          >)}
           href={href}
           ref={setRefs as React.Ref<HTMLAnchorElement>}
           {...(motionProps as object)}
@@ -178,6 +191,7 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
 
     return (
       <motion.button
+        {...rest}
         ref={setRefs as React.Ref<HTMLButtonElement>}
         type={type ?? 'button'}
         disabled={disabled || isLoading}

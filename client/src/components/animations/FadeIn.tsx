@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, type Variants } from 'framer-motion';
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 type Direction = 'up' | 'down' | 'left' | 'right' | 'none';
 type AnimationVariant = 'fadeIn' | 'fadeUp' | 'fadeDown' | 'fadeLeft' | 'fadeRight' | 'scaleIn';

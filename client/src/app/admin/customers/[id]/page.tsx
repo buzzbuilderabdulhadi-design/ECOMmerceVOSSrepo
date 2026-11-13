@@ -38,7 +38,7 @@ export default function AdminCustomerDetailPage() {
     } finally { setLoading(false); }
   }, [params.id]);
 
-  useEffect(() => { loadCustomer(); }, [loadCustomer]);
+  useEffect(() => { void Promise.resolve().then(loadCustomer); }, [loadCustomer]);
 
   const handleSave = async () => {
     if (!customer) return;

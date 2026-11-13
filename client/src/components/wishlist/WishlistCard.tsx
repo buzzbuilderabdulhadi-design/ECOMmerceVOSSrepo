@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
+import { ProductImage } from '@/components/product/ProductImage';
 import { useCart } from '@/context/CartContext';
 import type { WishlistItem, Product } from '@/types';
 import toast from 'react-hot-toast';
@@ -21,8 +21,6 @@ export function WishlistCard({ item, onRemove }: WishlistCardProps) {
 
   const p = item.product;
   const v = item.variant;
-  const firstImage = p.images?.[0];
-  const imageUrl = typeof firstImage === 'string' ? firstImage : (firstImage as { url?: string })?.url || '';
   const regularPrice = p.regularPrice;
   const salePrice = p.salePrice ?? p.regularPrice;
   const hasDiscount = typeof p.salePrice === 'number' && p.salePrice < regularPrice;
@@ -75,13 +73,12 @@ export function WishlistCard({ item, onRemove }: WishlistCardProps) {
 
   return (
     <div className="group relative flex flex-col">
-      <Link href={`/products/${p.slug}`} className="relative block aspect-[3/4] overflow-hidden rounded-t-full rounded-b-2xl bg-cream-dark">
-        <Image
-          src={imageUrl}
+      <Link href={`/products/${p.slug}`} className="relative block overflow-hidden rounded-t-full rounded-b-2xl bg-cream-dark">
+        <ProductImage
+          images={p.images}
           alt={p.name}
-          fill
+          className="aspect-[3/4] w-full"
           sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 25vw"
-          className="object-cover transition-transform duration-700 group-hover:scale-108"
         />
         <div className="absolute left-4 top-4 flex flex-col gap-1.5">
           {p.isNew && <Badge variant="new">NEW</Badge>}
@@ -93,7 +90,7 @@ export function WishlistCard({ item, onRemove }: WishlistCardProps) {
         {p.brand && (
           <p className="text-[9px] font-medium uppercase tracking-[0.25em] text-sage-dark">{p.brand}</p>
         )}
-        <Link href={`/products/${p.slug}`} className="mt-1 block font-display text-xl font-medium leading-snug text-navy transition-colors hover:text-walnut line-clamp-1">
+        <Link href={`/products/${p.slug}`} className="mt-1 block font-display text-xl font-medium leading-snug text-navy transition-colors hover:text-walnut line-clamp-2">
           {p.name}
         </Link>
 
@@ -112,7 +109,7 @@ export function WishlistCard({ item, onRemove }: WishlistCardProps) {
         <p
           className={cn(
             'mt-2 text-xs font-medium',
-            unavailable ? 'text-red-600' : lowStock ? 'text-amber-600' : 'text-sage-dark'
+            unavailable ? 'text-red-700' : lowStock ? 'text-amber-700' : 'text-sage-dark'
           )}
         >
           {unavailable ? 'Currently unavailable' : lowStock ? `Only ${stockLeft} left` : 'In stock'}
