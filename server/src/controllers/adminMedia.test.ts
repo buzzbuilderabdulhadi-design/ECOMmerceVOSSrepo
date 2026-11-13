@@ -14,10 +14,24 @@ vi.mock('../config/db', () => ({
   },
 }));
 vi.mock('cloudinary', async () => {
-  const actual = await vi.importActual('cloudinary');
+  const actual = await vi.importActual<typeof import('cloudinary')>('cloudinary');
+  const realUploader = (actual as any).v2?.uploader;
+  const uploader = {
+    ...realUploader,
+    destroy: vi.fn(),
+    upload: vi.fn(),
+  };
+  const newV2 = {
+    ...((actual as any).v2),
+    uploader,
+  };
   return {
     ...actual,
-    v2: { ...actual.v2, uploader: { ...actual.v2.uploader, destroy: vi.fn(), upload: vi.fn() } },
+    v2: newV2,
+    default: {
+      ...((actual as any).default),
+      v2: newV2,
+    },
   };
 });
 
@@ -61,8 +75,23 @@ describe('POST /admin/media/upload (admin.controller.uploadMedia)', () => {
       publicId: 'zoya-goods/cat',
       width: 800,
       height: 600,
+      format: 'png',
     });
-    mockMediaCreate.mockResolvedValue({ id: 'm1' });
+    mockMediaCreate.mockResolvedValue({
+      id: 'm1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      size: 999,
+      fileName: 'cat.png',
+      url: 'https://res.cloudinary.com/demo/image/upload/v1/zoya-goods/cat.png',
+      publicId: 'zoya-goods/cat',
+      altText: 'A cat',
+      mimeType: 'image/png',
+      width: 800,
+      height: 600,
+      folder: 'categories',
+      uploadedBy: 'u1',
+    });
 
     await uploadMedia(
       mockReq(
@@ -116,7 +145,7 @@ describe('POST /admin/media/upload (admin.controller.uploadMedia)', () => {
       url: 'https://res.cloudinary.com/demo/image/upload/v1/zoya-goods/r.png',
       secure_url: 'https://res.cloudinary.com/demo/image/upload/v1/zoya-goods/r.png',
       publicId: 'zoya-goods/r',
-      width: 100, height: 100,
+      width: 100, height: 100, format: 'png',
     });
     const dbError = new Error('DB write failed');
     mockMediaCreate.mockRejectedValue(dbError);
@@ -129,8 +158,36 @@ describe('DELETE /admin/media/:id (admin.controller.deleteMedia)', () => {
   it('deletes the Cloudinary asset then the database record', async () => {
     const res = mockRes();
     const next = vi.fn();
-    mockMediaFind.mockResolvedValue({ id: 'me1', publicId: 'zoya-goods/del', url: 'https://res.cloudinary.com/demo/del.png' });
-    mockMediaDelete.mockResolvedValue({ id: 'me1' });
+    mockMediaFind.mockResolvedValue({
+      id: 'me1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      size: 1024,
+      fileName: 'del.png',
+      publicId: 'zoya-goods/del',
+      url: 'https://res.cloudinary.com/demo/del.png',
+      altText: null,
+      mimeType: 'image/png',
+      width: 800,
+      height: 600,
+      folder: 'zoya-goods',
+      uploadedBy: 'u1',
+    });
+    mockMediaDelete.mockResolvedValue({
+      id: 'me1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      size: 1024,
+      fileName: 'del.png',
+      publicId: 'zoya-goods/del',
+      url: 'https://res.cloudinary.com/demo/del.png',
+      altText: null,
+      mimeType: 'image/png',
+      width: 800,
+      height: 600,
+      folder: 'zoya-goods',
+      uploadedBy: 'u1',
+    });
     await deleteMedia(mockReq(undefined, {}, { userId: 'u1', role: 'ADMIN' }, { id: 'me1' }), res, next);
     expect(mockDestroy).toHaveBeenCalledWith('zoya-goods/del');
     expect(mockMediaDelete).toHaveBeenCalledWith({ where: { id: 'me1' } });
@@ -142,8 +199,36 @@ describe('DELETE /admin/media/:id (admin.controller.deleteMedia)', () => {
   it('media without publicId skips Cloudinary delete (existing local images preserved)', async () => {
     const res = mockRes();
     const next = vi.fn();
-    mockMediaFind.mockResolvedValue({ id: 'me2', publicId: null, url: '/uploads/local.png' });
-    mockMediaDelete.mockResolvedValue({ id: 'me2' });
+    mockMediaFind.mockResolvedValue({
+      id: 'me2',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      size: 512,
+      fileName: 'local.png',
+      publicId: null,
+      url: '/uploads/local.png',
+      altText: null,
+      mimeType: 'image/png',
+      width: null,
+      height: null,
+      folder: null,
+      uploadedBy: null,
+    });
+    mockMediaDelete.mockResolvedValue({
+      id: 'me2',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      size: 512,
+      fileName: 'local.png',
+      publicId: null,
+      url: '/uploads/local.png',
+      altText: null,
+      mimeType: 'image/png',
+      width: null,
+      height: null,
+      folder: null,
+      uploadedBy: null,
+    });
     await deleteMedia(mockReq(undefined, {}, { userId: 'u1', role: 'ADMIN' }, { id: 'me2' }), res, next);
     expect(mockDestroy).not.toHaveBeenCalled();
     expect(mockMediaDelete).toHaveBeenCalledWith({ where: { id: 'me2' } });

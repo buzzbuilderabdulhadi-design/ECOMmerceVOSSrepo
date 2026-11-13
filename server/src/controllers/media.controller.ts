@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import fs from 'fs';
 import { uploadImage, deleteImage, isCloudinaryReady, requireCloudinaryConfigured } from '../config/cloudinary';
 import config from '../config';
 import prisma from '../config/db';
 import { sendSuccess, sendCreated } from '../utils/apiResponse';
+import { cleanupTempFile } from '../utils/tempCleanup';
 
 const CLOUDINARY_FOLDER = 'zoya-goods';
 
@@ -22,10 +22,7 @@ const cloudinaryUpload = async (file: any, folder: string) => {
  * succeeded or failed, so nothing lingers on the filesystem (and, previously,
  * in the publicly-served uploads/ dir).
  */
-const cleanupTempFile = (filePath?: string) => {
-  if (!filePath) return;
-  fs.promises.unlink(filePath).catch(() => {});
-};
+export { cleanupTempFile };
 
 /**
  * Roll back a successful Cloudinary upload when the database record cannot be

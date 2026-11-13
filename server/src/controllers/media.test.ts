@@ -54,7 +54,21 @@ describe('POST /media/upload (media.controller)', () => {
       height: 600,
       format: 'png',
     });
-    mockMediaCreate.mockResolvedValue({ id: 'm1' });
+    mockMediaCreate.mockResolvedValue({
+      id: 'm1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      size: 12345,
+      fileName: 'product.png',
+      url: 'https://res.cloudinary.com/demo/image/upload/v1/zoya-goods/abc.png',
+      publicId: 'zoya-goods/abc',
+      altText: null,
+      mimeType: 'image/png',
+      width: 800,
+      height: 600,
+      folder: 'zoya-goods',
+      uploadedBy: 'u1',
+    });
 
     await uploadFile(mockReq({ ...baseFile }), res, next);
 
@@ -150,7 +164,21 @@ describe('POST /media/upload-multiple (media.controller)', () => {
         width: 800, height: 600, format: 'png',
       });
     mockMediaCreate
-      .mockResolvedValueOnce({ id: 'm1' })
+      .mockResolvedValueOnce({
+        id: 'm1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        size: 12345,
+        fileName: 'a.png',
+        url: 'https://res.cloudinary.com/demo/image/upload/v1/zoya-goods/a.png',
+        publicId: 'zoya-goods/a',
+        altText: null,
+        mimeType: 'image/png',
+        width: 800,
+        height: 600,
+        folder: 'zoya-goods',
+        uploadedBy: 'u1',
+      })
       .mockRejectedValueOnce(new Error('DB write failed'));
 
     await uploadMultiple({ ...mockReq(undefined), files } as unknown as Request, res, next);

@@ -1,4 +1,4 @@
-import { v2 as cloudinary, UploadApiResponse, DestroyResponse } from 'cloudinary';
+import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import config from './index';
 
 // ============================================================

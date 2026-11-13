@@ -17,7 +17,7 @@ const ALLOWED_MIME_TYPES = [
 
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
 
-const fileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
+const fileFilter: NonNullable<multer.Options['fileFilter']> = (_req, file, cb) => {
   const ext = '.' + file.originalname.split('.').pop()?.toLowerCase();
   if (ALLOWED_MIME_TYPES.includes(file.mimetype) && ALLOWED_EXTENSIONS.includes(ext)) {
     cb(null, true);

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import type { FileFilterCallback } from 'multer';
 
 vi.mock('../middleware/auth.middleware', () => ({
   authenticate: vi.fn((req: any, _res: any, next: any) => next()),
@@ -19,9 +20,9 @@ function makeFile(mimetype: string, originalname: string) {
 
 describe('media.routes.ts upload validation', () => {
   it('rejects disallowed file types with a clear error', () => {
-    const calls: any[] = [];
-    const cb = (err: any, accept: boolean) => calls.push([err, accept]);
-    fileFilter(undefined as any, makeFile('text/plain', 'notes.txt'), cb);
+    const calls: Array<[Error | null, boolean]> = [];
+    const cb = (err: Error | null, accept: boolean) => calls.push([err, accept]);
+    fileFilter(undefined as any, makeFile('text/plain', 'notes.txt'), cb as unknown as FileFilterCallback);
     expect(calls.length).toBe(1);
     // Passing an error rejects the file; the accept flag is undefined.
     expect(calls[0][0]).toBeInstanceOf(ApiError);
@@ -30,24 +31,24 @@ describe('media.routes.ts upload validation', () => {
   });
 
   it('accepts allowed image types', () => {
-    const calls: any[] = [];
-    const cb = (err: any, accept: boolean) => calls.push([err, accept]);
+    const calls: Array<[Error | null, boolean]> = [];
+    const cb = (err: Error | null, accept: boolean) => calls.push([err, accept]);
     for (const [mt, ext] of [['image/png', 'a.png'], ['image/jpeg', 'b.jpg'], ['image/webp', 'c.webp']]) {
-      fileFilter(undefined as any, makeFile(mt, ext), cb);
+      fileFilter(undefined as any, makeFile(mt, ext), cb as unknown as FileFilterCallback);
     }
     expect(calls.every(([, accept]) => accept === true)).toBe(true);
     expect(calls.every(([err]) => err === null)).toBe(true);
   });
 
   it('rejects mismatched extension even when MIME looks right', () => {
-    const calls: any[] = [];
-    const cb = (err: any, accept: boolean) => calls.push([err, accept]);
-    fileFilter(undefined as any, makeFile('image/png', 'photo.docx'), cb);
+    const calls: Array<[Error | null, boolean]> = [];
+    const cb = (err: Error | null, accept: boolean) => calls.push([err, accept]);
+    fileFilter(undefined as any, makeFile('image/png', 'photo.docx'), cb as unknown as FileFilterCallback);
     expect(calls[0][0]).toBeInstanceOf(ApiError);
     expect(calls[0][1]).not.toBe(true);
   });
 
   it('enforces a 5MB file size limit', () => {
-    expect(upload.limits.fileSize).toBe(5 * 1024 * 1024);
+    expect((upload as any).limits.fileSize).toBe(5 * 1024 * 1024);
   });
 });

@@ -1143,6 +1143,7 @@ export const deleteMedia = async (req: Request, res: Response, next: NextFunctio
   try {
     const id = req.params.id as string;
     const media = await prisma.media.findUnique({ where: { id } });
+    if (!media) throw ApiError.notFound('Media not found');
     if (media?.publicId) {
       try {
         await cloudinary.v2.uploader.destroy(media.publicId);
