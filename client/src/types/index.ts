@@ -249,10 +249,20 @@ export interface PaymentIntentResponse {
   orderId: string;
   orderNumber: string;
   paymentIntentId: string;
-  clientSecret: string;
+  clientSecret: string | null;
   amountCents: number;
   currency: string;
   paymentStatus: PaymentStatus;
+}
+
+export interface OrderPaymentStatusResponse {
+  orderId: string;
+  orderNumber: string;
+  total: number;
+  currency: string;
+  paymentMethod: PaymentMethod | null;
+  paymentStatus: PaymentStatus;
+  status: OrderStatus;
 }
 
 export interface CheckoutMethod {

@@ -64,6 +64,17 @@ const nextConfig: NextConfig = {
         hostname: "res.cloudinary.com",
         pathname: "/**",
       },
+      // Legacy local media served by the API under /uploads. The hostname is
+      // derived from NEXT_PUBLIC_API_URL so images stored before Cloudinary
+      // was configured keep rendering in production. Omitted when the API
+      // origin cannot be parsed (e.g. unset in production builds).
+      ...(apiOrigin ? [
+        {
+          protocol: new URL(apiOrigin).protocol.replace(':', '') as "http" | "https",
+          hostname: new URL(apiOrigin).hostname,
+          pathname: "/uploads/**",
+        },
+      ] : []),
       {
         protocol: "https",
         hostname: "via.placeholder.com",

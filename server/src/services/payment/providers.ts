@@ -63,16 +63,34 @@ export const stripeProvider: PaymentProvider = {
       totalCents: params.totalCents,
       currency: params.currency,
       customerUserId: params.userId,
+      idempotencyKey: params.idempotencyKey,
     });
 
-    await prisma.order.update({
-      where: { id: params.orderId },
+    // Guarded: never overwrite a PAID order with PROCESSING if payment settled
+    // between loading the order and creating the intent.
+    const updated = await prisma.order.updateMany({
+      where: {
+        id: params.orderId,
+        paymentStatus: {
+          in: [PAYMENT_STATUS.PENDING, PAYMENT_STATUS.PROCESSING, PAYMENT_STATUS.FAILED],
+        },
+      },
       data: {
         stripePaymentIntentId: paymentIntent.id,
         stripeClientSecret: paymentIntent.clientSecret,
         paymentStatus: PAYMENT_STATUS.PROCESSING,
       },
     });
+
+    if (updated.count === 0) {
+      const current = await prisma.order.findUnique({
+        where: { id: params.orderId },
+        select: { paymentStatus: true },
+      });
+      if (current?.paymentStatus === PAYMENT_STATUS.PAID) {
+        throw ApiError.badRequest('This order has already been paid.');
+      }
+    }
 
     return {
       provider: PAYMENT_METHOD.STRIPE,

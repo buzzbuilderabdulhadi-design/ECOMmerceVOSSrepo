@@ -29,3 +29,9 @@ export const capturePayPalOrderSchema = z.object({
       .max(100),
   }),
 });
+
+export const orderPaymentStatusSchema = z.object({
+  params: z.object({
+    orderId: z.string({ required_error: 'Order ID is required' }).min(1).max(100),
+  }),
+});

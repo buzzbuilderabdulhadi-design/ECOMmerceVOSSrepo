@@ -1,4 +1,4 @@
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary, UploadApiResponse, DestroyResponse } from 'cloudinary';
 import config from './index';
 
 // ============================================================
@@ -11,6 +11,27 @@ cloudinary.config({
   api_secret: config.cloudinary.apiSecret,
   secure: true,
 });
+
+/** True only when all three Cloudinary credentials are present. */
+export function isCloudinaryReady(): boolean {
+  return Boolean(config.cloudinary.name && config.cloudinary.apiKey && config.cloudinary.apiSecret);
+}
+
+/**
+ * Throw a clear, actionable error when Cloudinary is not configured.
+ * Call this before any upload/delete so operators get a precise message
+ * instead of an opaque provider failure.
+ */
+export function requireCloudinaryConfigured(): void {
+  if (!isCloudinaryReady()) {
+    throw new Error(
+      'Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, ' +
+      'CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET in the server environment ' +
+      '(see server/.env.example). Without these, uploaded media cannot be ' +
+      'persisted to durable storage.'
+    );
+  }
+}
 
 // ============================================================
 // Image Upload Options

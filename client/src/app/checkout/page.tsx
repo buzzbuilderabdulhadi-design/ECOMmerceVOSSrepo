@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useCallback, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { PaymentElement } from '@stripe/react-stripe-js';
 import { Navbar } from '@/components/layout/Navbar';
@@ -19,6 +19,7 @@ import { createOrder } from '@/services/orders';
 import {
   fetchCheckoutPreview,
   fetchCheckoutMethods,
+  fetchOrderPaymentStatus,
   createOrderPaymentIntent,
   createPayPalOrder,
 } from '@/services/checkout';
@@ -73,6 +74,57 @@ function methodLabel(methods: CheckoutMethod[], id: PaymentMethod | null | undef
   return found?.label ?? FALLBACK_LABELS[id] ?? String(id);
 }
 
+/**
+ * Result of returning from a hosted/redirect payment flow. Rendered instead of
+ * the normal checkout steps so a refreshed return page never falls back to an
+ * empty-cart screen or a client-declared "success".
+ */
+type PaymentReturn =
+  | { kind: 'verifying'; orderId: string }
+  | { kind: 'succeeded'; orderId: string; orderNumber: string; total: number }
+  | {
+      kind: 'pending';
+      orderId: string;
+      orderNumber: string;
+      total: number;
+      method: PaymentMethod | null;
+    }
+  | {
+      kind: 'failed';
+      orderId: string;
+      orderNumber: string;
+      total: number;
+      method: PaymentMethod | null;
+      message: string;
+    }
+  | { kind: 'cancelled'; method: string | null };
+
+const CHECKOUT_KEY_STORAGE = 'zg_checkout_attempt';
+const PENDING_ORDER_STORAGE = 'zg_pending_order';
+
+function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `zg-order-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Stable identity for the current cart contents. A new checkout attempt (new
+ * idempotency key) is only created when the cart actually changes, so a refresh
+ * mid-checkout reuses the same key and cannot create a second order.
+ */
+function cartSignature(cart: Cart | null | undefined): string {
+  if (!cart || !cart.items || cart.items.length === 0) return 'empty';
+  const lines = cart.items
+    .map((item) => `${item.productId}:${item.variantId ?? 'd'}:${item.quantity}`)
+    .sort()
+    .join('|');
+  return `${lines}#${cart.couponCode ?? ''}`;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 interface ReviewLine {
   key: string;
   name: string;
@@ -120,10 +172,25 @@ function buildReviewLines(preview: CheckoutPreview | null, cart: Cart | null | u
 }
 
 export default function CheckoutPage() {
+  // useSearchParams (used to read the provider return parameters) forces
+  // client-side rendering, so the boundary keeps the route prerenderable.
   return (
-    <StripeCheckoutProvider>
-      <CheckoutContent />
-    </StripeCheckoutProvider>
+    <React.Suspense fallback={<CheckoutFallback />}>
+      <StripeCheckoutProvider>
+        <CheckoutContent />
+      </StripeCheckoutProvider>
+    </React.Suspense>
+  );
+}
+
+function CheckoutFallback() {
+  return (
+    <main className="min-h-screen bg-warm-beige">
+      <Navbar />
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-navy/20 border-t-navy" />
+      </div>
+    </main>
   );
 }
 
@@ -137,7 +204,7 @@ function CheckoutContent() {
   const [shippingErrors, setShippingErrors] = useState<Partial<Record<keyof ShippingForm, string>>>({});
   const [isPlacing, setIsPlacing] = useState(false);
   const [orderError, setOrderError] = useState('');
-  const [completedOrder, setCompletedOrder] = useState<string | null>(null);
+  const [paymentReturn, setPaymentReturn] = useState<PaymentReturn | null>(null);
   const [manualResult, setManualResult] = useState<ManualResult | null>(null);
   const [paypalRedirecting, setPaypalRedirecting] = useState(false);
   const [methods, setMethods] = useState<CheckoutMethod[]>([]);
@@ -145,9 +212,9 @@ function CheckoutContent() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [preview, setPreview] = useState<CheckoutPreview | null>(null);
   const [previewError, setPreviewError] = useState('');
-  const [idempotencyKey] = useState(() =>
-    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `zg-order-${Date.now()}`
-  );
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => newIdempotencyKey());
+  const returnHandledRef = useRef(false);
+  const searchParams = useSearchParams();
 
   const steps: { id: Step; label: string }[] = [
     { id: 'shipping', label: 'Shipping' },
@@ -216,6 +283,214 @@ function CheckoutContent() {
     };
   }, [authLoading, isAuthenticated]);
 
+  // Persist the checkout-attempt key across refreshes. The key only rotates
+  // when the cart contents change, so re-submitting an interrupted checkout
+  // returns the existing order instead of creating (and charging) a second one.
+  React.useEffect(() => {
+    if (!cart) return;
+    void Promise.resolve().then(() => {
+      const signature = cartSignature(cart);
+      let stored: { key?: string; signature?: string } | null = null;
+      try {
+        const raw = sessionStorage.getItem(CHECKOUT_KEY_STORAGE);
+        if (raw) stored = JSON.parse(raw) as { key?: string; signature?: string };
+      } catch {
+        stored = null;
+      }
+      if (stored && stored.signature === signature && stored.key) {
+        setIdempotencyKey(stored.key);
+        return;
+      }
+      const key = newIdempotencyKey();
+      setIdempotencyKey(key);
+      try {
+        sessionStorage.setItem(CHECKOUT_KEY_STORAGE, JSON.stringify({ key, signature }));
+      } catch {
+        // Storage unavailable — the in-memory key still protects this page.
+      }
+    });
+  }, [cart]);
+
+  // The browser is never trusted to declare success. This re-reads the
+  // server-authoritative status (which reconciles with the provider) and only
+  // then reports the outcome, polling briefly while the payment settles.
+  const verifyOrderPayment = useCallback(
+    async (orderId: string) => {
+      setPaymentReturn({ kind: 'verifying', orderId });
+      // Reaching verification means an order exists and the server-side cart was
+      // already emptied; resync the client cart so nothing stale lingers.
+      void refreshCart();
+      const deadline = Date.now() + 20000;
+      let orderNumber = '';
+      let total = 0;
+      let method: PaymentMethod | null = null;
+
+      for (let attempt = 0; ; attempt += 1) {
+        let data;
+        try {
+          data = await fetchOrderPaymentStatus(orderId);
+        } catch (error) {
+          setPaymentReturn({
+            kind: 'failed',
+            orderId,
+            orderNumber,
+            total,
+            method,
+            message: getErrorMessage(error),
+          });
+          return;
+        }
+
+        orderNumber = data.orderNumber;
+        total = data.total;
+        method = data.paymentMethod;
+
+        if (data.paymentStatus === 'PAID') {
+          try {
+            sessionStorage.removeItem(PENDING_ORDER_STORAGE);
+          } catch {
+            /* ignore */
+          }
+          await refreshCart();
+          setPaymentReturn({ kind: 'succeeded', orderId, orderNumber, total });
+          return;
+        }
+        if (data.paymentStatus === 'FAILED' || data.paymentStatus === 'CANCELLED') {
+          setPaymentReturn({
+            kind: 'failed',
+            orderId,
+            orderNumber,
+            total,
+            method,
+            message:
+              data.paymentStatus === 'CANCELLED'
+                ? 'This payment was cancelled.'
+                : 'Your payment was not completed.',
+          });
+          return;
+        }
+        // Non-card methods settle outside this redirect loop.
+        if (method && method !== 'STRIPE' && method !== 'card') {
+          setPaymentReturn({ kind: 'pending', orderId, orderNumber, total, method });
+          return;
+        }
+        if (Date.now() >= deadline || attempt >= 9) {
+          setPaymentReturn({ kind: 'pending', orderId, orderNumber, total, method });
+          return;
+        }
+        await sleep(2000);
+      }
+    },
+    [refreshCart]
+  );
+
+  // Handle a provider redirect/refresh exactly once.
+  React.useEffect(() => {
+    if (returnHandledRef.current) return;
+    if (authLoading || !isAuthenticated) return;
+
+    const cancelled = searchParams.get('cancelled');
+    const orderParam = searchParams.get('order');
+    const paymentIntent = searchParams.get('payment_intent');
+    const redirectStatus = searchParams.get('redirect_status');
+
+    if (!cancelled && (!orderParam || (!paymentIntent && !redirectStatus))) return;
+
+    returnHandledRef.current = true;
+    void Promise.resolve().then(() => {
+      if (cancelled) {
+        let storedOrderId: string | null = null;
+        try {
+          storedOrderId = sessionStorage.getItem(PENDING_ORDER_STORAGE);
+        } catch {
+          storedOrderId = null;
+        }
+        if (storedOrderId) {
+          // Re-surface the interrupted order so the customer can finish paying.
+          void verifyOrderPayment(storedOrderId);
+        } else {
+          setPaymentReturn({ kind: 'cancelled', method: cancelled });
+        }
+        return;
+      }
+      void verifyOrderPayment(orderParam as string);
+    });
+  }, [authLoading, isAuthenticated, searchParams, verifyOrderPayment]);
+
+  // Recovery: if a checkout was started online but the customer came back to a
+  // now-empty cart (e.g. they closed the provider tab), surface the order and
+  // let them finish instead of showing a dead "cart is empty" screen.
+  React.useEffect(() => {
+    if (returnHandledRef.current) return;
+    if (authLoading || !isAuthenticated || !cart) return;
+    if (cart.items.length > 0) return;
+    if (searchParams.get('cancelled') || searchParams.get('order')) return;
+
+    let storedOrderId: string | null = null;
+    try {
+      storedOrderId = sessionStorage.getItem(PENDING_ORDER_STORAGE);
+    } catch {
+      storedOrderId = null;
+    }
+    if (!storedOrderId) return;
+
+    const pendingOrderId = storedOrderId;
+    returnHandledRef.current = true;
+    void Promise.resolve().then(() => verifyOrderPayment(pendingOrderId));
+  }, [authLoading, isAuthenticated, cart, searchParams, verifyOrderPayment]);
+
+  const handleRetryPayment = useCallback(async () => {
+    if (!paymentReturn || (paymentReturn.kind !== 'failed' && paymentReturn.kind !== 'pending')) {
+      return;
+    }
+    const { orderId, method } = paymentReturn;
+    setOrderError('');
+    setIsPlacing(true);
+    try {
+      if (method === 'PAYPAL') {
+        const origin = window.location.origin;
+        const paypal = await createPayPalOrder({
+          orderId,
+          returnUrl: `${origin}/checkout/paypal?orderId=${orderId}`,
+          cancelUrl: `${origin}/checkout?cancelled=paypal`,
+        });
+        if (paypal.alreadyCaptured) {
+          await verifyOrderPayment(orderId);
+          return;
+        }
+        if (!paypal.approvalUrl) {
+          throw new Error('PayPal could not start your payment. Please try again.');
+        }
+        setPaypalRedirecting(true);
+        window.location.assign(paypal.approvalUrl);
+        return;
+      }
+
+      if (!stripe || !elements) {
+        throw new Error('Payment is not fully configured yet. Please try again.');
+      }
+      const intent = await createOrderPaymentIntent(orderId);
+      if (!intent.clientSecret) {
+        await verifyOrderPayment(orderId);
+        return;
+      }
+      const { error } = await stripe.confirmPayment({
+        elements,
+        clientSecret: intent.clientSecret,
+        confirmParams: { return_url: `${window.location.origin}/checkout?order=${orderId}` },
+        redirect: 'if_required',
+      });
+      if (error) {
+        throw new Error(error.message || 'Payment could not be completed.');
+      }
+      await verifyOrderPayment(orderId);
+    } catch (error) {
+      setOrderError(getErrorMessage(error));
+    } finally {
+      setIsPlacing(false);
+    }
+  }, [paymentReturn, stripe, elements, verifyOrderPayment]);
+
   const updateShipping = (field: keyof ShippingForm, value: string) => {
     setShippingForm((prev) => ({ ...prev, [field]: value }));
     setShippingErrors((prev) => ({ ...prev, [field]: '' }));
@@ -271,21 +546,38 @@ function CheckoutContent() {
         if (!stripe || !elements) {
           throw new Error('Payment is not fully configured yet. Please try again.');
         }
+        try {
+          sessionStorage.setItem(PENDING_ORDER_STORAGE, order.id);
+        } catch {
+          /* ignore */
+        }
         const paymentIntent = await createOrderPaymentIntent(order.id);
+        if (!paymentIntent.clientSecret) {
+          // Already settled (e.g. a resumed/duplicate submit).
+          await verifyOrderPayment(order.id);
+          return;
+        }
         const { error } = await stripe.confirmPayment({
           elements,
           clientSecret: paymentIntent.clientSecret,
-          confirmParams: { return_url: window.location.href },
+          // `if_required` keeps frictionless cards on-page; 3DS still redirects
+          // and comes back to this route, where the backend verifies the result.
+          confirmParams: { return_url: `${window.location.origin}/checkout?order=${order.id}` },
+          redirect: 'if_required',
         });
         if (error) {
           throw new Error(error.message || 'Payment could not be completed.');
         }
-        await refreshCart();
-        setCompletedOrder(order.orderNumber);
+        await verifyOrderPayment(order.id);
         return;
       }
 
       if (paymentMethod === 'PAYPAL') {
+        try {
+          sessionStorage.setItem(PENDING_ORDER_STORAGE, order.id);
+        } catch {
+          /* ignore */
+        }
         const origin = window.location.origin;
         const paypal = await createPayPalOrder({
           orderId: order.id,
@@ -294,7 +586,7 @@ function CheckoutContent() {
         });
         await refreshCart();
         if (paypal.alreadyCaptured) {
-          setCompletedOrder(order.orderNumber);
+          await verifyOrderPayment(order.id);
           return;
         }
         if (!paypal.approvalUrl) {
@@ -446,23 +738,17 @@ function CheckoutContent() {
                   <Button href="/shop" variant="ghost">Continue Shopping</Button>
                 </div>
               </div>
-            ) : completedOrder ? (
-              <div className="hairline rounded-2xl bg-white/70 p-6 text-center backdrop-blur-sm sm:p-10">
-                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sage-light/40">
-                  <svg className="h-8 w-8 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h2 className="font-display text-3xl font-light text-navy">Thank You</h2>
-                <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
-                  Your order <span className="font-medium text-navy">#{completedOrder}</span> has been placed successfully.
-                  A confirmation email will be sent once your payment is fully processed.
-                </p>
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                  <Button href="/dashboard/orders" variant="primary">View My Orders</Button>
-                  <Button href="/shop" variant="ghost">Continue Shopping</Button>
-                </div>
-              </div>
+            ) : paymentReturn ? (
+              <PaymentReturnView
+                state={paymentReturn}
+                orderError={orderError}
+                isPlacing={isPlacing}
+                stripeReady={Boolean(stripe && elements)}
+                onRetry={handleRetryPayment}
+                onVerify={() => {
+                  if ('orderId' in paymentReturn) void verifyOrderPayment(paymentReturn.orderId);
+                }}
+              />
             ) : cart?.items?.length === 0 ? (
               <div className="hairline rounded-2xl bg-white/70 p-6 text-center backdrop-blur-sm sm:p-10">
                 <h2 className="font-display text-3xl font-light text-navy">Your cart is empty</h2>
@@ -825,5 +1111,159 @@ function CheckoutContent() {
         <Footer />
       </main>
     </PageTransition>
+  );
+}
+
+interface PaymentReturnViewProps {
+  state: PaymentReturn;
+  orderError: string;
+  isPlacing: boolean;
+  stripeReady: boolean;
+  onRetry: () => void;
+  onVerify: () => void;
+}
+
+function PaymentReturnView({
+  state,
+  orderError,
+  isPlacing,
+  stripeReady,
+  onRetry,
+  onVerify,
+}: PaymentReturnViewProps) {
+  const card = 'hairline rounded-2xl bg-white/70 p-6 text-center backdrop-blur-sm sm:p-10';
+  const actions = 'mt-8 flex flex-wrap items-center justify-center gap-4';
+
+  if (state.kind === 'verifying') {
+    return (
+      <div className={card}>
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-walnut/10">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-walnut/30 border-t-walnut" />
+        </div>
+        <h2 className="font-display text-3xl font-light text-navy">Verifying Your Payment</h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
+          Please wait while we confirm your payment with the provider. Do not close this window.
+        </p>
+      </div>
+    );
+  }
+
+  if (state.kind === 'succeeded') {
+    return (
+      <div className={card}>
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sage-light/40">
+          <svg className="h-8 w-8 text-sage-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 className="font-display text-3xl font-light text-navy">Thank You</h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
+          Your order{state.orderNumber ? <span className="font-medium text-navy"> #{state.orderNumber}</span> : ''} is
+          confirmed and your payment of{' '}
+          <span className="font-medium text-navy">{formatPrice(state.total)}</span> was received. A confirmation email
+          is on its way.
+        </p>
+        <div className={actions}>
+          <Button href="/dashboard/orders" variant="primary">View My Orders</Button>
+          <Button href="/shop" variant="ghost">Continue Shopping</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.kind === 'pending') {
+    const canRetry =
+      state.method === 'STRIPE' || state.method === 'card' || state.method === 'PAYPAL';
+    return (
+      <div className={card}>
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-walnut/10">
+          <svg className="h-8 w-8 text-walnut" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 className="font-display text-3xl font-light text-navy">Payment Processing</h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
+          Your order{state.orderNumber ? <span className="font-medium text-navy"> #{state.orderNumber}</span> : ''} is
+          being confirmed. This can take a moment — you&rsquo;ll receive an email as soon as the payment settles.
+        </p>
+        {orderError && (
+          <div className="mx-auto mt-5 max-w-md rounded-xl border border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
+            {orderError}
+          </div>
+        )}
+        <div className={actions}>
+          {canRetry && (
+            <Button variant="primary" onClick={onRetry} isLoading={isPlacing} disabled={isPlacing}>
+              Complete Payment
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onVerify} disabled={isPlacing}>Check Again</Button>
+          <Button href="/dashboard/orders" variant="ghost">View My Orders</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.kind === 'failed') {
+    const isStripe = state.method === 'STRIPE' || state.method === 'card';
+    const canRetry = isStripe || state.method === 'PAYPAL';
+    return (
+      <div className={card}>
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
+          <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h2 className="font-display text-3xl font-light text-navy">Payment Not Completed</h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
+          {state.message} Your order{state.orderNumber ? <span className="font-medium text-navy"> #{state.orderNumber}</span> : ''} has not
+          been charged. You can try again below.
+        </p>
+
+        {isStripe && stripeReady && (
+          <div className="mx-auto mt-6 max-w-md text-left">
+            <PaymentElement />
+          </div>
+        )}
+
+        {orderError && (
+          <div className="mx-auto mt-5 max-w-md rounded-xl border border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
+            {orderError}
+          </div>
+        )}
+
+        <div className={actions}>
+          {canRetry && (
+            <Button variant="primary" onClick={onRetry} isLoading={isPlacing} disabled={isPlacing}>
+              {state.method === 'PAYPAL' ? 'Try PayPal Again' : `Pay ${formatPrice(state.total)}`}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onVerify} disabled={isPlacing}>Check Status</Button>
+          <Button href="/dashboard/orders" variant="ghost">View My Orders</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // cancelled
+  const label = state.method
+    ? FALLBACK_LABELS[state.method.toUpperCase()] ?? 'the provider'
+    : 'the provider';
+  return (
+    <div className={card}>
+      <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-walnut/10">
+        <svg className="h-8 w-8 text-walnut" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </div>
+      <h2 className="font-display text-3xl font-light text-navy">Payment Cancelled</h2>
+      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate">
+        Your payment with {label} was cancelled and no charge was made.
+      </p>
+      <div className={actions}>
+        <Button href="/cart" variant="primary">Back to Cart</Button>
+        <Button href="/dashboard/orders" variant="ghost">View My Orders</Button>
+      </div>
+    </div>
   );
 }

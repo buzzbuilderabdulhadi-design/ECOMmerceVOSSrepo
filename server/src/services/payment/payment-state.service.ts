@@ -11,6 +11,7 @@
 import prisma from '../../config/db';
 import config from '../../config';
 import {
+  ORDER_STATUS,
   PAYMENT_STATUS,
   PaymentStatusValue,
 } from '../../constants/order';
@@ -73,6 +74,15 @@ export function setOrderPaid(
 }
 
 async function onOrderPaid(orderId: string): Promise<void> {
+  // Payment settled => the order is confirmed. Guarded so it is a no-op if an
+  // admin has already moved the order further along the fulfillment flow.
+  await prisma.order
+    .updateMany({
+      where: { id: orderId, status: ORDER_STATUS.PENDING },
+      data: { status: ORDER_STATUS.CONFIRMED },
+    })
+    .catch(() => {});
+
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { user: { select: { id: true, name: true, email: true } } },

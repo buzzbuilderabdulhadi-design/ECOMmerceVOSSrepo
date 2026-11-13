@@ -101,7 +101,7 @@ const contactItems = [
   },
 ];
 
-const paymentMethods = ['VISA', 'Mastercard', 'AMEX', 'PayPal', 'Apple Pay'];
+const paymentMethods = ['VISA', 'Mastercard', 'AMEX', 'PayPal'];
 
 export function Footer({ className }: FooterProps) {
   return (

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import prisma from '../config/db';
 import { sendSuccess, sendCreated, sendPaginated } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
@@ -71,8 +72,16 @@ const customerOrderSelect = {
 
 export const createOrder = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { shippingAddressId, notes, couponCode, paymentMethod, idempotencyKey } = req.body;
+    const { shippingAddressId, notes, couponCode, paymentMethod } = req.body;
     const userId = req.user!.userId;
+
+    // Every order carries a non-null idempotency key. `idempotencyKey` is a
+    // unique column and a unique index over a nullable field collides on the
+    // second NULL in MongoDB, so the server generates one when the client does
+    // not supply it. A client-supplied key still enables safe retries.
+    const providedKey =
+      typeof req.body.idempotencyKey === 'string' ? req.body.idempotencyKey.trim() : '';
+    const idempotencyKey = providedKey.length > 0 ? providedKey.slice(0, 100) : randomUUID();
 
     let method: PaymentMethodValue;
     try {
@@ -108,16 +117,16 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
     }
 
     // Idempotency: re-submitting the same checkout (same key) returns the
-    // order already created instead of charging/creating twice.
-    if (idempotencyKey) {
-      const existing = await prisma.order.findFirst({
-        where: { userId, idempotencyKey },
-        select: customerOrderSelect,
-      });
-      if (existing) {
-        sendSuccess(res, existing, 'Order already placed');
-        return;
-      }
+    // order already created instead of charging/creating twice. The unique
+    // index on idempotencyKey is the authoritative guard for the concurrent
+    // case (see the P2002 handling around the create below).
+    const existingOrder = await prisma.order.findFirst({
+      where: { userId, idempotencyKey },
+      select: customerOrderSelect,
+    });
+    if (existingOrder) {
+      sendSuccess(res, existingOrder, 'Order already placed');
+      return;
     }
 
     const cart = await prisma.cart.findFirst({
@@ -175,8 +184,11 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
     const reservations: StockReservation[] = [];
     let couponReservedId: string | null = null;
 
+    // Idempotent: drains the reservation lists first so calling it twice can
+    // never double-increment stock or double-decrement the coupon counter.
     const releaseReservations = async () => {
-      for (const reservation of [...reservations].reverse()) {
+      const pending = reservations.splice(0, reservations.length);
+      for (const reservation of pending.reverse()) {
         try {
           await prisma.product.update({
             where: { id: reservation.productId },
@@ -193,8 +205,10 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
         }
       }
       if (couponReservedId) {
+        const couponId = couponReservedId;
+        couponReservedId = null;
         await prisma.coupon
-          .update({ where: { id: couponReservedId }, data: { usedCount: { decrement: 1 } } })
+          .update({ where: { id: couponId }, data: { usedCount: { decrement: 1 } } })
           .catch(() => {});
       }
     };
@@ -249,27 +263,46 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
       }
 
       const orderNumber = generateOrderNumber();
-      const order = await prisma.order.create({
-        data: {
-          orderNumber,
-          userId,
-          subtotal: totals.subtotal,
-          shippingCost: totals.shipping,
-          tax: totals.tax,
-          discount: totals.discount,
-          total: totals.total,
-          shippingAddressId,
-          notes,
-          couponCode: coupon?.code ?? null,
-          paymentMethod: method,
-          paymentStatus: initialPaymentStatus,
-          paymentReference: manualPayment ? orderNumber : null,
-          status: 'PENDING',
-          idempotencyKey: idempotencyKey ?? null,
-          items: { create: orderItems },
-        },
-        select: customerOrderSelect,
-      });
+      let order: any;
+      try {
+        order = await prisma.order.create({
+          data: {
+            orderNumber,
+            userId,
+            subtotal: totals.subtotal,
+            shippingCost: totals.shipping,
+            tax: totals.tax,
+            discount: totals.discount,
+            total: totals.total,
+            shippingAddressId,
+            notes,
+            couponCode: coupon?.code ?? null,
+            paymentMethod: method,
+            paymentStatus: initialPaymentStatus,
+            paymentReference: manualPayment ? orderNumber : null,
+            status: 'PENDING',
+            idempotencyKey,
+            items: { create: orderItems },
+          },
+          select: customerOrderSelect,
+        });
+      } catch (error: any) {
+        // P2002 = the unique idempotencyKey index rejected this insert because a
+        // concurrent request with the same key won the race. Undo this request's
+        // stock/coupon reservations and return the winner's order.
+        if (error?.code === 'P2002') {
+          await releaseReservations();
+          const winner = await prisma.order.findFirst({
+            where: { userId, idempotencyKey },
+            select: customerOrderSelect,
+          });
+          if (winner) {
+            sendSuccess(res, winner, 'Order already placed');
+            return;
+          }
+        }
+        throw error;
+      }
 
       await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
       // The coupon was consumed by this order; clear it from the emptied cart

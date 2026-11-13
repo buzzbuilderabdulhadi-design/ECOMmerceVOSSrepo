@@ -16,6 +16,7 @@ import {
   isPaymentEventProcessed,
   markPaymentEventProcessed,
 } from '../services/payment/payment-event.service';
+import { reconcileStripePaymentIntent } from '../services/payment/stripe-reconcile.service';
 import {
   canTransitionPayment,
   PAYMENT_STATUS,
@@ -88,11 +89,27 @@ export const stripeWebhook = async (req: Request, res: Response): Promise<void> 
     }
 
     let result: 'updated' | 'already' | 'not_found' | 'invalid' = 'not_found';
+    let eventOrderId: string | null = null;
 
     switch (event.type) {
       case 'payment_intent.succeeded': {
+        // Settling money goes through the shared reconciliation path so the
+        // amount/currency is verified against the order and the customer
+        // notification/email choke point (setOrderPaid) is the only thing that
+        // runs. A mismatch is refused, never marked paid.
         const pi = event.data.object as Stripe.PaymentIntent;
-        result = await transitionPayment(pi.id, PAYMENT_STATUS.PAID);
+        const outcome = await reconcileStripePaymentIntent({
+          id: pi.id,
+          status: pi.status,
+          amount: pi.amount,
+          currency: pi.currency,
+        });
+        eventOrderId = outcome.orderId;
+        if (outcome.outcome === 'paid') result = 'updated';
+        else if (outcome.outcome === 'unchanged') result = 'already';
+        else if (outcome.outcome === 'no_order') result = 'not_found';
+        else if (outcome.outcome === 'amount_mismatch') result = 'invalid';
+        else result = 'updated';
         break;
       }
       case 'payment_intent.payment_failed': {
@@ -130,7 +147,11 @@ export const stripeWebhook = async (req: Request, res: Response): Promise<void> 
       logger.warn(`Stripe event ${event.type} attempted an impossible payment transition`);
     }
 
-    await markPaymentEventProcessed('STRIPE', event.id);
+    await markPaymentEventProcessed('STRIPE', event.id, eventOrderId, {
+      id: event.id,
+      type: event.type,
+      created: event.created,
+    });
 
     // Acknowledge duplicates (already) the same as fresh updates: Stripe will
     // stop retrying and no side effect is duplicated.

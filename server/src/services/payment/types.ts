@@ -28,6 +28,11 @@ export interface CreatePaymentParams {
   /** Absolute URLs used by PayPal-style hosted approvals. */
   returnUrl?: string;
   cancelUrl?: string;
+  /**
+   * Provider idempotency key override. Only used when a stored intent was
+   * cancelled and a genuinely new one must be created for the same order.
+   */
+  idempotencyKey?: string;
 }
 
 export type CreatePaymentResult =

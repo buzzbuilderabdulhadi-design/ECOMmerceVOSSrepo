@@ -8,6 +8,9 @@
     "build": "tsc",
     "start": "node dist/bootstrap.js",
     "lint": "eslint src/**/*.ts",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts",
@@ -51,6 +54,7 @@
     "prisma": "^6.5.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^2.1.9"
   }
 }

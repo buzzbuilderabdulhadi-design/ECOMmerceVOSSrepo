@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { sendSuccess } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
 import { isValidObjectId } from '../utils/objectId';
+import { isAllowedOrigin } from '../utils/urlSafety';
 import { getCouponOrThrow, normalizeCouponCode } from '../services/coupon.service';
 import {
   computeTotals,
@@ -23,6 +24,10 @@ import {
   getPaymentProvider,
 } from '../services/payment/providers';
 import { getPayPalOrder } from '../services/payment/paypal.service';
+import { retrievePaymentIntent } from '../services/stripe.service';
+import { reconcileStripePaymentIntent } from '../services/payment/stripe-reconcile.service';
+import { setOrderPaid } from '../services/payment/payment-state.service';
+import logger from '../utils/logger';
 
 const cartItemSelect = {
   items: {
@@ -185,6 +190,34 @@ async function loadPayableOrder(orderId: string, userId: string) {
   return order;
 }
 
+/**
+ * Only allow redirects back to an origin we own. The customer controls these
+ * URLs, so without this check PayPal could be asked to send the approval back
+ * to an attacker-controlled site.
+ */
+function assertAllowedReturnUrl(value: string, label: string): void {
+  if (!isAllowedOrigin(value, config.cors.allowedOrigins)) {
+    throw ApiError.badRequest(`${label} must point to this store.`);
+  }
+}
+
+/**
+ * Best-effort Stripe retrieve. A transient failure must not break checkout, so
+ * we fall back to creating a fresh intent and let Stripe idempotency protect
+ * against duplicates.
+ */
+async function retrievePaymentIntentSafe(id: string) {
+  try {
+    return await retrievePaymentIntent(id);
+  } catch (error) {
+    logger.warn('Unable to retrieve Stripe PaymentIntent; creating a new one', {
+      paymentIntentId: id,
+      error: String(error),
+    });
+    return null;
+  }
+}
+
 // ============================================================
 // POST /checkout/payment-intent — create PaymentIntent for an order (Stripe)
 // ============================================================
@@ -198,18 +231,58 @@ export const createOrderPaymentIntent = async (req: Request, res: Response, next
       throw ApiError.badRequest('This order does not use card payment.');
     }
 
-    // Idempotent: resume the existing PaymentIntent instead of charging twice.
-    if (order.stripePaymentIntentId && order.stripeClientSecret) {
-      sendSuccess(res, {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        paymentIntentId: order.stripePaymentIntentId,
-        clientSecret: order.stripeClientSecret,
-        amountCents: toCents(order.total),
-        currency: config.currency.toLowerCase(),
-        paymentStatus: order.paymentStatus,
-      });
-      return;
+    // Resuming is the whole idempotency story: a stored PaymentIntent is
+    // re-read from Stripe (never trusted blindly), and the same intent is
+    // handed back so the browser can only ever confirm one charge.
+    let idempotencyKey = `zg_order_${order.id}`;
+
+    if (order.stripePaymentIntentId) {
+      const existing = await retrievePaymentIntentSafe(order.stripePaymentIntentId);
+
+      if (existing) {
+        if (existing.status === 'succeeded') {
+          // Already charged: reconcile the order and report PAID rather than
+          // handing out a secret that could charge a second time.
+          const outcome = await reconcileStripePaymentIntent({
+            id: existing.id,
+            status: existing.status,
+            amount: existing.amountCents,
+            currency: existing.currency,
+          });
+          sendSuccess(res, {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            paymentIntentId: existing.id,
+            clientSecret: null,
+            amountCents: existing.amountCents,
+            currency: existing.currency,
+            paymentStatus: outcome.paymentStatus ?? PAYMENT_STATUS.PAID,
+          });
+          return;
+        }
+
+        if (existing.status !== 'canceled' && existing.clientSecret) {
+          sendSuccess(res, {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            paymentIntentId: existing.id,
+            clientSecret: existing.clientSecret,
+            amountCents: existing.amountCents,
+            currency: existing.currency,
+            paymentStatus: order.paymentStatus,
+          });
+          return;
+        }
+
+        // The previous intent was cancelled. A new one is genuinely required,
+        // so key it off the dead intent id — the default key would replay the
+        // cancelled intent for 24h.
+        idempotencyKey = `zg_order_${order.id}_retry_${existing.id}`;
+        await prisma.order.updateMany({
+          where: { id: order.id, stripePaymentIntentId: existing.id },
+          data: { stripePaymentIntentId: null, stripeClientSecret: null },
+        });
+      }
     }
 
     const result = await getPaymentProvider(PAYMENT_METHOD.STRIPE).createPayment({
@@ -218,6 +291,7 @@ export const createOrderPaymentIntent = async (req: Request, res: Response, next
       userId: req.user!.userId,
       totalCents: toCents(order.total),
       currency: config.currency,
+      idempotencyKey,
     });
 
     if (result.kind !== 'online' || result.provider !== PAYMENT_METHOD.STRIPE) {
@@ -237,6 +311,86 @@ export const createOrderPaymentIntent = async (req: Request, res: Response, next
 };
 
 // ============================================================
+// GET /checkout/orders/:orderId/payment — authoritative payment status
+//
+// The browser is never trusted to declare success. After a redirect (or on
+// refresh) the client calls this, which re-reads the provider state and
+// reconciles the order before returning the status.
+// ============================================================
+
+export const getOrderPaymentStatus = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const orderId = String(req.params.orderId);
+    if (!isValidObjectId(orderId)) throw ApiError.badRequest('Invalid order ID');
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, userId: req.user!.userId },
+      select: {
+        id: true, orderNumber: true, total: true, status: true,
+        paymentStatus: true, paymentMethod: true,
+        stripePaymentIntentId: true, paypalOrderId: true,
+      },
+    });
+    if (!order) throw ApiError.notFound('Order not found');
+
+    const method = order.paymentMethod ? normalizePaymentMethod(order.paymentMethod) : null;
+    let paymentStatus: string = order.paymentStatus;
+
+    if (method === PAYMENT_METHOD.STRIPE && order.stripePaymentIntentId) {
+      const intent = await retrievePaymentIntentSafe(order.stripePaymentIntentId);
+      if (intent) {
+        const outcome = await reconcileStripePaymentIntent({
+          id: intent.id,
+          status: intent.status,
+          amount: intent.amountCents,
+          currency: intent.currency,
+        });
+        if (outcome.paymentStatus) paymentStatus = outcome.paymentStatus;
+      }
+    } else if (
+      method === PAYMENT_METHOD.PAYPAL &&
+      order.paypalOrderId &&
+      order.paymentStatus !== PAYMENT_STATUS.PAID
+    ) {
+      // PayPal approval redirects back to us before the capture webhook may
+      // arrive; reconcile against PayPal so the UI never shows a false pending.
+      try {
+        const view = await getPayPalOrder(order.paypalOrderId);
+        if (view.status === 'COMPLETED' && view.captureId) {
+          const cents = toCents(order.total);
+          const currencyOk =
+            !view.currency || view.currency.toLowerCase() === config.currency.toLowerCase();
+          if (view.amountCents === cents && currencyOk) {
+            await setOrderPaid(order.id, { captureId: view.captureId });
+            paymentStatus = PAYMENT_STATUS.PAID;
+          }
+        }
+      } catch (error) {
+        logger.warn('Unable to reconcile PayPal order status', {
+          paypalOrderId: order.paypalOrderId,
+          error: String(error),
+        });
+      }
+    }
+
+    const refreshed = await prisma.order.findUnique({
+      where: { id: order.id },
+      select: { paymentStatus: true, status: true },
+    });
+
+    sendSuccess(res, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      total: order.total,
+      currency: config.currency.toLowerCase(),
+      paymentMethod: method,
+      paymentStatus: refreshed?.paymentStatus ?? paymentStatus,
+      status: refreshed?.status ?? order.status,
+    });
+  } catch (error) { next(error); }
+};
+
+// ============================================================
 // POST /checkout/paypal/create — start a PayPal order for an order
 // ============================================================
 
@@ -251,6 +405,8 @@ export const createPayPalOrderForCheckout = async (req: Request, res: Response, 
     if (!returnUrl || !cancelUrl) {
       throw ApiError.badRequest('Return and cancel URLs are required for PayPal.');
     }
+    assertAllowedReturnUrl(returnUrl, 'Return URL');
+    assertAllowedReturnUrl(cancelUrl, 'Cancel URL');
 
     // Idempotent: resuming an in-progress PayPal order instead of creating a
     // second one. Verifies against PayPal so stale/expired approvals fail.

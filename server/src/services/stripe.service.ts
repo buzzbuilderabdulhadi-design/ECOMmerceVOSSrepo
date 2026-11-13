@@ -36,6 +36,13 @@ export interface CreatePaymentIntentParams {
   totalCents: number;
   currency?: string;
   customerUserId?: string;
+  /**
+   * Overrides the default Stripe idempotency key. Callers only supply one when
+   * a previously stored PaymentIntent was cancelled and a genuinely new intent
+   * must be created for the same order (the default key would otherwise replay
+   * the dead intent for 24h).
+   */
+  idempotencyKey?: string;
 }
 
 export interface PaymentIntentResult {
@@ -44,6 +51,15 @@ export interface PaymentIntentResult {
   amountCents: number;
   currency: string;
   status: string;
+}
+
+export interface RetrievedPaymentIntent {
+  id: string;
+  status: string;
+  amountCents: number;
+  currency: string;
+  clientSecret: string | null;
+  orderId?: string;
 }
 
 /**
@@ -71,7 +87,7 @@ export async function createPaymentIntentForOrder(params: CreatePaymentIntentPar
       },
       automatic_payment_methods: { enabled: true },
     },
-    { idempotencyKey: `zg_order_${params.orderId}` }
+    { idempotencyKey: params.idempotencyKey ?? `zg_order_${params.orderId}` }
   );
 
   if (!paymentIntent.client_secret) {
@@ -84,5 +100,22 @@ export async function createPaymentIntentForOrder(params: CreatePaymentIntentPar
     amountCents: paymentIntent.amount,
     currency: paymentIntent.currency,
     status: paymentIntent.status,
+  };
+}
+
+/**
+ * Read the authoritative state of a PaymentIntent directly from Stripe. Used to
+ * reconcile an order after a redirect/refresh instead of trusting URL params.
+ */
+export async function retrievePaymentIntent(id: string): Promise<RetrievedPaymentIntent> {
+  const stripe = getStripe();
+  const intent = await stripe.paymentIntents.retrieve(id);
+  return {
+    id: intent.id,
+    status: intent.status,
+    amountCents: intent.amount,
+    currency: intent.currency,
+    clientSecret: intent.client_secret ?? null,
+    orderId: intent.metadata?.orderId,
   };
 }

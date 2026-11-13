@@ -13,9 +13,24 @@ const API_ORIGIN = (() => {
 })();
 
 export function resolveAssetUrl(url?: string | null): string {
-  if (!url) return '';
-  if (url.startsWith('/uploads/')) {
-    return API_ORIGIN + url;
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  // Absolute HTTPS URLs remain unchanged (Cloudinary, external hosts).
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  // Relative /uploads/ paths resolve against the API origin.
+  if (trimmed.startsWith('/uploads/')) {
+    return API_ORIGIN ? API_ORIGIN + trimmed : '';
   }
-  return url;
+  // Any other relative path is treated as client-origin; return as-is.
+  return trimmed;
+}
+
+/** Return a safe image URL, falling back to a placeholder when none is usable. */
+export function resolveAssetUrlOrFallback(
+  url?: string | null,
+  fallback = 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=900&q=85',
+): string {
+  const resolved = resolveAssetUrl(url);
+  return resolved || fallback;
 }

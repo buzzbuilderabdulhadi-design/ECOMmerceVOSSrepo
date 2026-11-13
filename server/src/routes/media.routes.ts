@@ -50,6 +50,8 @@ const upload = multer({
   fileFilter,
 });
 
+export { fileFilter, upload };
+
 const router = Router();
 
 // Media uploads are privileged storefront assets. Only admins may upload;

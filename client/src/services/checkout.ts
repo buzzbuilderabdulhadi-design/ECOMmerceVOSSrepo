@@ -2,6 +2,7 @@ import axiosInstance from './axios';
 import type {
   CheckoutMethodsResponse,
   CheckoutPreview,
+  OrderPaymentStatusResponse,
   PayPalCaptureResponse,
   PayPalOrderCreateResponse,
   PaymentIntentResponse,
@@ -19,6 +20,13 @@ export const fetchCheckoutMethods = async (): Promise<CheckoutMethodsResponse> =
 
 export const createOrderPaymentIntent = async (orderId: string): Promise<PaymentIntentResponse> => {
   const response = await axiosInstance.post('/checkout/payment-intent', { orderId });
+  return response.data.data;
+};
+
+export const fetchOrderPaymentStatus = async (
+  orderId: string
+): Promise<OrderPaymentStatusResponse> => {
+  const response = await axiosInstance.get(`/checkout/orders/${orderId}/payment`);
   return response.data.data;
 };
 

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
 import cloudinary from 'cloudinary';
+import { uploadImage, deleteImage, requireCloudinaryConfigured } from '../config/cloudinary';
 import prisma from '../config/db';
 import { sendSuccess, sendCreated, sendPaginated, sendMessage } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
@@ -1077,52 +1078,47 @@ export const uploadMedia = async (req: Request, res: Response, next: NextFunctio
   try {
     let media;
     if (req.file) {
-      // Cloudinary is optional at runtime: if credentials are configured we
-      // upload to the CDN, otherwise fall back to serving the file locally by
-      // PROMOTING the validated temp file into the public uploads dir.
-      const cloudinaryReady =
-        config.cloudinary && config.cloudinary.name && config.cloudinary.apiKey && config.cloudinary.apiSecret;
+      // Cloudinary is required for durable media storage. There is no local
+      // filesystem fallback: files written to `uploads/` are lost on redeploy
+      // and server restart, so uploads fail fast with a clear error when
+      // Cloudinary credentials are missing instead of silently storing
+      // ephemeral local paths.
+      requireCloudinaryConfigured();
 
-      let url: string;
-      let publicId: string | null = null;
-      let width: number | null = null;
-      let height: number | null = null;
       const folder = (req.body.folder as string) || 'zoya-goods';
-
-      if (cloudinaryReady) {
-        cloudinary.v2.config({ cloud_name: config.cloudinary.name, api_key: config.cloudinary.apiKey, api_secret: config.cloudinary.apiSecret });
-        const result = await cloudinary.v2.uploader.upload(req.file.path, {
-          folder,
-          resource_type: 'auto',
-        });
-        url = result.secure_url;
-        publicId = result.public_id;
-        width = result.width ?? null;
-        height = result.height ?? null;
-      } else {
-        const uploadsDir = path.join(process.cwd(), 'uploads');
-        await fs.promises.mkdir(uploadsDir, { recursive: true });
-        await fs.promises.copyFile(req.file.path, path.join(uploadsDir, req.file.filename));
-        url = `/uploads/${req.file.filename}`;
-      }
+      let publicId: string | undefined;
 
       try {
+        const result = await uploadImage(req.file.path, 'product' as const, undefined);
+        publicId = result.publicId;
+
         media = await prisma.media.create({
           data: {
             fileName: req.file.originalname,
-            url,
-            publicId,
+            url: result.secure_url,
+            publicId: result.publicId,
             mimeType: req.file.mimetype,
             size: req.file.size,
-            width,
-            height,
+            width: result.width,
+            height: result.height,
             folder,
             altText: (req.body.altText as string) || req.file.originalname,
             uploadedBy: req.user?.userId,
           },
         });
+      } catch (error) {
+        // Database failure after a successful upload: delete the orphaned
+        // Cloudinary asset so nothing is stored without a database record.
+        if (publicId) {
+          try {
+            await deleteImage(publicId);
+          } catch {
+            // Best-effort rollback; surface the original error.
+          }
+        }
+        throw error;
       } finally {
-        // Always remove the staged temp file (promoted copy already made).
+        // Always remove the staged temp file (Cloudinary upload already made).
         fs.promises.unlink(req.file.path).catch(() => {});
       }
     } else {
