@@ -7,6 +7,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import config from './config';
 import prisma from './config/db';
+import { getRedisClient } from './config/redis';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestGuards, sensitiveNoStore } from './middleware/requestGuards';
 import { csrfProtection } from './middleware/csrf.middleware';
@@ -63,7 +64,9 @@ app.use(helmet({
 // non-safelisted header forces the browser to CORS-preflight each request, so
 // it MUST be listed here or every browser call is blocked before it starts.
 app.use(cors({
-  origin: config.client.url,
+  // CLIENT_URL is always included; ALLOWED_ORIGINS adds extra storefront
+  // origins. Both are already normalized to exact scheme://host values.
+  origin: config.cors.allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'x-csrf-token'],
@@ -158,6 +161,11 @@ app.get('/api/health', async (_req, res) => {
     dbConnected = false;
   }
 
+  // Report Redis only as a coarse state — never expose the connection URL.
+  const redisStatus = config.redis.url
+    ? (getRedisClient()?.isReady ? 'connected' : 'disconnected')
+    : (config.redis.allowMemoryStore ? 'memory' : 'not_configured');
+
   res.status(dbConnected ? 200 : 503).json({
     success: dbConnected,
     data: {
@@ -166,6 +174,7 @@ app.get('/api/health', async (_req, res) => {
       environment: config.env,
       uptime: process.uptime(),
       database: dbConnected ? 'connected' : 'disconnected',
+      redis: redisStatus,
       integrations: {
         email: isEmailConfigured(),
         cloudinary: isCloudinaryConfigured(),
