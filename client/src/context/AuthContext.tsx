@@ -29,7 +29,7 @@ type AuthAction =
   | { type: 'CLEAR_ERROR' };
 
 interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<User>;
   register: (data: RegisterData) => Promise<void>;
   completeGoogleLogin: (code: string, state: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -118,10 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'LOGIN_START' });
     try {
       const response = await axiosInstance.post('/auth/login', credentials);
+      const user = response.data.data.user as User;
       dispatch({
         type: 'LOGIN_SUCCESS',
-        payload: { user: response.data.data.user as User },
+        payload: { user },
       });
+      return user;
     } catch (error) {
       const message = getErrorMessage(error);
       dispatch({ type: 'LOGIN_FAILURE', payload: message });

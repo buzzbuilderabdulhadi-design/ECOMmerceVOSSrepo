@@ -10,6 +10,7 @@ import { ApiError } from '../utils/apiError';
 import { cacheInvalidate } from '../utils/cache';
 import { parsePagination } from '../utils/pagination';
 import { slugify, uniqueSlug } from '../utils/slugify';
+import { assertImageSignature } from '../utils/imageSignature';
 import { assertObjectId, isValidObjectId } from '../utils/objectId';
 import {
   isManualPaymentMethod,
@@ -426,7 +427,7 @@ export const createProductVariant = async (req: Request, res: Response, next: Ne
     if (!variantSku || variantSku.trim() === '') {
       variantSku = `${product.sku}-${String(color).slice(0, 12)}-${String(size).slice(0, 12)}`;
     }
-    let finalSku = variantSku as string;
+    const finalSku = variantSku as string;
     const exists = await prisma.productVariant.findFirst({ where: { sku: finalSku }, select: { id: true } });
     if (exists) {
       throw ApiError.conflict('A variant with this SKU already exists.');
@@ -1084,6 +1085,7 @@ export const uploadMedia = async (req: Request, res: Response, next: NextFunctio
       // Cloudinary credentials are missing instead of silently storing
       // ephemeral local paths.
       requireCloudinaryConfigured();
+      await assertImageSignature(req.file.path, req.file.mimetype);
 
       const folder = (req.body.folder as string) || 'zoya-goods';
       let publicId: string | undefined;

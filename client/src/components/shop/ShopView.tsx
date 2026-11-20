@@ -128,6 +128,11 @@ export function ShopView({
   const handleSort = (value: string) => {
     setSortBy(value);
     setCurrentPage(1);
+    const params = new URLSearchParams(window.location.search);
+    params.set('sort', value);
+    if (isBestSellerView) params.set('isBestSeller', 'true');
+    const query = params.toString();
+    window.history.replaceState(null, '', query ? `${pathname}?${query}` : pathname);
   };
 
   const errorStateHeading = isBestSellerView

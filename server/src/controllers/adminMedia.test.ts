@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Request, Response } from 'express';
 import fs from 'fs';
 
+vi.mock('../utils/imageSignature', () => ({
+  assertImageSignature: vi.fn(),
+}));
 vi.mock('../config/cloudinary', () => ({
   uploadImage: vi.fn(),
   deleteImage: vi.fn(),

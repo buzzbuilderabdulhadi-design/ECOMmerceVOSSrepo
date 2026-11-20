@@ -1,7 +1,9 @@
 'use client';
 
 import Image from 'next/image';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { resolveAssetUrlOrFallback } from '@/lib/assetUrl';
 
 type ImageLike = string | { url?: string | null } | null | undefined;
 
@@ -48,13 +50,24 @@ export function ProductImage({
 }: ProductImageProps) {
   const list = (images ?? []).map(toUrl).filter((u): u is string => Boolean(u));
   const src = toUrl(image) ?? list[0] ?? null;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
   const dark = tone === 'dark';
+  const resolved = resolveAssetUrlOrFallback(src);
+  const displaySrc = failedSrc === resolved ? resolveAssetUrlOrFallback(null) : resolved;
 
   return (
     <div className={cn('relative overflow-hidden', className, !src && 'bg-bone')}>
       {src ? (
-        <Image src={src} alt={alt} fill priority={priority} sizes={sizes} className="object-cover" />
+        <Image
+          src={displaySrc}
+          alt={alt}
+          fill
+          priority={priority}
+          sizes={sizes}
+          className="object-cover"
+          onError={() => setFailedSrc(resolved)}
+        />
       ) : (
         <div
           role="img"

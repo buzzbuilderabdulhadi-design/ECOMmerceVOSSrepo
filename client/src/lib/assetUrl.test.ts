@@ -1,9 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { resolveAssetUrl, resolveAssetUrlOrFallback } from './assetUrl';
-
-const originalEnv = process.env;
-beforeEach(() => { process.env = { ...originalEnv }; vi.resetModules(); });
-afterEach(() => { process.env = originalEnv; vi.resetModules(); });
 
 describe('resolveAssetUrl', () => {
   it('returns empty string for missing or invalid URLs', () => {
@@ -24,22 +20,15 @@ describe('resolveAssetUrl', () => {
     expect(resolveAssetUrl('http://example.com/img.jpg')).toBe('http://example.com/img.jpg');
   });
 
-  it('resolves /uploads/ paths against the API origin', () => {
-    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:5000/api/v1';
-    vi.resetModules();
-    const { resolveAssetUrl: r } = require('./assetUrl');
-    expect(r('/uploads/products/abc.png')).toBe('http://localhost:5000/uploads/products/abc.png');
+  it('resolves /uploads/ paths through the same-origin proxy', () => {
+    expect(resolveAssetUrl('/uploads/products/abc.png')).toBe('/api/uploads/products/abc.png');
   });
 
-  it('does not introduce localhost into production absolute URLs', () => {
-    process.env.NEXT_PUBLIC_API_URL = 'https://api.zoyagoods.com/api/v1';
-    vi.resetModules();
-    const { resolveAssetUrl: r } = require('./assetUrl');
+  it('never introduces a backend hostname into image URLs', () => {
     const cdn = 'https://res.cloudinary.com/demo/image/upload/v1/zoya-goods/p.png';
-    expect(r(cdn)).toBe(cdn);
-    expect(r('https://images.unsplash.com/x.jpg')).toBe('https://images.unsplash.com/x.jpg');
-    // No /uploads/ prefix means no API origin is prepended.
-    expect(r('/uploads/x.png')).toBe('https://api.zoyagoods.com/uploads/x.png');
+    expect(resolveAssetUrl(cdn)).toBe(cdn);
+    expect(resolveAssetUrl('https://images.unsplash.com/x.jpg')).toBe('https://images.unsplash.com/x.jpg');
+    expect(resolveAssetUrl('/uploads/x.png')).toBe('/api/uploads/x.png');
   });
 
   it('passes through other relative paths unchanged', () => {

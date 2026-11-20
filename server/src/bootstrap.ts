@@ -1,3 +1,4 @@
+import type { Server } from 'http';
 import config, { validateConfig } from './config';
 import { connectDatabase, disconnectDatabase } from './config/db';
 import { connectRedis, disconnectRedis } from './config/redis';
@@ -13,6 +14,32 @@ import logger from './utils/logger';
 // starting listeners or opening external connections.
 // ============================================================
 
+let server: Server | undefined;
+let shuttingDown = false;
+
+function describeError(value: unknown): { message: string; stack?: string } {
+  if (value instanceof Error) {
+    return { message: value.message, stack: value.stack };
+  }
+  return { message: String(value) };
+}
+
+async function shutdown(exitCode = 0): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info('Shutting down ZOYA GOODS server...');
+
+  if (server) {
+    await new Promise<void>((resolve) => {
+      server?.close(() => resolve());
+    });
+  }
+
+  await disconnectRedis();
+  await disconnectDatabase();
+  process.exit(exitCode);
+}
+
 async function startServer(): Promise<void> {
   try {
     await connectDatabase();
@@ -21,7 +48,7 @@ async function startServer(): Promise<void> {
 
     const { default: app } = await import('./app');
 
-    app.listen(config.port, () => {
+    server = app.listen(config.port, () => {
       logger.info(`🚀 ZOYA GOODS Server running on port ${config.port}`);
       logger.info(`🌍 Environment: ${config.env}`);
       logger.info(`🔗 Client URL: ${config.client.url}`);
@@ -31,35 +58,29 @@ async function startServer(): Promise<void> {
       }
     });
   } catch (error) {
-    logger.error('Failed to start server:', { error: String(error) });
-    process.exit(1);
+    logger.error('Failed to start server:', { error: describeError(error).message });
+    await shutdown(1);
   }
 }
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason: Error) => {
-  logger.error('Unhandled Rejection:', { error: reason.message, stack: reason.stack });
+process.on('unhandledRejection', (reason: unknown) => {
+  const detail = describeError(reason);
+  logger.error('Unhandled Rejection:', detail);
+  void shutdown(1);
 });
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
-  logger.error('Uncaught Exception:', { error: error.message, stack: error.stack });
-  process.exit(1);
+  const detail = describeError(error);
+  logger.error('Uncaught Exception:', detail);
+  void shutdown(1);
 });
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received. Shutting down gracefully...');
-  await disconnectRedis();
-  await disconnectDatabase();
-  process.exit(0);
+process.on('SIGTERM', () => {
+  void shutdown();
 });
 
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received. Shutting down gracefully...');
-  await disconnectRedis();
-  await disconnectDatabase();
-  process.exit(0);
+process.on('SIGINT', () => {
+  void shutdown();
 });
 
 void startServer();

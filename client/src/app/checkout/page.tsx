@@ -850,8 +850,13 @@ function CheckoutContent() {
               </div>
             )}
 
-            {step === 'payment' && (
-              <div className="hairline rounded-2xl bg-white/70 p-6 backdrop-blur-sm sm:p-10">
+            {(step === 'payment' || step === 'review') && (
+              <div
+                className={cn(
+                  'hairline rounded-2xl bg-white/70 p-6 backdrop-blur-sm sm:p-10',
+                  step === 'review' && 'hidden'
+                )}
+              >
                 <p className="text-[11px] uppercase tracking-[0.3em] text-sage-dark">Step 02 — Secure Payment</p>
                 <h2 className="mt-2 font-display text-3xl font-light text-navy">Payment Information</h2>
                 {previewError && (

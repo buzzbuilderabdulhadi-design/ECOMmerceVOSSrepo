@@ -76,6 +76,9 @@ export function createLimiter(spec: LimiterSpec) {
     // cannot block work. Production fails closed: silently disabling limits
     // during a Redis outage is worse than rejecting traffic.
     passOnStoreError: config.rateLimit.passOnStoreError,
+    // Uptime probes must stay cheap and must never consume the public request
+    // budget (or be blocked when the shared store is briefly unavailable).
+    skip: (req) => req.originalUrl.split('?')[0] === '/api/health',
     keyGenerator: spec.userKeyed
       ? (req: Request) =>
           req.user ? `user:${req.user.userId}` : `ip:${req.ip ?? 'unknown'}`

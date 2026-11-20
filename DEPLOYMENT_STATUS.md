@@ -1,360 +1,148 @@
 # ZOYA GOODS — Deployment Status Report
 
-Date: 2026-11-14
+Date: 2026-11-20
 Branch inspected: `main`
-Working tree changes: uncommitted (no commit, push, or deploy was performed)
+Working tree changes: uncommitted (no commit, push, or deploy performed)
 
 ---
 
-## 1. Verdict
+## A. Verdict
 
-**PARTIALLY READY**
+**CODE-SIDE READY; EXTERNAL DEPLOYMENT STILL REQUIRES OWNER ACTION.**
 
-- The backend builds, starts, connects to the existing MongoDB Atlas database,
-  and serves real products and categories.
-- The frontend TypeScript check and production build pass.
-- Deployment is blocked by owner-account actions (Render service, Redis,
-  Cloudinary credentials, Vercel environment, commit/push) and by a
-  cross-domain authentication decision for the current `vercel.app` +
-  `onrender.com` split.
-- For a catalog-only launch whose goal is "display real products", the remaining
-  steps are: create Render + Redis, set Render env vars, set Vercel
-  `NEXT_PUBLIC_API_URL`, commit/push, and redeploy.
+The frontend now calls the backend through same-origin Next.js API routes, so
+the browser stays on `https://voss-two.vercel.app`. Server-side route handlers
+forward to Render using `API_PROXY_TARGET`. The previous cross-domain cookie
+blocker is resolved in code.
+
+Deployment still requires owner-account actions: create Render service and
+managed Redis, supply Cloudinary credentials, confirm Atlas network access, set
+Render/Vercel environment variables, commit/push, and redeploy.
 
 ---
 
-## 2. What was verified
+## B. Verified checks
 
-### Backend build / startup
+| Area | Command / check | Result |
+| --- | --- | --- |
+| Client lint | `npm run lint` | Pass |
+| Client typecheck | `npx tsc --noEmit` | Pass |
+| Client tests | `npm test` | Pass — 2 files, 20 tests |
+| Client production build | `npm run build` | Pass — 49/49 static pages |
+| Proxy E2E | `proxy-e2e.mjs` | Pass — 21 checks, `ALL CHECKS PASSED` |
+| Server lint | `npm run lint` | Pass — 0 errors, 108 warnings |
+| Server typecheck | `npx tsc --noEmit` | Pass |
+| Server tests | `npm test` | Pass — 7 files, 29 tests |
+| Server production build | `npm run build` | Pass |
 
-| Check | Command | Exit code | Result |
-| --- | --- | --- | --- |
-| Clean install with `NODE_ENV=production` | `npm ci` | 0 | Pass |
-| Prisma Client generation | `npx prisma generate` | 0 | Pass (Prisma 6.19.3) |
-| TypeScript production build | `npm run build` | 0 | Pass |
-| Compiled entry point | `node dist/bootstrap.js` | 0 | Started and listened |
-| Health endpoint | `GET /api/health` | 200 | `database: connected` |
-| Catalog products | `GET /api/v1/products?limit=3` | 200 | 3 returned, total 50 |
-| Categories | `GET /api/v1/categories` | 200 | 35 returned |
-
-The health/startup test was run locally in a production-like configuration with
-temporary non-secret placeholder Cloudinary values and
-`RATE_LIMIT_ALLOW_MEMORY=true`. No uploads were performed and no configuration
-was persisted.
-
-### MongoDB / Prisma (read-only)
-
-| Check | Result |
-| --- | --- |
-| Prisma connection to existing Atlas database | Pass |
-| Products | 54 total, 50 active |
-| Categories | 38 total |
-| Data modified/deleted/reseeded | None |
-| `prisma db push` / migrations / seed | Not run |
-
-### Product images
-
-| Pattern | Count |
-| --- | --- |
-| `images.unsplash.com` | 88 |
-| `via.placeholder.com` | 7 |
-| Legacy `/uploads/...` URLs | 0 |
-| Products with no images | 2 |
-| Categories with no image | 38 |
-
-No existing product image depends on Render's ephemeral filesystem. Existing
-images are absolute external URLs already allowed by the frontend image
-configuration.
-
-### Frontend
-
-| Check | Command | Exit code | Result |
-| --- | --- | --- | --- |
-| TypeScript check | `npx tsc --noEmit` | 0 | Pass |
-| Production build | `npm run build` | 0 | Pass (all routes built) |
-| Test suite | `npm test` | 1 | 2 of 9 tests fail (pre-existing test harness issue) |
-
-Client test failure detail:
-
-- `src/lib/assetUrl.test.ts` uses `require('./assetUrl')` after
-  `vi.resetModules()`, which fails with `Cannot find module './assetUrl'` under
-  the current Vitest ESM setup. This is a test-harness issue, not a runtime
-  asset-URL failure. It was not changed to force a pass.
-
-### Backend test failures (reported, not hidden)
-
-`npm test` in `server` exits **1**:
-
-- Test files: 6 failed, 11 passed
-- Tests: 7 failed, 29 passed
-- 1 failed suite (`src/__fsmock.test.ts`)
-
-Failures are in diagnostic/probe artifacts and a mock-identity assertion:
-
-- `src/__fsmock.test.ts` — `vi.mock('fs')` factory references a variable before
-  initialization
-- `src/__debug3.test.ts`, `src/__debug4.test.ts`, `src/__debug5.test.ts`,
-  `src/__spylifecycle.test.ts` — probe tests with invalid mock APIs
-- `src/controllers/media.test.ts` — 3 failures because `vi.spyOn(fs.promises,
-  'unlink')` does not intercept the filesystem call in this Vitest module
-  setup
-
-These files are pre-existing and unrelated to deployment or to the changes
-below. Relevant security/config/route tests pass independently:
-
-```bash
-npx vitest run src/config/index.test.ts src/middleware/auth.test.ts \
-  src/routes/media.routes.test.ts src/controllers/adminMedia.test.ts \
-  src/config/cloudinary.test.ts
-```
-
-Result: **19 tests passed, exit 0**.
-
-Recommendation: remove the `__*` probe artifacts and repair the `media.test.ts`
-mock in a separate change, with your approval. They do not block deployment
-because the production build excludes test files.
-
----
-
-## 3. Changes made
-
-### 3.1 `server/tsconfig.json`
-
-Excluded test files from the production TypeScript compile:
-
-```diff
--  "exclude": ["node_modules", "dist"]
-+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.spec.ts"]
-```
-
-Why: `tsc` compiled stray diagnostic `__*.test.ts` files and failed with type
-errors, so `npm run build` failed. Production builds should not compile tests.
-Vitest still runs test files because its own config includes them.
-
-### 3.2 `server/src/app.ts`
-
-1. CORS now uses the full configured allowlist instead of only `CLIENT_URL`:
-
-```diff
--  origin: config.client.url,
-+  origin: config.cors.allowedOrigins,
-```
-
-Why: `ALLOWED_ORIGINS` was documented and validated but ignored by CORS.
-`CLIENT_URL` is always included in the allowlist, so behavior for the current
-frontend is unchanged and consistent with CSRF origin validation.
-
-2. Health endpoint now reports a coarse Redis state without exposing the URL:
-
-```json
-"redis": "connected" | "disconnected" | "memory" | "not_configured"
-```
-
-Why: Render health checks and operators need to distinguish database health
-from Redis availability. No credentials, connection strings, or stack traces
-are exposed.
-
-### 3.3 New `server/.npmrc`
-
-```ini
-include=dev
-```
-
-Why: Render runs with `NODE_ENV=production`, which makes npm omit
-devDependencies. TypeScript and the Prisma CLI are devDependencies. Without
-this, the documented Render build command can fail with `tsc: not found`.
-Verified: `npm ci` under `NODE_ENV=production` installs devDependencies with
-this file in place, and the full build sequence exits 0.
-
-### 3.4 New `server/.node-version`
+Production build includes:
 
 ```text
-24
+ƒ /api/uploads/[...path]
+ƒ /api/v1/[...path]
+ƒ Proxy (Middleware)
 ```
 
-Why: pins Node.js 24.x on Render as required by the project.
-
-### 3.5 New documentation
-
-- `DEPLOYMENT_RENDER_GUIDE.md`
-- `DEPLOYMENT_ENV_CHECKLIST.md`
-- `DEPLOYMENT_VERCEL_GUIDE.md`
-- `DEPLOYMENT_STATUS.md` (this file)
+The E2E script verified status/query/method/body forwarding, cookie and header
+preservation, multiple `Set-Cookie` handling, no-store responses, no backend
+hostname leakage, uploads proxying, 5xx passthrough, OPTIONS support, and CSP
+without the backend origin.
 
 ---
 
-## 4. Files not changed
+## C. Changes made
 
-- No Prisma schema or database changes.
-- No migrations, `db push`, or seed commands were run.
-- No frontend source code was changed.
-- No `.env` or `.env.local` file was modified or committed.
-- No secrets were printed or added.
-- Existing products, categories, orders, users, and media were not touched.
+### Frontend / proxy
 
----
+- Added `client/src/app/api/v1/[...path]/route.ts` and
+  `client/src/app/api/uploads/[...path]/route.ts`.
+- Added server-only `API_PROXY_TARGET` resolver and hardened proxy utilities in
+  `client/src/lib/apiProxyTarget.server.ts` and `client/src/lib/apiProxy.server.ts`.
+- Updated API/asset helpers to use `/api/v1` and `/api/uploads`.
+- Removed backend origin from CSP and image remote patterns.
+- Added 11 proxy unit tests; updated asset URL tests.
+- Hardened login redirects, admin role handling, `AuthContext.login()`, image
+  fallback, error boundary, mobile nav breakpoint, category breadcrumb, shop
+  sort URL sync, disabled/internal `Button` navigation, and Stripe
+  `PaymentElement` mount persistence through checkout review.
+- Validated all hardcoded category links against the existing database; no
+  navigation/footer category links needed changes.
 
-## 5. Exact Render settings
+### Backend / security
 
-| Setting | Value |
-| --- | --- |
-| Root Directory | `server` |
-| Runtime | Node |
-| Node version | 24 (`server/.node-version`) |
-| Branch | `main` |
-| Build Command | `npm ci && npx prisma generate && npm run build` |
-| Start Command | `npm start` |
-| Health Check Path | `/api/health` |
-| Port | Do not set; Render injects `PORT` |
-
-Required environment variables are listed in
-`DEPLOYMENT_ENV_CHECKLIST.md`. The production-blocking ones are:
-
-```text
-NODE_ENV=production
-MONGODB_URI=<existing Atlas URI>
-DATABASE_URL=<same Atlas URI>
-JWT_SECRET=<new random value>
-JWT_REFRESH_SECRET=<different new random value>
-CLIENT_URL=https://voss-two.vercel.app
-CLOUDINARY_CLOUD_NAME=<value>
-CLOUDINARY_API_KEY=<value>
-CLOUDINARY_API_SECRET=<value>
-REDIS_URL=<managed Redis URL>
-COOKIE_SECURE=true
-TRUST_PROXY=1
-```
+- Fixed production entry point to `dist/bootstrap.js`.
+- Added graceful shutdown and fatal-process handlers in `bootstrap.ts`.
+- Strengthened production config validation: database URL, HTTPS client URL,
+  Google redirect URI, cookie SameSite/Secure pairing, Redis requirement, JWT
+  TTL cap of 1 hour, and complete SMTP/Stripe credential pairs.
+- Reduced default access-token lifetime to 15 minutes.
+- Added Google OAuth state cookie and constant-time state verification.
+- Exempted `/api/health` from rate limiting.
+- Escaped transactional email HTML and stripped CRLF from subjects.
+- Added magic-byte image signature validation for JPEG/PNG/WebP uploads.
+- Added ESLint 9 flat config and fixed all lint errors.
+- Repaired media cleanup mocks and removed stray `__*.test.ts` debug artifacts.
+- Added config TTL and image-signature tests.
 
 ---
 
-## 6. Redis requirement
+## D. Remaining owner actions
 
-Redis is **required by default in production**. Startup fails without
-`REDIS_URL` unless `RATE_LIMIT_ALLOW_MEMORY=true` is explicitly set.
-
-Recommended: managed Redis.
-
-- Render Key Value: use the internal `redis://` URL (no TLS on private network).
-- Upstash or another external provider: use the TLS `rediss://` URL.
-
-Temporary single-instance option: `RATE_LIMIT_ALLOW_MEMORY=true`. This is not
-enabled in the repository and requires your approval. Limitations: counters are
-per-process, reset on restart, and are not shared across instances.
-
----
-
-## 7. Exact Vercel settings
-
-| Setting | Value |
-| --- | --- |
-| Root Directory | `client` |
-| Framework | Next.js |
-| Build Command | `npm run build` |
-| Install Command | `npm ci` |
-| Node.js Version | 24.x |
-| Production Branch | `main` |
-
-Required environment variable:
-
-```text
-NEXT_PUBLIC_API_URL=https://<render-service-name>.onrender.com/api/v1
-```
-
-The actual Render hostname is not known until you create the service. Do not use
-`localhost`. After setting or changing this value, trigger a **new production
-deployment**; `NEXT_PUBLIC_*` values are embedded at build time.
-
-Recommended:
-
-```text
-NEXT_PUBLIC_SITE_URL=https://voss-two.vercel.app
-```
+1. Create the Render Web Service:
+   - Root directory: `server`
+   - Runtime: Node 24
+   - Build: `npm ci && npx prisma generate && npm run build`
+   - Start: `npm start`
+   - Health check: `/api/health`
+   - Do not set `PORT` manually.
+2. Create/provision managed Redis and set `REDIS_URL`.
+3. Supply real Cloudinary credentials.
+4. Confirm MongoDB Atlas Network Access allows Render to connect.
+5. Set Render environment variables in `DEPLOYMENT_ENV_CHECKLIST.md` and
+   `DEPLOYMENT_RENDER_GUIDE.md`.
+6. Set Vercel `API_PROXY_TARGET=https://<render-service-name>.onrender.com`.
+7. Commit and push the working tree when ready.
+8. Redeploy Render and Vercel, then verify `/api/v1` calls from the Vercel
+   origin and no direct browser calls to `*.onrender.com`.
 
 ---
 
-## 8. Remaining blockers
+## E. Risks / notes
 
-### Blocked on your account access / approval
-
-1. **Create the Render Web Service** with the settings above.
-2. **Create/provision managed Redis** and set `REDIS_URL` (or explicitly approve
-   the single-instance memory option).
-3. **Provide real Cloudinary credentials** in Render. Production startup
-   validation requires them, and the local `.env` currently has them empty.
-4. **Confirm MongoDB Atlas network access** allows Render to connect. No Atlas
-   settings were changed.
-5. **Set Vercel environment variables** (`NEXT_PUBLIC_API_URL`, recommended
-   `NEXT_PUBLIC_SITE_URL`) and redeploy.
-6. **Commit and push** the changes in this working tree. Nothing was committed
-   or pushed.
-7. **Copy the actual Render URL** into Vercel. The backend URL was intentionally
-   not invented.
-
-### Decision required: cross-domain authentication
-
-The storefront (`voss-two.vercel.app`) and API (`*.onrender.com`) are on
-different registrable domains. Public product browsing works. Cookie-based
-login/session/cart/checkout is not reliable because:
-
-- the SPA cannot read cookies set by a different registrable domain
-  (`voss_csrf`, `voss_auth`), and
-- browsers may block third-party cookies.
-
-Correct options (detailed in `DEPLOYMENT_VERCEL_GUIDE.md`):
-
-- Recommended: put the storefront and API on sibling subdomains of a domain you
-  own, with `COOKIE_DOMAIN=.yourdomain.com` and `COOKIE_SAMESITE=lax`.
-- Alternative: proxy API calls through the Next.js origin so they are
-  first-party.
-
-Do not disable CSRF or blindly rely on `COOKIE_SAMESITE=none` as the fix.
-
-### Pre-existing test failures
-
-The server and client test suites have failures that predate and are unrelated
-to these deployment changes. They are documented above and were not hidden or
-"fixed" by weakening tests. They do not block the production build or catalog
-deployment.
+- Server lint passes with warnings only; most are pre-existing explicit `any`
+  and unused-variable warnings.
+- `npm install --save-dev typescript-eslint@^8.73.0 @eslint/js@^9.39.5`
+  reported npm audit findings: 19 vulnerabilities (5 moderate, 11 high, 3
+  critical). No `npm audit fix` was run.
+- External Render, Vercel, Redis, Cloudinary, and live DNS behavior were not
+  verified because no external deployment or credentials were used.
+- No custom domain was configured. The same-origin proxy removes the need for
+  `SameSite=None` for the current Vercel deployment.
 
 ---
 
-## 9. Owner action checklist
+## F. Database / secrets safety
 
-- [ ] Create Render Web Service (root `server`, Node 24, build/start/health as
-      above)
-- [ ] Add all mandatory Render environment variables
-- [ ] Create managed Redis and set `REDIS_URL` (recommended)
-- [ ] Add Cloudinary credentials
-- [ ] Verify Atlas network access
-- [ ] Deploy backend and confirm `/api/health` and `/api/v1/products`
-- [ ] Copy the Render public URL
-- [ ] Set `NEXT_PUBLIC_API_URL` in Vercel and redeploy
-- [ ] Verify products render on `https://voss-two.vercel.app`
-- [ ] Decide the auth architecture (custom domain or same-origin proxy)
-- [ ] Commit and push the working tree changes when ready
-- [ ] Optionally clean up stray `server/src/__*.test.ts` probe files and repair
-      `media.test.ts`
+- Existing Atlas data was queried read-only only.
+- No migrations, `db push`, seed commands, deletes, updates, or reseeding were
+  run.
+- No `.env` or `.env.local` secret values were printed, committed, or added to
+  documentation.
+- No product, category, order, user, or media records were modified.
 
 ---
 
-## 10. Deployment readiness summary
+## G. Readiness summary
 
 | Area | Status |
 | --- | --- |
-| TypeScript compilation | Ready |
-| Prisma Client generation | Ready |
-| Production build | Ready |
-| Compiled entry point / `npm start` | Ready |
-| Node 24 compatibility | Verified locally (v24.18.0) |
-| PORT handling | Ready (Render injects) |
-| Graceful shutdown | Implemented |
-| Health endpoint | Ready at `/api/health` |
-| MongoDB Atlas read access | Verified |
-| Redis production requirement | Managed Redis recommended; memory opt-in needs approval |
-| CORS for `https://voss-two.vercel.app` | Ready |
-| Cross-domain cookie auth | Needs architecture decision |
-| Cloudinary | Credentials required |
-| Frontend product display | Ready after Vercel env + redeploy |
-| Database safety | No destructive operations performed |
-| Secrets | No secrets exposed or committed |
-| Commit / push / deploy | Not performed (requires your approval) |
+| Frontend code and tests | Ready |
+| Same-origin API proxy | Ready and E2E verified |
+| Backend code, tests, and build | Ready |
+| Production config validation | Ready |
+| Cookie architecture for current domains | Ready via proxy |
+| Redis production requirement | Managed Redis still required |
+| Cloudinary credentials | Owner must supply |
+| Render / Vercel deployment | Owner must create/configure/redeploy |
+| Commit / push / deploy | Not performed |
+| Overall | Code-side ready; deployment blocked only by owner actions |

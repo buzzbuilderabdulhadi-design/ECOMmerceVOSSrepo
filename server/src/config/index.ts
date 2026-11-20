@@ -145,7 +145,7 @@ function parseAllowedOrigins(clientUrl: string): string[] {
   return [...origins];
 }
 
-const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+const clientUrl = (process.env.CLIENT_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
 const config: Config = {
   env: process.env.NODE_ENV || 'development',
@@ -159,7 +159,7 @@ const config: Config = {
   jwt: {
     secret: process.env.JWT_SECRET || '',
     refreshSecret: process.env.JWT_REFRESH_SECRET || '',
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
   client: {
@@ -222,7 +222,9 @@ const config: Config = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirectUri:
       process.env.GOOGLE_REDIRECT_URI ||
-      `http://localhost:3000/auth/google/callback`,
+      ((process.env.NODE_ENV || 'development') === 'production'
+        ? `${clientUrl}/auth/google/callback`
+        : 'http://localhost:3000/auth/google/callback'),
   },
   bankTransfer: {
     enabled: process.env.BANK_TRANSFER_ENABLED === 'true',
@@ -247,7 +249,6 @@ export function validateConfig(): void {
   const requiredInProduction = [
     ['JWT_SECRET', config.jwt.secret],
     ['JWT_REFRESH_SECRET', config.jwt.refreshSecret],
-    ['DATABASE_URL', config.database.url],
     ['CLOUDINARY_NAME', config.cloudinary.name],
     ['CLOUDINARY_API_KEY', config.cloudinary.apiKey],
     ['CLOUDINARY_API_SECRET', config.cloudinary.apiSecret],
@@ -270,7 +271,30 @@ export function validateConfig(): void {
   }
 
   // Production-only checks
+  if (!['lax', 'strict', 'none'].includes(config.cookie.sameSite)) {
+    throw new Error(
+      'Environment variable COOKIE_SAMESITE must be one of: lax, strict, none.'
+    );
+  }
+
   if (config.env === 'production') {
+    const ttlMatch = /^(\d+)([smhd])$/.exec(config.jwt.expiresIn);
+    const ttlMs = ttlMatch
+      ? Number(ttlMatch[1]) * { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[ttlMatch[2] as 's' | 'm' | 'h' | 'd']
+      : Number.POSITIVE_INFINITY;
+    if (ttlMs > 60 * 60 * 1000) {
+      throw new Error(
+        'JWT_EXPIRES_IN must be at most 1h in production so access tokens can be revoked by expiring quickly. Use the default 15m.'
+      );
+    }
+
+    const dbUrl = process.env.MONGODB_URI || process.env.DATABASE_URL || '';
+    if (!dbUrl || dbUrl.startsWith('your_') || /localhost|127\.0\.0\.1/i.test(dbUrl)) {
+      throw new Error(
+        'Environment variable MONGODB_URI (or DATABASE_URL) must be set to the production MongoDB Atlas connection string. Localhost fallbacks are not allowed in production.'
+      );
+    }
+
     for (const [name, value] of requiredInProduction) {
       if (!value || value.startsWith('your_')) {
         throw new Error(
@@ -290,6 +314,23 @@ export function validateConfig(): void {
     if (!/^https:\/\//i.test(config.client.url)) {
       throw new Error(
         'Environment variable CLIENT_URL must be an https:// origin in production so Secure cookies are accepted by browsers.'
+      );
+    }
+
+    try {
+      const redirect = new URL(config.google.redirectUri);
+      if (redirect.protocol !== 'https:') {
+        throw new Error('not https');
+      }
+      if (`${redirect.protocol}//${redirect.host}`.toLowerCase() !== config.client.url.toLowerCase()) {
+        throw new Error('wrong origin');
+      }
+      if (redirect.pathname !== '/auth/google/callback') {
+        throw new Error('wrong path');
+      }
+    } catch {
+      throw new Error(
+        'Google OAuth redirect URI must be https://<CLIENT_URL>/auth/google/callback in production. Set GOOGLE_REDIRECT_URI to that exact value if it is not derived automatically.'
       );
     }
 

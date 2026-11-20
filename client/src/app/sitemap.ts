@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { SITE_URL } from '@/lib/seo';
+import { API_BASE_PATH } from '@/lib/apiPaths';
+import { getApiProxyTarget } from '@/lib/apiProxyTarget.server';
 
 const staticRoutes: { path: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'] }[] = [
   { path: '/', priority: 1, changeFrequency: 'daily' },
@@ -20,11 +22,9 @@ const staticRoutes: { path: string; priority: number; changeFrequency: MetadataR
   { path: '/affiliates', priority: 0.3, changeFrequency: 'monthly' },
 ];
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-
 async function fetchData<T>(path: string): Promise<T[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(`${getApiProxyTarget()}${API_BASE_PATH}${path}`, {
       cache: 'force-cache',
       next: { revalidate: 60 },
     });

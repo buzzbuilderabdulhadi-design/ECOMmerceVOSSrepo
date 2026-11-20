@@ -42,6 +42,15 @@ async function sendEmail(options: MailOptions): Promise<void> {
   });
 }
 
+const escapeHtml = (value: string): string =>
+  String(value).replace(/[&<>'"]/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  })[char] as string);
+
 const money = (value: number, currency: string) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -73,7 +82,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
       <h2 style="font-weight:400">Reset your password</h2>
       <p style="color:#555">We received a request to reset the password for your ZOYA GOODS account.</p>
       <p style="margin:32px 0">
-        <a href="${resetUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+        <a href="${escapeHtml(resetUrl)}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
           Reset Password
         </a>
       </p>
@@ -93,13 +102,13 @@ export async function sendOrderConfirmationEmail(options: {
 }): Promise<void> {
   await sendEmail({
     to: options.to,
-    subject: `Order confirmation ${options.orderNumber} — ZOYA GOODS`,
+    subject: `Order confirmation ${options.orderNumber.replace(/[\r\n]/g, ' ')} — ZOYA GOODS`,
     html: shell(`
-      <h2 style="font-weight:400">Thank you, ${options.name}!</h2>
-      <p style="color:#555">Your order <strong>${options.orderNumber}</strong> (${options.itemCount} item${options.itemCount === 1 ? '' : 's'}, ${money(options.total, options.currency)}) has been received.</p>
+      <h2 style="font-weight:400">Thank you, ${escapeHtml(options.name)}!</h2>
+      <p style="color:#555">Your order <strong>${escapeHtml(options.orderNumber)}</strong> (${options.itemCount} item${options.itemCount === 1 ? '' : 's'}, ${money(options.total, options.currency)}) has been received.</p>
       <p style="color:#555">If you chose an online payment, we will email you once the payment is confirmed and your order moves into processing.</p>
       <p style="margin:28px 0">
-        <a href="${options.orderUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+        <a href="${escapeHtml(options.orderUrl)}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
           View your order
         </a>
       </p>
@@ -117,12 +126,12 @@ export async function sendPaymentConfirmationEmail(options: {
 }): Promise<void> {
   await sendEmail({
     to: options.to,
-    subject: `Payment received for ${options.orderNumber} — ZOYA GOODS`,
+    subject: `Payment received for ${options.orderNumber.replace(/[\r\n]/g, ' ')} — ZOYA GOODS`,
     html: shell(`
       <h2 style="font-weight:400">Payment received</h2>
-      <p style="color:#555">Hi ${options.name}, we received ${money(options.total, options.currency)} for order <strong>${options.orderNumber}</strong>. Your order is now confirmed and will begin processing shortly.</p>
+      <p style="color:#555">Hi ${escapeHtml(options.name)}, we received ${money(options.total, options.currency)} for order <strong>${escapeHtml(options.orderNumber)}</strong>. Your order is now confirmed and will begin processing shortly.</p>
       <p style="margin:28px 0">
-        <a href="${options.orderUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+        <a href="${escapeHtml(options.orderUrl)}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
           Track your order
         </a>
       </p>
@@ -140,12 +149,12 @@ export async function sendOrderStatusEmail(options: {
   const human = options.status.replace(/_/g, ' ').toLowerCase();
   await sendEmail({
     to: options.to,
-    subject: `Your order ${options.orderNumber} is now ${human} — ZOYA GOODS`,
+    subject: `Your order ${options.orderNumber.replace(/[\r\n]/g, ' ')} is now ${human} — ZOYA GOODS`,
     html: shell(`
       <h2 style="font-weight:400">Order update</h2>
-      <p style="color:#555">Hi ${options.name}, your order <strong>${options.orderNumber}</strong> is now <strong>${human}</strong>.</p>
+      <p style="color:#555">Hi ${escapeHtml(options.name)}, your order <strong>${escapeHtml(options.orderNumber)}</strong> is now <strong>${escapeHtml(human)}</strong>.</p>
       <p style="margin:28px 0">
-        <a href="${options.orderUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+        <a href="${escapeHtml(options.orderUrl)}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
           View your order
         </a>
       </p>
@@ -163,12 +172,12 @@ export async function sendContactNotificationEmail(options: {
   if (!recipient) return;
   await sendEmail({
     to: recipient,
-    subject: `[ZOYA GOODS Contact] ${options.subject}`,
+    subject: `[ZOYA GOODS Contact] ${options.subject.replace(/[\r\n]/g, ' ')}`,
     html: shell(`
       <h2 style="font-weight:400">New contact message</h2>
-      <p><strong>From:</strong> ${options.name} &lt;${options.email}&gt;</p>
-      <p><strong>Subject:</strong> ${options.subject}</p>
-      <div style="border-left:3px solid #000;padding-left:14px;color:#555;white-space:pre-wrap">${options.message}</div>
+      <p><strong>From:</strong> ${escapeHtml(options.name)} &lt;${escapeHtml(options.email)}&gt;</p>
+      <p><strong>Subject:</strong> ${escapeHtml(options.subject)}</p>
+      <div style="border-left:3px solid #000;padding-left:14px;color:#555;white-space:pre-wrap">${escapeHtml(options.message)}</div>
     `),
   });
 }
@@ -184,14 +193,14 @@ export async function sendManualPaymentEmail(options: {
 }): Promise<void> {
   await sendEmail({
     to: options.to,
-    subject: `How to complete your payment for ${options.orderNumber} — ZOYA GOODS`,
+    subject: `How to complete your payment for ${options.orderNumber.replace(/[\r\n]/g, ' ')} — ZOYA GOODS`,
     html: shell(`
-      <h2 style="font-weight:400">Almost there, ${options.name}</h2>
-      <p style="color:#555">Your order <strong>${options.orderNumber}</strong> (${money(options.total, options.currency)}) is awaiting payment.</p>
-      <p style="color:#555;white-space:pre-line">${options.instructions}</p>
+      <h2 style="font-weight:400">Almost there, ${escapeHtml(options.name)}</h2>
+      <p style="color:#555">Your order <strong>${escapeHtml(options.orderNumber)}</strong> (${money(options.total, options.currency)}) is awaiting payment.</p>
+      <p style="color:#555;white-space:pre-line">${escapeHtml(options.instructions)}</p>
       <p style="color:#555">Please include your order number as the payment reference. We will confirm your order once the payment is verified.</p>
       <p style="margin:28px 0">
-        <a href="${options.orderUrl}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
+        <a href="${escapeHtml(options.orderUrl)}" style="background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:999px;display:inline-block">
           View your order
         </a>
       </p>

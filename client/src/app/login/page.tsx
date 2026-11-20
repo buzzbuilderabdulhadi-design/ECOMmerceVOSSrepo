@@ -15,9 +15,16 @@ import { useAuth } from '@/context/AuthContext';
 import { getErrorMessage } from '@/services/axios';
 
 function safeRedirect(value: string | null): string {
-  if (!value) return '/';
-  if (!value.startsWith('/') || value.startsWith('//')) return '/';
-  return value;
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
+  if (/[^\x20-\x7E]/.test(value)) return '/';
+  if (/[\\<>"'`]/.test(value)) return '/';
+  try {
+    const target = new URL(value, 'https://zoya.invalid');
+    if (target.origin !== 'https://zoya.invalid') return '/';
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return '/';
+  }
 }
 
 export default function LoginPage() {

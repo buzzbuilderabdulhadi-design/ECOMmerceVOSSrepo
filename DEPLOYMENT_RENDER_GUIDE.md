@@ -215,13 +215,16 @@ MONGODB_URI=<your existing Atlas connection string>
 DATABASE_URL=<same Atlas connection string>
 JWT_SECRET=<new random 64-byte hex>
 JWT_REFRESH_SECRET=<a different new random 64-byte hex>
+JWT_EXPIRES_IN=15m
 CLIENT_URL=https://voss-two.vercel.app
 CLOUDINARY_CLOUD_NAME=<Cloudinary cloud name>
 CLOUDINARY_API_KEY=<Cloudinary API key>
 CLOUDINARY_API_SECRET=<Cloudinary API secret>
 REDIS_URL=<managed Redis URL>
 COOKIE_SECURE=true
+COOKIE_SAMESITE=lax
 TRUST_PROXY=1
+GOOGLE_REDIRECT_URI=https://voss-two.vercel.app/auth/google/callback
 ```
 
 Generate JWT secrets locally and paste them directly into Render (never into
@@ -235,15 +238,12 @@ Run it twice; the two secrets must be different.
 
 `PORT` is provided by Render automatically.
 
-### Cookie settings for the current domains
+### Cookie settings for the current architecture
 
-The current frontend (`voss-two.vercel.app`) and backend
-(`<service>.onrender.com`) are on different registrable domains. See
-`DEPLOYMENT_VERCEL_GUIDE.md` for the authentication caveat before relying on
-account login, cart, or checkout across those two domains.
-
-For the catalog-only launch (products displaying), cookies are not involved in
-public product reads.
+The browser talks only to `https://voss-two.vercel.app`; Next.js route handlers
+forward requests server-side to Render. From the browser's perspective the API
+is same-origin, so keep `COOKIE_SAMESITE=lax`, `COOKIE_SECURE=true`, leave
+`COOKIE_DOMAIN` unset, and set `TRUST_PROXY=1` on Render.
 
 ---
 

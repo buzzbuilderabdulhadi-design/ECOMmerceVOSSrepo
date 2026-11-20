@@ -8,7 +8,11 @@ import axios, {
 // Axios Instance Configuration
 // ============================================================
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+import { API_BASE_PATH } from '@/lib/apiPaths';
+
+// All browser API traffic stays on this site's origin. The Next.js route
+// handler at /api/v1 forwards it server-side to the configured backend.
+const API_BASE_URL = API_BASE_PATH;
 
 export { API_BASE_URL };
 

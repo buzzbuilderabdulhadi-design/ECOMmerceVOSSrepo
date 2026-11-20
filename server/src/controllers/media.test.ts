@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Request, Response } from 'express';
-import fs from 'fs';
 
+vi.mock('../utils/tempCleanup', () => ({
+  cleanupTempFile: vi.fn(),
+}));
+vi.mock('../utils/imageSignature', () => ({
+  assertImageSignature: vi.fn(),
+}));
 vi.mock('../config/cloudinary', () => ({
   uploadImage: vi.fn(),
   deleteImage: vi.fn(),
@@ -16,12 +21,13 @@ vi.mock('../config/db', () => ({
 import { uploadFile, uploadMultiple } from './media.controller';
 import { uploadImage, deleteImage, requireCloudinaryConfigured } from '../config/cloudinary';
 import prisma from '../config/db';
+import { cleanupTempFile } from '../utils/tempCleanup';
 
 const mockUploadImage = vi.mocked(uploadImage);
 const mockDeleteImage = vi.mocked(deleteImage);
 const mockRequireCloudinary = vi.mocked(requireCloudinaryConfigured);
 const mockMediaCreate = vi.mocked(prisma.media.create);
-const mockUnlink = vi.spyOn(fs.promises, 'unlink');
+const mockCleanupTempFile = vi.mocked(cleanupTempFile);
 
 function mockRes() {
   const res: any = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
@@ -39,7 +45,6 @@ const baseFile = {
 beforeEach(() => {
   vi.resetAllMocks();
   mockRequireCloudinary.mockImplementation(() => undefined);
-  mockUnlink.mockResolvedValue(undefined);
 });
 
 describe('POST /media/upload (media.controller)', () => {
@@ -87,7 +92,7 @@ describe('POST /media/upload (media.controller)', () => {
       },
     });
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(mockUnlink).toHaveBeenCalledWith(baseFile.path);
+    expect(mockCleanupTempFile).toHaveBeenCalledWith(baseFile.path);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -128,7 +133,7 @@ describe('POST /media/upload (media.controller)', () => {
     await uploadFile(mockReq({ ...baseFile }), res, next);
     expect(mockDeleteImage).toHaveBeenCalledWith('zoya-goods/abc');
     expect(next).toHaveBeenCalledWith(dbError);
-    expect(mockUnlink).toHaveBeenCalledWith(baseFile.path);
+    expect(mockCleanupTempFile).toHaveBeenCalledWith(baseFile.path);
   });
 
   it('no file uploaded returns success without touching storage', async () => {
@@ -186,7 +191,7 @@ describe('POST /media/upload-multiple (media.controller)', () => {
     expect(mockDeleteImage).toHaveBeenCalledWith('zoya-goods/a');
     expect(mockDeleteImage).toHaveBeenCalledWith('zoya-goods/b');
     expect(next).toHaveBeenCalled();
-    expect(mockUnlink).toHaveBeenCalledWith('/tmp/a');
-    expect(mockUnlink).toHaveBeenCalledWith('/tmp/b');
+    expect(mockCleanupTempFile).toHaveBeenCalledWith('/tmp/a');
+    expect(mockCleanupTempFile).toHaveBeenCalledWith('/tmp/b');
   });
 });

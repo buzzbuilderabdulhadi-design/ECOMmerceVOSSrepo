@@ -8,7 +8,7 @@ import { getErrorMessage } from '@/services/axios';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { login, isLoading, error, clearError } = useAuth();
+  const { login, logout, isLoading, error, clearError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState('');
@@ -19,7 +19,12 @@ export default function AdminLoginPage() {
     clearError();
     if (!email || !password) { setLocalError('Please fill in all fields'); return; }
     try {
-      await login({ email, password });
+      const user = await login({ email, password });
+      if (user.role !== 'ADMIN') {
+        await logout().catch(() => undefined);
+        setLocalError('This account does not have administrator access.');
+        return;
+      }
       router.push('/admin');
     } catch (err) {
       setLocalError(getErrorMessage(err) || 'Login failed');

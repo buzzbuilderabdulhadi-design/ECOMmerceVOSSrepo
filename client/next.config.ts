@@ -2,16 +2,6 @@ import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
 
-const apiOrigin = (() => {
-  try {
-    return new URL(
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"
-    ).origin;
-  } catch {
-    return "";
-  }
-})();
-
 // Next.js static pages embed inline bootstrap scripts, so a nonce-based policy
 // would require forcing every page into dynamic rendering. This policy keeps
 // inline framework scripts working while blocking third-party script injection,
@@ -23,12 +13,14 @@ const scriptSrc = [
   ...(isProd ? [] : ["'unsafe-eval'"]),
 ].join(" ");
 
+// Browser API calls are same-origin (/api/v1) and are forwarded by a Next.js
+// route handler using the server-only API_PROXY_TARGET. No backend origin is
+// exposed to the browser or listed in the CSP.
 const connectSrc = [
   "'self'",
-  apiOrigin,
   "https://api.stripe.com",
   "https://*.paypal.com",
-].filter(Boolean).join(" ");
+].join(" ");
 
 const csp = [
   "default-src 'self'",
@@ -64,17 +56,6 @@ const nextConfig: NextConfig = {
         hostname: "res.cloudinary.com",
         pathname: "/**",
       },
-      // Legacy local media served by the API under /uploads. The hostname is
-      // derived from NEXT_PUBLIC_API_URL so images stored before Cloudinary
-      // was configured keep rendering in production. Omitted when the API
-      // origin cannot be parsed (e.g. unset in production builds).
-      ...(apiOrigin ? [
-        {
-          protocol: new URL(apiOrigin).protocol.replace(':', '') as "http" | "https",
-          hostname: new URL(apiOrigin).hostname,
-          pathname: "/uploads/**",
-        },
-      ] : []),
       {
         protocol: "https",
         hostname: "via.placeholder.com",
@@ -97,7 +78,6 @@ const nextConfig: NextConfig = {
 
   // Environment variables exposed to client
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_CLOUDINARY_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_NAME,
   },

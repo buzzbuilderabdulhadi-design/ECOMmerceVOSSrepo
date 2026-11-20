@@ -3,6 +3,7 @@ import { uploadImage, deleteImage, isCloudinaryReady, requireCloudinaryConfigure
 import config from '../config';
 import prisma from '../config/db';
 import { sendSuccess, sendCreated } from '../utils/apiResponse';
+import { assertImageSignature } from '../utils/imageSignature';
 import { cleanupTempFile } from '../utils/tempCleanup';
 
 const CLOUDINARY_FOLDER = 'zoya-goods';
@@ -14,6 +15,7 @@ const CLOUDINARY_FOLDER = 'zoya-goods';
  */
 const cloudinaryUpload = async (file: any, folder: string) => {
   requireCloudinaryConfigured();
+  await assertImageSignature(file.path, file.mimetype);
   return uploadImage(file.path, 'product', undefined);
 };
 

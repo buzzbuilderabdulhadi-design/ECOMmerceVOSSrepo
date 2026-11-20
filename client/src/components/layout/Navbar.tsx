@@ -332,7 +332,7 @@ export function Navbar({ className }: NavbarProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="bg-cinematic-deep fixed inset-0 z-[80] flex flex-col grain lg:hidden"
+              className="bg-cinematic-deep fixed inset-0 z-[80] flex flex-col grain xl:hidden"
               role="dialog"
               aria-modal="true"
               aria-label="Menu"

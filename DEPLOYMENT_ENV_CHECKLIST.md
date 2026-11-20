@@ -54,7 +54,7 @@ message names `DATABASE_URL`. Set both to the same Atlas URI to avoid confusion.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `JWT_EXPIRES_IN` | `7d` | Access token lifetime |
+| `JWT_EXPIRES_IN` | `15m` | Access token lifetime; production rejects values over `1h` |
 | `JWT_REFRESH_EXPIRES_IN` | `30d` | Refresh token lifetime |
 
 ### 1.5 Optional integrations
@@ -94,6 +94,8 @@ Pair rules enforced by production validation:
 - `EMAIL_USER` and `EMAIL_PASSWORD` must both be set or both be empty.
 - `STRIPE_WEBHOOK_SECRET` is required if `STRIPE_SECRET_KEY` is set.
 - `COOKIE_SAMESITE=none` requires secure cookies.
+- `JWT_EXPIRES_IN` must not exceed `1h` in production.
+- `GOOGLE_REDIRECT_URI` must be `https://<CLIENT_URL>/auth/google/callback` in production.
 - `REDIS_URL`, when present, must start with `redis://` or `rediss://`.
 
 ### 1.6 Do not set
@@ -109,17 +111,19 @@ Pair rules enforced by production validation:
 
 | Variable | Status | Purpose | Value guidance |
 | --- | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | R | Base URL for every catalog/cart/checkout/auth API call; also used to build the CSP `connect-src` and the image remote pattern for `/uploads` | `https://<render-service-name>.onrender.com/api/v1` — no trailing slash |
+| `API_PROXY_TARGET` | R | Server-only Render base URL used by the Next.js `/api/v1` and `/api/uploads` route handlers | `https://<render-service-name>.onrender.com` — no path, no trailing slash |
 | `NEXT_PUBLIC_SITE_URL` | O | Canonical site URL for metadata, robots, sitemap | `https://voss-two.vercel.app` |
 | `NEXT_PUBLIC_APP_NAME` | O | Display/app name | `ZOYA GOODS` |
 | `NEXT_PUBLIC_CLOUDINARY_NAME` | O | Exposed Cloudinary cloud name, if used by the frontend | Your Cloudinary cloud name |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | O | Enables Stripe Elements in checkout | Stripe Dashboard → Developers → API keys (publishable key only) |
 
-`NEXT_PUBLIC_*` values are embedded in the frontend bundle at build time.
-Changing any of them requires a new Vercel deployment.
+`API_PROXY_TARGET` is read only by server-side Next.js route handlers and must
+never use a `NEXT_PUBLIC_` prefix. The browser calls same-origin `/api/v1/...`
+and stays on the Vercel origin for cookies, CSRF, and uploads.
 
-Never put a backend secret behind a `NEXT_PUBLIC_` prefix. Anything prefixed
-this way is public.
+`NEXT_PUBLIC_*` values are embedded in the frontend bundle at build time.
+Changing any of them requires a new Vercel deployment. Never put a backend
+secret behind a `NEXT_PUBLIC_` prefix.
 
 ---
 

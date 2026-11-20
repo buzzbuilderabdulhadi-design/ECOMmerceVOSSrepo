@@ -11,6 +11,8 @@ import { LookbookEditorial } from '@/components/home/LookbookEditorial';
 import { BrandStory } from '@/components/home/BrandStory';
 import { pageMetadata } from '@/lib/seo';
 import { serverGet } from '@/lib/serverApi';
+import { API_BASE_PATH } from '@/lib/apiPaths';
+import { getApiProxyTarget } from '@/lib/apiProxyTarget.server';
 import { toCategoryTiles, toProductCardData, type CategoryTile } from '@/lib/catalog';
 import type { Metadata } from 'next';
 import type { ApiResponse, Category, Product } from '@/types';
@@ -18,15 +20,13 @@ import type { ProductCardData } from '@/components/product/ProductCard';
 
 export const metadata: Metadata = pageMetadata({ path: '/' });
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-
 async function getProductList(path: string, revalidate: number, limit?: number): Promise<ProductCardData[]> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500);
     try {
       const query = limit ? `?limit=${limit}` : '';
-      const res = await fetch(`${API_BASE_URL}${path}${query}`, {
+      const res = await fetch(`${getApiProxyTarget()}${API_BASE_PATH}${path}${query}`, {
         cache: 'force-cache',
         next: { revalidate },
         signal: controller.signal,

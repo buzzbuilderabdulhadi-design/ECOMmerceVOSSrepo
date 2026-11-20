@@ -6,6 +6,7 @@ export const ACCESS_COOKIE = 'voss_access_token';
 export const REFRESH_COOKIE = 'voss_refresh_token';
 export const CSRF_COOKIE = 'voss_csrf';
 export const AUTH_MARKER_COOKIE = 'voss_auth';
+export const OAUTH_STATE_COOKIE = 'voss_oauth_state';
 
 const isProduction = config.env === 'production';
 
@@ -32,6 +33,20 @@ function maxAgeFromToken(token: string): number {
 
 function createCsrfToken(): string {
   return crypto.randomBytes(32).toString('base64url');
+}
+
+const OAUTH_STATE_MAX_AGE = 10 * 60 * 1000;
+
+export function setOAuthStateCookie(res: Response, state: string): void {
+  res.cookie(OAUTH_STATE_COOKIE, state, {
+    ...baseCookie,
+    httpOnly: true,
+    maxAge: OAUTH_STATE_MAX_AGE,
+  });
+}
+
+export function clearOAuthStateCookie(res: Response): void {
+  res.clearCookie(OAUTH_STATE_COOKIE, baseCookie);
 }
 
 export function setAuthCookies(

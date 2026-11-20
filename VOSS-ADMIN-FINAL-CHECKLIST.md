@@ -55,10 +55,10 @@
 | JWT secrets in environment variables | ✅ | Both `JWT_SECRET` and `JWT_REFRESH_SECRET` set in `.env` with strong random values; `validateConfig()` enforces >= 32 chars |
 | Access and refresh tokens use separate secrets | ✅ | Distinct 192-char hex values for `JWT_SECRET` and `JWT_REFRESH_SECRET` |
 | No admin credentials hardcoded in frontend | ✅ | No password references in client code |
-| No secrets exposed to client | ✅ | Client env only has `NEXT_PUBLIC_API_URL` |
+| No secrets exposed to client | ✅ | Browser uses same-origin `/api/v1`; `API_PROXY_TARGET` is server-only |
 | Admin credentials not committed to Git | ✅ | `.env` is gitignored; `seed.ts` reads `ADMIN_EMAIL`/`ADMIN_PASSWORD` from env vars (no hardcoded credentials) |
 | Admin password can be changed securely | ✅ | `PUT /auth/password` (`auth.routes.ts:11`) |
-| Access/refresh token expiration works | ✅ | 7d/30d configured; `TokenExpiredError` handled in middleware |
+| Access/refresh token expiration works | ✅ | 15m/30d configured; production rejects access tokens over 1h |
 
 **BREAKDOWN:**
 - ✅ **Refresh secret now set** — `JWT_REFRESH_SECRET` added to `.env` with a strong random value; fallback removed from `config/index.ts`; `validateConfig()` now requires both JWT secrets (>= 32 chars) in ALL environments.
@@ -660,7 +660,7 @@
 
 | Item | Status | Notes |
 |------|--------|-------|
-| No secrets in frontend | ✅ | Only `NEXT_PUBLIC_API_URL` |
+| No secrets in frontend | ✅ | Browser uses same-origin `/api/v1`; no backend origin or secret in bundle |
 | No API keys exposed | ✅ | |
 | No passwords in source code | ❌ | **`admin123` hardcoded in `prisma/seed.ts:10`** — committed to git |
 | `.env` is gitignored | ✅ | Root `.gitignore:15-20` |

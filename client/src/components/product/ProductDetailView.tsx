@@ -31,7 +31,7 @@ interface DetailProduct {
   id: string; name: string; slug: string; sku: string;
   description: string; regularPrice: number; salePrice?: number;
   discountPercent?: number; images: string[]; brand: string;
-  category: string; subcategoryName: string;
+  category: string; categorySlug: string; subcategoryName: string;
   rating: number; reviewCount: number;
   colors: { name: string; hex: string }[];
   sizes: string[]; stock: number; material: string;
@@ -51,7 +51,7 @@ function mapToDetail(p: ProductDetail): DetailProduct | null {
     description: p.description || '',
     regularPrice: p.regularPrice, salePrice: p.salePrice, discountPercent: p.discountPercent,
     images: p.images?.map((i) => typeof i === 'string' ? i : i.url) || [],
-    brand: p.brand || '', category: p.category?.name || '', subcategoryName: p.category?.name || '',
+    brand: p.brand || '', category: p.category?.name || '', categorySlug: p.category?.slug || '', subcategoryName: p.category?.name || '',
     rating: reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0,
     reviewCount: reviews.length,
     colors: Array.from(colorsMap.entries()).map(([name, hex]) => ({ name, hex })),
@@ -158,7 +158,7 @@ export function ProductDetailView({ product, related }: ProductDetailViewProps) 
             items={[
               { label: 'Home', href: '/' },
               { label: 'Shop', href: '/shop' },
-              { label: detailProduct.subcategoryName || detailProduct.category, href: `/category/${(detailProduct.subcategoryName || detailProduct.category).toLowerCase().replace(/\s+/g, '-')}` },
+              { label: detailProduct.subcategoryName || detailProduct.category, href: detailProduct.categorySlug ? `/category/${detailProduct.categorySlug}` : '/shop' },
               { label: detailProduct.name },
             ]}
           />

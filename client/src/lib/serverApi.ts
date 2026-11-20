@@ -1,5 +1,5 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+import { API_BASE_PATH } from './apiPaths';
+import { getApiProxyTarget } from './apiProxyTarget.server';
 
 export interface PaginationMeta {
   page: number;
@@ -41,7 +41,7 @@ async function request<T>(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
     try {
-      const res = await fetch(`${API_BASE_URL}${path}`, {
+      const res = await fetch(`${getApiProxyTarget()}${API_BASE_PATH}${path}`, {
         next: { revalidate },
         signal: controller.signal,
       });
@@ -106,5 +106,3 @@ export async function serverGetWithStatus<T>(
   }
   return { data: null, ok: false, notFound: status === 404 };
 }
-
-export { API_BASE_URL };

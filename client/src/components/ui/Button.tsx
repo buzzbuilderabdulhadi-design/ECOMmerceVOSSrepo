@@ -1,6 +1,7 @@
 'use client';
 
 import React, { forwardRef, ButtonHTMLAttributes, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -70,6 +71,7 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
     },
     ref
   ) => {
+    const router = useRouter();
     const innerRef = useRef<ButtonElement | null>(null);
     const [ripples, setRipples] = useState<Array<{ x: number; y: number; id: number }>>([]);
     const mx = useMotionValue(0);
@@ -91,7 +93,19 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
     };
 
     const handleClick = (e: React.MouseEvent<ButtonElement>) => {
-      if (isRipple && !disabled && !isLoading) {
+      if (disabled || isLoading) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      const isModified = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+      if (href && href.startsWith('/') && !href.startsWith('//') && !isModified) {
+        e.preventDefault();
+        router.push(href);
+      }
+
+      if (isRipple) {
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -108,7 +122,7 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
       /* overflow-hidden is required here: the click ripple is a 20px circle
          that scales 4x and would otherwise escape the pill. Button text is
          vertically centred inside a min-height box, so it is never clipped. */
-      'relative inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium tracking-[0.16em] uppercase transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-porcelain disabled:pointer-events-none disabled:opacity-50',
+      'relative inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium tracking-[0.16em] uppercase transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-porcelain disabled:pointer-events-none data-[disabled]:pointer-events-none disabled:opacity-50 data-[disabled]:opacity-50',
       'group/btn',
       variants[variant],
       sizes[size],
@@ -157,7 +171,7 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
       onMouseMove: handleMove,
       onMouseLeave: handleLeave,
       style: { x: sx, y: sy },
-      whileTap: { scale: 0.97 },
+      whileTap: disabled || isLoading ? undefined : { scale: 0.97 },
       onClick: handleClick,
       className: sharedClassNames,
     };
@@ -183,6 +197,7 @@ const Button = forwardRef<ButtonElement, ButtonProps>(
           {...(motionProps as object)}
           aria-disabled={disabled || isLoading || undefined}
           data-disabled={disabled || isLoading || undefined}
+          tabIndex={disabled || isLoading ? -1 : undefined}
         >
           {rippleContent}
         </motion.a>
